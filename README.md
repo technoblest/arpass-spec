@@ -15,9 +15,10 @@
 | [`lib/vault-crypto.js`](lib/vault-crypto.js) | すべての暗号処理（鍵導出、暗号化、復号、Passkey 連携、Recovery 派生） |
 | [`lib/vault-client.js`](lib/vault-client.js) | envelope の構築、保存、ロード、多端末同期、Recovery 再発行 |
 | [`lib/client-auth.js`](lib/client-auth.js) | Ed25519 署名による API 認証、Arweave からのデータ取得 |
-| [`docs/envelope-v4.md`](docs/envelope-v4.md) | エンベロープ JSON 構造の仕様 |
-| [`docs/arweave-tags.md`](docs/arweave-tags.md) | Arweave トランザクションタグの意味と匿名化方針 |
-| [`docs/crypto-rationale.md`](docs/crypto-rationale.md) | 採用したアルゴリズムの選定理由 |
+| [`docs/envelope-v5.md`](docs/envelope-v5.md) | **現行** v5 エンベロープ JSON 構造 + 外側暗号化の仕様 |
+| [`docs/envelope-v4.md`](docs/envelope-v4.md) | (履歴) v4 エンベロープ仕様 — Arweave 上に過去 v4 が残っているため参照可能 |
+| [`docs/arweave-tags.md`](docs/arweave-tags.md) | Arweave トランザクションタグの意味と匿名化方針 (v4.1 / v5 反映) |
+| [`docs/crypto-rationale.md`](docs/crypto-rationale.md) | 採用したアルゴリズムの選定理由 (v5 追加分含む) |
 
 これらだけで「Arpass がブラウザ上で何を暗号化しサーバーに何を送っているか」が完全に追跡可能です。
 
@@ -40,25 +41,34 @@ Arpass は **「2 of 3 復旧方式」**の鍵管理を採用しています。
 
   P  Master password    （ユーザの記憶）
   K  Passkey PRF        （端末の生体認証）
-  R  Recovery Secret    （紙等で保管）
+  R  Recovery Secret    （紙等で保管。Phase 4.95 で QR 化対応）
 
 3 種類の "wrap":
 
-  wraps.pr   = AES-GCM(k_vault, KEK(P, R))    1 個 / vault
-  wraps.pk[] = AES-GCM(k_vault, KEK(P, K))    端末ごとに 1 個
-  wraps.kr[] = AES-GCM(k_vault, KEK(K, R))    端末ごとに 1 個
+  wraps.pr   = AES-GCM(MEK, KEK(P, R))    1 個 / vault
+  wraps.pk[] = AES-GCM(MEK, KEK(P, K))    端末ごとに 1 個
+  wraps.kr[] = AES-GCM(MEK, KEK(K, R))    端末ごとに 1 個
 
-すべての wrap を unwrap した結果は同一の k_vault。
-本体ciphertext = AES-256-GCM(vault_json, k_vault, iv) で 1 個。
+すべての wrap を unwrap した結果は同一の MEK (Master Encryption Key)。
+本体 ciphertext = AES-256-GCM(MEK, iv, vault_json) で 1 個。
+
+v5 では更に、上記エンベロープ全体を AES-256-GCM(HKDF(vault-id), iv) で
+外側からもう一度暗号化して Arweave に書き込む (Arweave 上の bytes は
+完全な乱数バイト列に見える)。
 ```
 
-サーバーが見られるのは:
-- 不透明な ciphertext (k_vault なしには復号不能)
-- wraps の暗号文（KEK 無しには unwrap 不能）
-- 匿名のドライブ ID（公開鍵のハッシュ）
+サーバー (Cloudflare KV) が見られるのは v5 以降:
+- ユーザーの公開鍵 (ECDSA P-256、元々公開可能な値)
 - 残高情報（クレジット数）
+- 書き込み回数等の運用統計
 
-→ **k_vault の一切は端末の中だけ** に存在し、サーバーには到達しません。詳細は [`docs/envelope-v4.md`](docs/envelope-v4.md)。
+サーバーには **存在しない** もの:
+- vault-id (v5 でサーバ側完全撤去 — Cloudflare 運用者を侵害しても出ない)
+- ciphertext / 暗号化された envelope (Arweave に直接書き、サーバは中継しない)
+- Master password / Passkey PRF / Recovery Secret のいずれの素材も
+
+→ **MEK の一切は端末の中だけ** に存在し、サーバーには到達しません。
+詳細は [`docs/envelope-v5.md`](docs/envelope-v5.md)。
 
 ---
 
@@ -71,7 +81,9 @@ Arpass は **「2 of 3 復旧方式」**の鍵管理を採用しています。
 | 対称暗号 | AES-256-GCM | 12-byte IV, 16-byte tag |
 | 端末認証 | WebAuthn PRF 拡張 | 32-byte PRF output |
 | API 署名 | ECDSA P-256 (SHA-256) | per-vault keypair |
-| Recovery 文字列 | base32, 192 bit エントロピー | 8 グループ × 4 文字 |
+| Recovery 文字列 | base32, 160 bit エントロピー | 8 グループ × 4 文字 (RS1- 接頭辞付き、Phase 4.95 で QR 化) |
+| 署名鍵 (v5) | ECDSA P-256, HKDF(MEK) で決定論派生 | Arweave に保存しない、毎セッション再導出 |
+| 外側暗号化 (v5) | AES-256-GCM, HKDF(vault-id) | Arweave 上で JSON 構造を隠す |
 
 すべて **ブラウザ標準の Web Crypto API** で実装。外部暗号ライブラリには依存しません。
 

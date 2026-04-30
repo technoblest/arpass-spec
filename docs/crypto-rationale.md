@@ -152,3 +152,115 @@ PRF_output = authenticator.PRF(credential_id, salt = "arpass-passkey-prf-v1")
 ### PRF 非対応認証器への対応
 
 PRF 拡張未対応の認証器（古い Android 等）では `prf.enabled` が false で返ります。この場合、Passkey 経由の wrap (`wraps.pk`、`wraps.kr`) は作成できず、ユーザは Password+Recovery (P+R) だけで vault にアクセスする形になります。
+
+---
+
+# v5 で追加された設計判断
+
+v5 (2026-04) では既存の暗号プリミティブ選定はそのまま維持しつつ、**運用面・流出経路に関する 3 つの新設計**を追加しました。それぞれの採用理由を以下に記述します。
+
+## 外側 AES-GCM 層
+
+### なぜ追加したか
+
+v4.1 までの envelope は JSON のまま Arweave に書かれていたため、第三者が以下の攻撃で「これは Arpass の vault だ」と特定可能でした:
+
+```
+1. Arweave 全件を download
+2. 各 body を JSON.parse
+3. キー集合が {v, k, i, c, w, d} と一致 → Arpass v4 envelope
+4. キー集合が {v, s, i, c, w}    と一致 → Arpass v5 envelope (※外側無しの場合)
+5. サイズが ~110 KiB → 確度 +
+```
+
+これは**機密性の侵害ではなく、サービス利用の事実が漏れる**問題です。誰がいつどれくらい Arpass を使っているか、ユーザー数の推移、競合分析、政治的圧力下でのターゲティング等に悪用可能です。
+
+### 採用方針
+
+エンベロープ JSON 全体をさらに `AES-256-GCM(HKDF(vault-id), iv)` で暗号化してから Arweave に書き込む。これにより:
+
+- Arweave 上の bytes は完全な乱数バイト列に見える
+- JSON 構造・フィールド名・暗号アルゴリズム名・サイズ分布などのフィンガープリントが消える
+- `vault-id` を知らない第三者は復号もできない (vault-id はサーバ・Arweave のどこにも露出しない)
+
+### なぜ HKDF(vault-id) か
+
+外側鍵は本来 Arpass の脅威モデル上は「秘密」である必要はなく、obfuscation 用途として `vault-id` を流用するのが最も簡単です。重要な性質:
+
+- **クライアント本人だけが導出できる** (vault-id がサーバ・Arweave のどこにも無い)
+- 端末復旧時も Recovery Secret から vault-id が再導出できるので外側鍵も再生成可能
+- 複数端末で同じ vault に書き込んでも、同じ vault-id → 同じ outer_key で読める
+
+### なぜ別の独立した「外側秘密鍵」を作らなかったか
+
+理論的には MEK とは別の独立した「outer secret」を生成してさらに wrap で 3 通りに包む選択肢もあります。しかしこれだと:
+
+- wrap が二重構造になり実装複雑化
+- 端末追加時に「outer secret の wrap」も追加する必要がある
+- Recovery 再発行でも「outer secret の rotation」を考えないといけない
+
+Arpass の脅威モデルでは「Arpass の存在を Arweave 上で隠す」ことが目的なので、**vault-id を流用**するシンプル設計で十分と判断しました。
+
+## 署名鍵を MEK から決定論派生
+
+### なぜ決定論派生か
+
+v4.1 では署名鍵 (ECDSA P-256 private key) を本体 ciphertext の中に同梱して保存していました。これは以下の問題を持ちます:
+
+- **SNDL (Store Now Decrypt Later) リスク**: Arweave は永久に消えないので、将来 PBKDF2 / AES-GCM が破られた瞬間に過去の署名鍵が全部抽出される
+- **量子耐性の問題**: 量子コンピュータで ECDSA P-256 が破られた場合、過去の署名から秘密鍵が逆算可能になる
+- **「鍵の保存場所」が一つ増えるとそれだけ攻撃面が増える**
+
+v5 では `HKDF(MEK, "arpass-signing-key-v5")` で署名鍵を都度派生する方式に変えました。MEK は元々本体 c の暗号化に使う鍵なので、追加の保管場所は発生しません。
+
+### 同じ MEK → 同じ Q が必須
+
+派生方式が機能するには「MEK が同じなら出てくる (d, Q) も毎回必ず同じ」という決定論性が必要です。HKDF の出力は input が同じなら常に同じなので OK。これにより:
+
+- 別端末でユーザーが Recovery + Master で復元 → 同じ MEK → 同じ Q
+- サーバ側の KV キー `H(Q)` も同じ → 同じアカウントの残高にアクセス可能
+
+「アカウント連続性」がユーザーの何の操作もなしに自動的に保証されます。
+
+### Web Crypto API では point multiplication ができない
+
+ECDSA 鍵を「seed bytes から作る」ことは Web Crypto API の標準では直接サポートされていません。`generateKey({name: "ECDSA"})` は内部 RNG で乱数を作るだけで、外部から seed を与えられません。
+
+このため v5 実装では `@noble/curves/p256` (TypeScript 製、~30 KB、独立監査済み) を使って `Q = d × G` の point multiplication を行い、結果を JWK 形式で `crypto.subtle.importKey` に渡す方式を取ります。`@noble/curves` は Bitwarden、Nostr 等で広く採用されている品質の高いライブラリです。
+
+## サーバ KV を publicKey ベースに
+
+### なぜ vault-id をサーバから消すか
+
+v4.1 までは Cloudflare KV のキーが `vault-id` で、クライアントは `X-Vault-Id` ヘッダで vault-id を毎リクエスト送っていました。これは以下のリスクを持ちます:
+
+- **Cloudflare 運用者を侵害された場合に vault-id が漏れる** (KV 全件読み取り、ログ収集)
+- **vault-id が Arweave の検索キーにもなっている** ので、漏れた vault-id から「誰が、いつ、何を書いたか」を Arweave 上で逆引きできてしまう
+
+v5 では:
+
+- KV キーを `H(publicKey)` に変更
+- クライアントは `X-Public-Key` (publicKey そのもの) + `X-Signature` (ECDSA 署名) を送る
+- サーバは publicKey で署名検証 → `H(publicKey)` で KV ルックアップ
+- vault-id を一切受信・保存しない
+
+### publicKey は元々公開なので問題ない
+
+publicKey は本来「公開して問題ない値」(公開鍵暗号の前提) です。これがサーバ側に保存されても流出しても、Arweave 検索の手がかりにはなりません (Arweave 側は別の HMAC 由来の `App-Name` で識別される)。
+
+つまり v5 設計は **「Cloudflare が知るべき情報」と「Arweave が見られる情報」を完全に分離**します:
+
+| データ | Cloudflare KV | Arweave |
+|---|---|---|
+| publicKey | ✅ (識別子として) | ❌ |
+| vault-id | ❌ | ❌ (タグにも本体にも無い) |
+| App-Name タグ | ❌ | ✅ (HKDF(Recovery)) |
+| 暗号化された vault | ❌ | ✅ (外側暗号化済 blob) |
+
+どの 1 か所が侵害されても他の系を識別できない、という直交性を達成しています。
+
+### なぜ「サーバが publicKey を保存する」のはセキュリティ的に許容されるか
+
+publicKey は元来公開可能な値であり、攻撃者が知っても暗号学的に得るものは無いから (= 対応する秘密鍵が無いと署名できない)。一方で publicKey 経由のサービス機能 (audit log、暗号化通知、匿名統計、anomaly detection 等) を将来導入する余地が残ります。
+
+「publicKey はサーバに保存する」 vs 「毎リクエスト送るので保存不要」のどちらでも機能しますが、運用機能の拡張余地のため v5 では KV value 内に publicKey を保存することを推奨しています (任意)。
