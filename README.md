@@ -12,9 +12,11 @@
 
 | 場所 | 内容 |
 |---|---|
-| [`lib/vault-crypto.js`](lib/vault-crypto.js) | すべての暗号処理（鍵導出、暗号化、復号、Passkey 連携、Recovery 派生） |
-| [`lib/vault-client.js`](lib/vault-client.js) | envelope の構築、保存、ロード、多端末同期、Recovery 再発行 |
-| [`lib/client-auth.js`](lib/client-auth.js) | Ed25519 署名による API 認証、Arweave からのデータ取得 |
+| [`lib/vault-crypto.js`](lib/vault-crypto.js) | すべての暗号処理（v5 envelope の生成・復号、KEK 導出、外側 AES-GCM、HKDF(MEK) からの ECDSA 鍵派生、Recovery Secret 文字列フォーマット 等） |
+| [`lib/vault-client.js`](lib/vault-client.js) | ハイレベル vault 操作 (createVault / 3 unlock パス / saveVault / addCredential / changePassword / Recovery rotation Case A & B / Stripe Checkout) |
+| [`lib/client-auth.js`](lib/client-auth.js) | API 認証 (X-Public-Key + ECDSA 署名)、Arweave からのデータ取得 (Turbo + arweave.net 並列、外側 AES-GCM 復号)、tx status (GraphQL + L1 status) |
+| [`lib/vendor/noble-curves-and-hashes.mjs`](lib/vendor/noble-curves-and-hashes.mjs) | @noble/curves v2 + @noble/hashes v2 の必要部分を esbuild で 1 ファイル化 (~70 KB)。p256 / sha256 / hkdf / hmac / mod を提供。MIT (Paul Miller)。Web Crypto API は ECDSA P-256 鍵を seed bytes から決定論派生できないため必要 |
+| [`lib/vendor/LICENSE-noble`](lib/vendor/LICENSE-noble) | @noble ライセンス全文 |
 | [`docs/envelope-v5.md`](docs/envelope-v5.md) | **現行** v5 エンベロープ JSON 構造 + 外側暗号化の仕様 |
 | [`docs/envelope-v4.md`](docs/envelope-v4.md) | (履歴) v4 エンベロープ仕様 — Arweave 上に過去 v4 が残っているため参照可能 |
 | [`docs/arweave-tags.md`](docs/arweave-tags.md) | Arweave トランザクションタグの意味と匿名化方針 (v4.1 / v5 反映) |
