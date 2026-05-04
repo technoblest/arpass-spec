@@ -241,19 +241,106 @@ Q = d × G                                // 公開鍵 (基準点 G の d 倍)
 
 ---
 
-## サイズパディング
+## サイズパディング (Phase 5.2 改訂)
 
-本体 `c` のサイズで vault のエントリ数を推定されないよう、**離散バケット**にパディングしてから AES-GCM 暗号化する。
+本体 `c` のサイズで vault のエントリ数を推定されないよう、**離散バケット + ジッタ**にパディングしてから AES-GCM 暗号化する。
 
 ```
-buckets = [4 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 4 MiB]
+buckets = [120 KiB, 240 KiB, 480 KiB, 960 KiB, 4 MiB]
+jitter  = 0..8 KiB のランダム加算
 target  = 最も小さい bucket s.t. plaintext.length + 16 <= bucket
+        + jitter
 padded  = plaintext || 0x80 || 0x00 * (target - plaintext.length - 17)
 ```
 
-復号時は末尾の `0x80` マーカーを探して padding を取り除く。
+復号時は末尾の `0x80` マーカーを後方探索して padding を取り除く (ジッタ加算分のゼロ埋めは scan が継続できるため復号に影響しない)。
 
-外側暗号化が加わったため、Arweave 上の最終 blob サイズは `12 + bucket + 16` (例: 64 KiB なら 65564 byte) に統一される。
+外側暗号化が加わったため、Arweave 上の最終 blob サイズは `12 + (bucket + jitter) + 16` の範囲。
+
+### バケット最小値が 120 KiB である理由 (Phase 5.2)
+
+最小バケット 120 KiB は **3 つの目的を同時に達成する** ように設計されている。
+
+| 目的 | 旧値 [4 KiB, ...] | 新値 [120 KiB, ...] |
+|---|---|---|
+| (a) フィンガープリント耐性 | tx サイズで Arpass vault を一発抽出できた | 全 write が 120 KiB 以上で他の Arweave トラフィックと区別不能 |
+| (b) Turbo フリーライド回避 | 4 KiB write は Turbo 無料枠 (107520 B / 105 KiB) に収まり、Arpass 全 user が無料枠で書き続ける状態 = AUP 違反リスク | 全 write が無料枠を確実に超え Turbo の有料 tier に入る |
+| (c) サイズ秘匿 | エントリ数の増減で bucket が頻繁に変わり外部に漏れた | bucket 変化が稀なので「エントリ数増減」が外から判別不能 |
+
+旧値 [4 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 4 MiB] は v5 cutover 直後 (Phase 5.0〜5.1) に存在したが、(a) と (b) を同時に破る重大バグだった。Phase 5.2 で全面改訂。
+
+ジッタ (`PAD_JITTER_BYTES = 8 KiB`) は同一ユーザーの連続書き込みでも tx サイズが揺らぐので「サイズ X = Arpass」というフィンガープリントが成立しない追加防御。
+
+---
+
+## Phase 5.3 改訂: クライアント耐性とサーバ匿名化
+
+v5 公開後に追加された 4 つの重要な改修。
+
+### 5.3-A: 楽観的並行制御 (`expectedLatestTxId`)
+
+複数端末で同時編集 → 後保存が古いデータで上書きするのを防ぐ。
+
+```
+1. unlock 時にサーバから latestTxId を取得して session に保存
+2. saveVault: signedFetch("/api/save", { ..., expectedLatestTxId: session.latestTxId })
+3. サーバ側: KV の現在の latestTxId と一致しなければ 409 version_conflict を返す
+4. クライアント側: 409 を受けたら toast「他端末で更新されました。ロック解除し直してください」+ 編集を破棄せず保留
+```
+
+server-side `_safeOptLock(expected, current)` で照合。`expected === undefined` の場合は古いクライアントとみなして警告のみ (互換性)。
+
+### 5.3-B: localStorage envelope cache (cache-first fetch)
+
+bundling 中の Arweave gateway の 0〜2 分窓 (= Turbo CDN は受領済みだが arweave.net は 404) でユーザを 30 秒待たせない設計。
+
+```
+fetchEnvelope():
+  1. localStorage から cache lookup (sync 同等で即時)
+     a. hit → 即座に return + 裏で network probe を発火 (background fresh)
+     b. cache の latestTxId とサーバの latestTxId を比較し、差異があれば update
+  2. cache miss → network fetch (Turbo + arweave.net 並列、30s timeout)
+```
+
+cache key: `arpass.cache.envelope.<txid>`、value: 外側暗号化済み blob (= 平文 vault は localStorage に存在しない)。
+クライアントが lock 状態に戻っても cache は残るので、次回 unlock 時に initial fetch が高速化。
+**localStorage 内容も外側暗号化済みなので、ブラウザプロファイル盗難でも解読不能** (vault-id を持たない攻撃者には)。
+
+### 5.3-AA: ephemeral session token (Stripe metadata 匿名化)
+
+旧設計: Stripe Checkout の `metadata` に `publicKeyHash` を直接渡していた → Stripe DB に persistent な Arpass 識別子が永続的に残るリスク。
+
+新設計: 30 分有効の使い捨て token を Cloudflare KV に発行し、Stripe metadata には token のみを渡す。webhook 受信時に KV から resolve → consume (delete) する。
+
+```
+checkout.js (POST /api/checkout):
+  sessionToken = randomBase64Url(32)  // 256-bit, 43 chars
+  ARPASS_LEDGER.put(`checkout:${sessionToken}`, { publicKeyHash, pack, credits, createdAt },
+                    { expirationTtl: 30 * 60 })  // KV 側自動削除
+  form.append("metadata[sessionToken]", sessionToken)
+
+webhook.js (POST /api/webhook/stripe):
+  sessionToken = event.data.object.metadata.sessionToken
+  data = ARPASS_LEDGER.get(`checkout:${sessionToken}`)
+  ARPASS_LEDGER.delete(`checkout:${sessionToken}`)  // consume
+  // クレジット加算
+```
+
+これで Stripe 側の DB に Arpass の persistent identifier が一切残らない。
+
+### 5.3-J: Passkey hint + picker hybrid
+
+複数 Passkey を同一 Relying Party に登録している場合、`allowCredentials = [{ id: hintId }]` だけだと「現在の hint が消えた」「ユーザーが別の Passkey を選びたい」ケースで詰む。
+
+```
+authenticateWithPasskey(hint, options = {}):
+  if hint && !options.forcePicker:
+    allowCredentials = [{ id: hint }]    // 1 クリック (auto-fill)
+  else:
+    allowCredentials = []                 // 全候補ピッカー
+```
+
+呼出側は: hint 経路で失敗 (NotAllowedError 等) → catch して `forcePicker: true` で再呼出。「別の Passkey で開錠する」UI ボタンも `forcePicker: true` で同じ関数を呼ぶ。
 
 ---
 

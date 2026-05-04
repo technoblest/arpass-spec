@@ -93,6 +93,56 @@ Arweave 上の transaction サイズは公開情報です。暗号化された c
 
 ---
 
+## バケット最小値 120 KiB の選定根拠 (Phase 5.2)
+
+旧バケット値 `[4 KiB, 16 KiB, ...]` は v5 cutover 直後 (Phase 5.0〜5.1) に存在したが、以下 2 つの問題を同時に抱えていた重大バグだった。
+
+### 問題 1: Turbo フリーライド + AUP 違反リスク
+
+ardrive の Turbo bundling service は **107520 B (105 KiB) 以下の write は無料** で受領する。Arpass の 4 KiB バケットは全 write がこの無料枠に収まり、結果として:
+
+- ardrive 側に料金が一切落ちない (= service abuse の可能性)
+- Arpass 全 user が同じ free tier に集中 → 利用規約違反のリスク
+- Turbo CDN がレート制限を強化した場合 Arpass user 全員が一斉に書き込み不可になる構造的脆弱性
+
+新値 [120 KiB, ...] により全 write が確実に有料 tier に入り、上記すべて解消。
+
+### 問題 2: サイズベースフィンガープリント
+
+bucket = 4 KiB の write は Arweave 全トラフィックの中で「異常に小さい (= Arpass)」と即座に識別できた。例えば Arweave indexer が data_size = 4096〜4112 のトランザクションをフィルタすれば Arpass envelope を全件抽出可能。
+
+新値 [120 KiB, ...] により Arpass write が他の Arweave トラフィック (画像、PDF、ZIP 等) と data_size 分布で混ざり、size-based extraction が困難になる。
+
+### ジッタ追加 (Phase 5.2)
+
+`PAD_JITTER_BYTES = 8 KiB` のランダム加算で、同一 user の連続書き込みでも tx サイズが揺らぐ。これにより「サイズ X = Arpass」というフィンガープリントが成立しない。
+
+復号時の影響: `unpadPlaintext` は末尾から `0x80` 終端マーカーを後方探索する方式なので、加算分のゼロ埋め長が変動しても復号は成立する。
+
+---
+
+## Phase 5.3 改修の暗号設計上の意義
+
+### 楽観的並行制御 (`expectedLatestTxId`)
+
+複数端末同時編集の race condition で「後保存が古い vault で上書き」してデータ喪失するのを防ぐ。これは **暗号方式そのものは変えない** が、サーバが知っている `latestTxId` を client が send する仕組みを追加することで、**「既知の状態に対する CAS (compare-and-swap)」**を実現している。
+
+サーバ側 `_safeOptLock(expected, current)` は constant-time 比較ではない (タイミング攻撃で漏れる情報は txid の長さのみ = 65 文字固定なので無問題)。
+
+### localStorage envelope cache
+
+cache に保存される blob は **既に外側 AES-GCM で暗号化済み**なので、ブラウザプロファイル盗難でも attacker に vault 内容は漏れない (vault-id を知らないため)。これが「localStorage に書いていいか」の判定根拠。
+
+`vault-id` 自体は Recovery Secret から HKDF 派生されるので localStorage には絶対書かない。
+
+### Ephemeral session token (Stripe metadata 匿名化)
+
+256-bit ランダム base64url が token なので brute force 不可能 (entropy = 256 bit)。Cloudflare KV の `expirationTtl` で 30 分後自動削除。webhook 受信時に手動 `DELETE` で early consume。
+
+これは暗号アルゴリズムの選定ではなく **「外部サービスの DB に persistent identifier を残さない」** というアーキテクチャ判断。Stripe DB が侵害されても Arpass の publicKeyHash が漏れない構造。
+
+---
+
 ## 識別子: ECDSA P-256 + SHA-256
 
 ### vaultId
