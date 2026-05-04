@@ -1,5 +1,7 @@
 # Envelope v5 仕様書
 
+> 🌐 English version: [en/envelope-v5.md](en/envelope-v5.md)
+
 Arpass の v5 保存フォーマット。各端末がブラウザ上で組み立てて Arweave に書き込み、復号時に再構築する暗号化エンベロープの構造を定義します。
 
 v4 から **3 つの大きな変更**があります:

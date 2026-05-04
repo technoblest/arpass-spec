@@ -1,5 +1,7 @@
 # 暗号アルゴリズム選定理由
 
+> 🌐 English version: [en/crypto-rationale.md](en/crypto-rationale.md)
+
 Arpass で採用したアルゴリズムと、なぜそれを選んだかの記録。
 
 ## 全体方針
