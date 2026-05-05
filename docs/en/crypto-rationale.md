@@ -316,3 +316,82 @@ Achieves orthogonality where compromising any one location does not allow identi
 The publicKey is intrinsically a value that can be public, and even if attackers learn it they gain nothing cryptographically (they cannot sign without the corresponding private key). On the other hand, this leaves room for future service features routed through the publicKey (audit logs, encrypted notifications, anonymous statistics, anomaly detection, etc.).
 
 Either "publicKey stored on server" vs "sent every request, no need to store" works functionally, but for the room to expand operational features, v5 recommends storing publicKey within the KV value (optional).
+
+---
+
+## Phase 6.2: Wallet pool privacy hardening
+
+### Problem: single-wallet linkability of all Arpass writes
+
+After v5 cutover (Phase 5.0), all Arweave writes were still **signed by a single service wallet**. This meant:
+
+- Arweave GraphQL `transactions(owners: [<service-wallet-address>])` would **enumerate every Arpass write**
+- Total Arpass traffic, growth rate, and time-of-day patterns were visible to outside observers
+- Combined with the App-Name tag (per-vault HKDF derivative), **per-vault activity volume** was inferable
+
+This left a hole in v5's "content and identity fully protected" thesis: **at the metadata level, Arpass identification was trivial**.
+
+### Solution: 30-wallet pool + KV-permanent assignment
+
+**Phase 6.1**: Arpass operations holds 30 independent Arweave wallets, each separately pre-funded with Turbo Credits via Stripe.
+
+**Phase 6.2 (critical revision)**: instead of random per-write selection, **assign one wallet permanently per user**. Cloudflare KV stores `userStandardWallet:<H(publicKey)> → wallet record`. The same user always signs with the same wallet.
+
+#### Why "random selection" was insufficient
+
+Random per-write selection (initial implementation) lets one user, after enough writes, statistically encounter all 30 wallets. By the **Coupon Collector's problem**, expected writes to enumerate all:
+
+- N=30 wallets → ~120 writes
+- N=100 wallets → ~520 writes
+- N=1,000 wallets → ~7,500 writes
+
+A user with 1–2 weeks of Arpass usage could reverse-look up every wallet via their own client's observable App-Name pattern.
+
+#### KV-permanent assignment as mitigation
+
+Each user is identified by their publicKey hash. On first write, one wallet is randomly drawn from the pool and saved to KV. Thereafter the same user always signs with the same wallet.
+
+Result:
+
+- A single user observes only **the one wallet assigned to them**
+- Enumerating all 30 wallets requires **30+ independent accounts** (30+ cards or 30+ free signups)
+- Mass surveillance is economically and law-enforcement-trace-wise expensive
+
+### Private Mode (Mega ¥15,000+ exclusive)
+
+Top-tier Mega plan purchasers receive a **dedicated wallet (never shared with any other user)** from the warm pool. The Stripe webhook (`checkout.session.completed`) detects packs with `pricing.js`'s `isPrivateMode: true` flag and triggers `assignPrivateWallet()`.
+
+Guarantees for Private Mode users:
+
+- Wallet address is stored only in KV (`userPrivateWallet:<H(pk)>`) — only retrievable with the user's own publicKey
+- **Nobody but the owner can enumerate that user's writes via Arweave GraphQL**
+- = Beyond "pseudonymity at scale", this achieves "provable unlinkability for paid premium users"
+
+### Privacy as economic mechanism
+
+This is not pure cryptographic anonymity. It is **privacy by economic + legal cost**:
+
+| Attacker type | Cost | Legal trace | Outcome |
+|---|---|---|---|
+| Passive observer (block-explorer scrape) | 0 | none | ✅ defeated |
+| Academic researcher (passive Arweave analysis) | moderate compute | none | ✅ mostly defeated |
+| Insider attacker (Arpass user enumerating) | sees only 1 wallet | none | ✅ defeated |
+| Mass surveillance (state-actor level) | 30+ paid accounts ≈ ¥150,000+ + card history | individuals identifiable via KYC | ⚠️ economically + legally deterred |
+| Identifying a Mega user's writes | requires becoming that user | — | ✅ impossible |
+
+Result: **"Bitcoin-pseudonym-or-better privacy, without UX compromise, absolute under realistic threat models."**
+
+### Design limitations (stated for transparency)
+
+- Total compromise of Cloudflare KV / the Arpass backend would leak the wallet ↔ user map (a generic server-side compromise risk)
+- An attacker who knows the public tag pattern (App-Name shape + 107 KiB padding) could nightly enumerate all of Arweave to **estimate Arpass total traffic** (individual user identification still impossible)
+- Reliance on ArDrive Turbo means the bundle TX owner on Arweave is Turbo's wallet (this is a property of bundling, not a privacy issue)
+
+### Cost
+
+- Phase 6.1: 30 standard pool wallets × USD $4 = **$120 (≈ ¥18,000)** initial
+- Phase 6.2: 10 private warm pool wallets × USD $4 = **$40 (≈ ¥6,000)** initial
+- Total **$160 ≈ ¥24,000** for ★★★★ privacy
+- At scale: expand pool to 100 → 1,000, migrate to AR/USDC auto-funding in Phase 6.3
+
+For operational details see [`docs/wallet-pool-runbook.md`](https://github.com/technoblest/arpass/blob/main/docs/wallet-pool-runbook.md).
