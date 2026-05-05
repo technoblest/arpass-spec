@@ -109,7 +109,7 @@ We will keep you informed in writing throughout. After patch deployment, we publ
 ### In scope (we will fix and credit)
 
 - **Cryptographic implementation bugs** in `web/lib/vault-crypto.js`, `web/lib/vault-client.js`, `web/lib/client-auth.js`, and the corresponding server `functions/_lib/auth.js`
-- **Envelope format vulnerabilities** (v2 / v3 / v4 / v4.1 — see `docs/crypto-2of3.md`)
+- **Envelope format vulnerabilities** (v2 / v3 / v4 / v4.1 / v5 — see [envelope-v5.md](https://github.com/technoblest/arpass-spec/blob/main/docs/envelope-v5.md))
 - **Authentication/authorization bugs** in `functions/api/*` endpoints
 - **Cross-site scripting (XSS)** in `web/index.html`, `web/app.html`, or any served resource
 - **CSRF** affecting state-changing endpoints
