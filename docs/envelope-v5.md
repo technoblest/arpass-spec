@@ -218,7 +218,7 @@ wraps.kr[] = [ { h: credIdHash, iv: rand12, ct: AES-GCM(KEK_kr, iv, MEK) }, ... 
 
 ```
 plaintext  = JSON.stringify(vault)
-padded     = padToBucket(plaintext)       // ~110 KiB ±5 KiB バケット
+padded     = padToBucket(plaintext)       // on-chain ~110 KiB ±6 KiB バケット (Phase 6.7)
 iv         = randomBytes(12)
 ciphertext = AES-256-GCM(MEK, iv, padded)
 ```
@@ -248,7 +248,7 @@ Q = d × G                                // 公開鍵 (基準点 G の d 倍)
 本体 `c` のサイズで vault のエントリ数を推定されないよう、**離散バケット + ジッタ**にパディングしてから AES-GCM 暗号化する。
 
 ```
-buckets = [120 KiB, 240 KiB, 480 KiB, 960 KiB, 4 MiB]
+buckets = [80 KiB, 160 KiB, 240 KiB]   // Phase 6.7: on-chain 110 KiB ターゲット
 jitter  = 0..8 KiB のランダム加算
 target  = 最も小さい bucket s.t. plaintext.length + 16 <= bucket
         + jitter
@@ -259,17 +259,18 @@ padded  = plaintext || 0x80 || 0x00 * (target - plaintext.length - 17)
 
 外側暗号化が加わったため、Arweave 上の最終 blob サイズは `12 + (bucket + jitter) + 16` の範囲。
 
-### バケット最小値が 120 KiB である理由 (Phase 5.2)
+### バケット最小値が 80 KiB である理由 (Phase 6.7、旧 Phase 5.2 = 120 KiB)
 
-最小バケット 120 KiB は **3 つの目的を同時に達成する** ように設計されている。
+最小バケット 80 KiB raw → on-chain 約 110 KiB は **4 つの目的を同時に達成する** ように設計されている。Phase 5.2 では 120 KiB raw だったが、on-chain 162.97 KiB / ¥0.47/write が過剰だったため、Phase 6.7 で実 upload 測定に基づき 80 KiB raw / on-chain 110 KiB / ¥0.33/write に最適化した。
 
-| 目的 | 旧値 [4 KiB, ...] | 新値 [120 KiB, ...] |
+| 目的 | v5.0 退化 [4 KiB, ...] | v5.2 復元 [120 KiB, ...] | v6.7 最適化 [80 KiB, ...] |
 |---|---|---|
-| (a) フィンガープリント耐性 | tx サイズで Arpass vault を一発抽出できた | 全 write が 120 KiB 以上で他の Arweave トラフィックと区別不能 |
-| (b) Turbo フリーライド回避 | 4 KiB write は Turbo 無料枠 (107520 B / 105 KiB) に収まり、Arpass 全 user が無料枠で書き続ける状態 = AUP 違反リスク | 全 write が無料枠を確実に超え Turbo の有料 tier に入る |
-| (c) サイズ秘匿 | エントリ数の増減で bucket が頻繁に変わり外部に漏れた | bucket 変化が稀なので「エントリ数増減」が外から判別不能 |
+| (a) フィンガープリント耐性 | tx サイズで Arpass vault を一発抽出できた | on-chain ~163 KiB 固定で抽出耐性 ✓ | on-chain ~110 KiB ± 6 KiB jitter で揺らぎ + 抽出耐性 ✓ |
+| (b) Turbo フリーライド回避 | 4 KiB write は Turbo 無料枠に収まり全 user が無料枠で書き続ける状態 = AUP 違反 | 全 write が有料 tier (¥0.47/write) | 全 write が有料 tier (¥0.33/write、無料枠 100 KiB を on-chain ~110 KiB で確実に超過) ✓ |
+| (c) サイズ秘匿 | エントリ数の増減で bucket が頻繁に変わり外部に漏れた | bucket 変化が稀 ✓ | bucket [80, 160, 240] KiB の階層化 + jitter で同様 ✓ |
+| (d) コスト最小化 (Phase 6.7 追加) | n/a | ¥0.47/write (過剰) | ¥0.33/write (Turbo 実測ベース最適化、Free tier 自社負担を ¥47→¥33 に圧縮) ✓ |
 
-旧値 [4 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 4 MiB] は v5 cutover 直後 (Phase 5.0〜5.1) に存在したが、(a) と (b) を同時に破る重大バグだった。Phase 5.2 で全面改訂。
+旧値 [4 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 4 MiB] は v5 cutover 直後 (Phase 5.0〜5.1) に存在したが、(a) と (b) を同時に破る重大バグだった。Phase 5.2 で [120 KiB, ...] に復元。Phase 6.7 で実 upload 測定 (`scripts/measure-turbo-write-cost.mjs`) により Turbo 無料枠が on-chain 100 KiB と確定したため、[80 KiB, 160 KiB, 240 KiB] に最適化した。raw 80 KiB → base64 1.33× → on-chain 約 110 KiB で安全余裕 ~10 KiB を確保しつつ、コストを 30% 圧縮。
 
 ジッタ (`PAD_JITTER_BYTES = 8 KiB`) は同一ユーザーの連続書き込みでも tx サイズが揺らぐので「サイズ X = Arpass」というフィンガープリントが成立しない追加防御。
 
