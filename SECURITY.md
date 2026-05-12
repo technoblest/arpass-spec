@@ -159,7 +159,7 @@ Arpass uses 2-of-3 client-side encryption (AES-256-GCM + PBKDF2-SHA256-600K + HK
 - **Arweave is publicly readable**. Anyone can download your encrypted envelope. Confidentiality depends entirely on the encryption being strong AND your factors (Master Password / Passkey / Recovery Secret) remaining secret.
 - **Sufficiently weak Master Passwords are GPU-attackable** even with PBKDF2. We mitigate this by mandating Passkey + WebAuthn PRF as a second factor (v4.1 onwards), but the password itself remains a meaningful entropy source.
 - **Users who lose 2 of the 3 recovery factors permanently lose access**. This is intentional zero-knowledge design, not a bug to report.
-- **Past Arweave writes carry their own metadata**. Tags written before v4.1 (2026-04-29) included a plaintext `vault-id` tag — see `docs/security-baseline.md §6-6` for the disclosure. Future writes do not.
+- **Past Arweave writes carry their own metadata**. Tags written before v4.1 (2026-04-29) included a plaintext `vault-id` tag — see `docs/security-baseline.md §6-6` for the disclosure. v5 (Phase 5.0) removed all client-visible tag values that could leak vault identity; v6 (Phase 7.0w-AR) further randomized the **tag name itself** so external observers can no longer enumerate Arpass transactions by querying for a fixed tag like `App-Name`.
 
 For high-stakes accounts (banking primary, government, primary email-account), users are strongly encouraged to use Arpass *as one of multiple* password managers, not as a single point of failure.
 
