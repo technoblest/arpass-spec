@@ -133,9 +133,9 @@ The server-side `_safeOptLock(expected, current)` is not constant-time compariso
 
 ### localStorage envelope cache
 
-The blob saved to cache is **already outer-encrypted with AES-GCM**, so even browser-profile theft does not leak vault contents to attackers (since they don't have the vault-id). This is the basis for the decision "is it OK to write to localStorage".
+The blob saved to cache is **already outer-encrypted with AES-GCM**, so even browser-profile theft does not leak vault contents to attackers (since they cannot derive the outer key `outer_key`). This is the basis for the decision "is it OK to write to localStorage".
 
-The `vault-id` itself is HKDF-derived from the Recovery Secret, so it is never written to localStorage.
+`outer_key` is HKDF-derived from `rMat` (which comes from the Recovery Secret), so the key itself is never written to localStorage.
 
 ### Ephemeral session token (Stripe metadata anonymization)
 
@@ -229,19 +229,34 @@ This is **not a confidentiality breach but a fact-of-service-use leak**. Who use
 
 ### Adopted approach
 
-Re-encrypt the entire envelope JSON with `AES-256-GCM(HKDF(vault-id), iv)` before writing to Arweave. This achieves:
+Re-encrypt the entire envelope JSON with `AES-256-GCM(outer_key, iv)` before writing to Arweave. This achieves:
 
 - Bytes on Arweave appear as completely random
 - JSON structure, field names, crypto algorithm names, size distribution, and other fingerprints disappear
-- A third party without the `vault-id` cannot decrypt either (the vault-id is never exposed to the server or Arweave)
+- A third party who cannot derive `outer_key` cannot decrypt either
 
-### Why HKDF(vault-id)
+### Why derived directly from the Recovery material
 
-Per Arpass's threat model, the outer key does not need to be "secret"; using `vault-id` for obfuscation purposes is the simplest. Important properties:
+> **Phase 7.0w-AR (2026-05) update**: Early v5 derived the outer key with `HKDF(vault-id)`, but Phase 7.0w-AR **abolished the vault-id concept itself** and switched to deriving the outer key directly from the Recovery material `rMat`.
 
-- **Only the client themselves can derive it** (vault-id is nowhere on the server or Arweave)
-- On device recovery, vault-id can be re-derived from the Recovery Secret, so the outer key can also be regenerated
-- Even with multiple devices writing to the same vault, the same vault-id → same outer_key allows reading
+```
+outer_key = HKDF-SHA256(
+  ikm  = rMat,                    // 32 bytes derived from the Recovery Secret
+  salt = "arpass-outer-v6",
+  info = "envelope-wrap",
+  L    = 32 )
+```
+
+Per Arpass's threat model, the outer key does not need to be "secret"; it is for obfuscation. Important properties:
+
+- **Only the client themselves can derive it** (`rMat` is held only by the owner of the Recovery Secret)
+- On device recovery, `rMat` → `outer_key` can be re-derived from the Recovery Secret
+- Even with multiple devices writing to the same vault, the same Recovery → same `outer_key` allows reading
+- Since there is no intermediate identifier such as a vault-id, no "ID pointing to a vault" remains on the server, Arweave, or localStorage
+
+### Why vault-id was abolished
+
+Early v5's `vault-id` was a 16-byte intermediate identifier derived from the Recovery, used for three purposes: Arweave tag computation, outer key derivation, and the localStorage cache key. But the mere existence of an "ID uniquely pointing to a vault" was itself a leakage surface on localStorage theft or implementation mistakes. Phase 7.0w-AR unified the design so that both the outer key and the Arweave tags derive directly from `rMat`, and removed vault-id entirely.
 
 ### Why not create a separate independent "outer secret key"
 
@@ -251,7 +266,7 @@ In theory, we could generate an "outer secret" independent of the MEK and wrap i
 - Require also adding "outer secret wrap" when adding a device
 - Force consideration of "outer secret rotation" on Recovery reissue
 
-Since Arpass's threat model goal is "hide the existence of Arpass on Arweave", **reusing vault-id** in a simple design was judged sufficient.
+Since Arpass's threat model goal is "hide the existence of Arpass on Arweave", **reusing `rMat`** in a simple design was judged sufficient.
 
 ## Signing key deterministically derived from MEK
 
@@ -306,7 +321,7 @@ In other words, the v5 design **completely separates "what Cloudflare needs to k
 |---|---|---|
 | publicKey | ✅ (as identifier) | ❌ |
 | vault-id | ❌ | ❌ (neither in tags nor body) |
-| App-Name tag | ❌ | ✅ (HKDF(Recovery)) |
+| Anonymous tag (name/value) | ❌ | ✅ (HKDF(rMat); name also randomized in Phase 7.0w-AR) |
 | Encrypted vault | ❌ | ✅ (outer-encrypted blob) |
 
 Achieves orthogonality where compromising any one location does not allow identifying the others.
@@ -395,3 +410,118 @@ Result: **"Bitcoin-pseudonym-or-better privacy, without UX compromise, absolute 
 - At scale: expand pool to 100 → 1,000, migrate to AR/USDC auto-funding in Phase 6.3
 
 For operational details see [`docs/wallet-pool-runbook.md`](https://github.com/technoblest/arpass/blob/main/docs/wallet-pool-runbook.md).
+
+---
+
+# Phase 7.2: Cryptographic design decisions for Business mode
+
+Phase 7.2 added **Business mode** for organizations whose vaults are shared across multiple employees. It keeps Personal mode's 2-of-3 key management (1 user = 1 vault) intact, and adds one "company-shared key layer" on top of employee vaults. The core of the design is to **let the company govern keys without trusting the server at all**.
+
+## Wrapping K1 separately per employee with ECIES
+
+### Key hierarchy
+
+In Business mode, the actual vault encryption key `real_MEK` is composed from two materials:
+
+```
+real_MEK = HKDF( K1 ‖ K2, salt = "arpass-business-mek-v2", info = "real-mek" )
+```
+
+| Key | Role | Storage |
+|---|---|---|
+| **K1** | company-shared wrap key (random 32 bytes) | plaintext in the Admin vault, ECIES-wrapped in each employee record |
+| **K2** | per-employee wrap key (random 32 bytes) | in each employee vault's `w.{a,b,c}` (opened by the 2-of-3 factors) |
+
+K2, like the Personal-mode MEK, is opened by the employee's own 2-of-3 factors. K1 is held by the company and distributed to each employee via a **separate wrap**.
+
+### Why wrap separately per employee
+
+Distributing K1 to all employees in a single shared wrap blob would require rebuilding it for everyone on every offboarding or key rotation. Phase 7.2-B **wraps K1 individually per employee with ECIES (P-256 ECDH + HKDF + AES-GCM)**:
+
+1. Each employee generates a static ECDH key pair `emp_keypair` at signup. The private key is stored K2-wrapped inside their own vault (the `w_emp` field); only the public key is registered with the server
+2. When the Admin performs a "distribute" action, they generate a single-use ephemeral key pair per employee and compute `enc_K1[i] = ECIES(employee i's public key, K1)`
+3. `enc_K1[i]` is stored in server KV; the employee fetches it on unlock and decrypts it with their own `emp_priv`
+
+Because the ephemeral key is discarded each time, one leaked wrap does not propagate to other wraps or past wraps (forward secrecy).
+
+### Why the server need not be trusted (zero-knowledge)
+
+The old v1 design had the server permanently store the company's private key, so structurally the server could decrypt K1 (a zero-knowledge violation). In Phase 7.2-B v2:
+
+- The server holds only the employees' **public keys** and `enc_K1[i]` (ECIES-wrapped)
+- Stripping the ECIES inner layer requires either the employee's `emp_priv` (in their vault, K2-wrapped) or the Admin's K1 vault — the server has neither
+- As an at-rest defense for server KV, `enc_K1` is re-wrapped with `CORP_KEK_MASTER_SECRET`, but even if that all leaks, only the outer layer comes off; the inner ECIES wrap is intact
+
+In other words, **no path exists for the server process alone to decrypt K1**. Not even Cloudflare internal staff, nor an attacker who simultaneously compromises the server and `CORP_KEK_MASTER_SECRET`, can reach employee vault contents.
+
+### Why the signing key is K2-derived
+
+The Business-mode API signing key (ECDSA P-256) is derived from **K2, not K1** (`HKDF(K2, "arpass-signing-v2")`). The reason is to avoid a chicken-and-egg problem: calling the API that fetches K1 requires a signing key, but if deriving the signing key required K1, you could not sign before obtaining K1. Deriving the signing key from K2 lets the employee prepare the signing key before fetching K1, and keeps audit-log signing continuity since it is unaffected by K1 rotation (Personal mode is compatible since K2 ≡ MEK there).
+
+## IP allowlist (network boundary)
+
+The company owner can configure an **IP allowlist** (an array of CIDRs) on their Business account. If the allowlist is non-empty, corp APIs such as employee K1 fetch only accept requests from those CIDRs.
+
+- This is not a cryptographic protection but an **operational network boundary**. Even if a departed employee retains a K2 cache, they cannot fetch K1 from outside the corporate network
+- It is a defense layer independent of the crypto layer (per-employee ECIES wrap); a departed employee is blocked by three stages: "offboarding + member check + IP gate"
+- Adding a CIDR to the allowlist is rejected if the added CIDR does not contain the current Admin's IP (preventing the accident of the Admin locking themselves out via misconfiguration)
+
+From the cryptographic standpoint, the IP allowlist does not undermine zero-knowledge at all (the server only decides "is the request source IP within the allowed range" and never touches keys).
+
+## Zero-knowledge audit log
+
+Business mode has an **audit log** recording who did what and when. To satisfy audit requirements without breaking server ignorance, log events pass through the server **only as ECIES-encrypted opaque blobs**:
+
+- Any employee/Admin ECIES-encrypts an audit event (e.g. "opened the vault", "distributed K1") and pushes it to the server
+- The server stores that blob, without knowing its contents, for only 30 days (1 event, 8 KiB cap)
+- The Admin later pulls it, decrypts it with their own key, and acks it, persisting it inside their own vault
+
+The server never sees the plaintext of an audit event even once. The design reconciles the corporate requirement of a "tamper-evident audit log" with Arpass's fundamental principle that "the server knows nothing".
+
+---
+
+# Phase 7.3: Migration to non-extractable CryptoKeys
+
+## Motivation
+
+The biggest threat to Personal mode is malicious **browser extensions / XSS / compromised npm dependencies**. In the LastPass 2022 breach, the plaintext master password resided in memory, and that was exfiltrated.
+
+These attacks succeed because a **raw 32-byte key, such as `_session.mek`, is readable from JS**. `localStorage.setItem` / `console.log` / `JSON.stringify` can each extract it.
+
+## Why non-extractable CryptoKeys
+
+When a WebCrypto `CryptoKey` is created with `extractable: false`, its key material is **completely hidden from the JS world** (it exists only in the browser's C++ heap). Calling `crypto.subtle.exportKey` fails with `InvalidAccessError`, and `JSON.stringify` yields an empty object `{}`. The key is usable (it can encrypt, decrypt, sign) but cannot be extracted as raw bytes.
+
+Phase 7.3-A migrated the keys held in the session from raw `Uint8Array`s to non-extractable `CryptoKey`s:
+
+| Old (raw) | New (non-extractable CryptoKey) |
+|---|---|
+| `_session.mek: Uint8Array(32)` | `_session.mekKey` (AES-GCM) + `_session.mekHkdfKey` (HKDF base) |
+| `signingPrivateKey` (extractable) | non-extractable ECDSA private key |
+| `_session.outerKeyBytes` | `_session.outerKey` (non-extractable AES-GCM) |
+| `_session.recoveryMaterial` | `_session.rMatHkdfKey` (non-extractable HKDF base) |
+
+Raw bytes still appear in JS for an instant midway through the unlock derivation chain (e.g. PBKDF2 / HKDF outputs), but they are zeroized with `fill(0)` immediately after being turned into a CryptoKey via `importKey`. Once unlock finishes, only CryptoKey objects remain in the session.
+
+## What this defense does / does not prevent
+
+| Attack | In the raw-mek era | After non-extractable |
+|---|---|---|
+| A malicious extension reads the session keys | leaks | **prevented** |
+| XSS fetches the keys and exfiltrates them | leaks | **prevented** |
+| A compromised npm dependency exports the keys | leaks | **prevented** |
+| Tricking the user into running `console.log(_session)` | leaks | **prevented** (raw not displayed) |
+| OS root privileges + memory dump | leaks | △ raw remains in the C++ heap |
+| Modified browser (direct V8 patch) | leaks | △ not prevented |
+
+In short, defense holds against **nearly all "attackers without OS privileges"**. The fundamental limits (OS root, memory dump — the same structure as Widevine DRM's L1/L3 tiers) are explicitly stated as out of scope.
+
+## The envelope format is unchanged
+
+Phase 7.3-A **only changes how keys are handled in the implementation**; the ciphertext structure of the envelope written to Arweave (v5) does not change at all. No migration is needed; existing users automatically build their session with the new derivation chain on their next unlock.
+
+## Remaining limitations (stated for transparency)
+
+- During unlock, there is a window of ~1ms in which intermediate raw bytes of key derivation appear in JS. An attacker who can memory-scan at exactly that moment could obtain them, but this is realistically difficult
+- While an entry is displayed on screen, the password string is in the DOM. The "extension reads the DOM" attack still holds and is out of scope for Phase 7.3-A (addressed separately via display masking / on-demand reveal)
+- In Personal mode, operations such as `changePassword` / Recovery reissue require re-wrapping, so a case remains where a raw equivalent of `_session.mek` is held only during unlock. This is bounded to the limited window of "the user operating while unlocked", on par with industry standards such as 1Password / Bitwarden. It is mitigated by auto-lock (5 min idle / tab close) and CSP (self-only script-src)

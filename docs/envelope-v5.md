@@ -8,7 +8,7 @@ v4 から **3 つの大きな変更**があります:
 
 1. **外側 AES-GCM 層** — エンベロープ JSON 全体をさらに暗号化してから Arweave に書く (Arweave スクレイパーから JSON 構造を隠蔽)
 2. **署名鍵を保存しない** — ECDSA P-256 鍵ペアは MEK から決定論的に派生する (Arweave 上に「秘密鍵」「公開鍵」のいずれも書かない)
-3. **vault-id がサーバに無い** — Cloudflare KV のキーは `H(publicKey)`、`X-Vault-Id` ヘッダ廃止
+3. **vault-id がサーバに無い** — Cloudflare KV のキーは `H(publicKey)`、`X-Vault-Id` ヘッダ廃止 (Phase 7.0w-AR では vault-id 概念そのものを廃止)
 
 それ以外 (2-of-3 鍵管理、PBKDF2-SHA256 600K、AES-256-GCM、HKDF-SHA256、Recovery Secret 形式) は v4.1 を継承します。
 
@@ -31,18 +31,19 @@ v4 から **3 つの大きな変更**があります:
 エンベロープ JSON 完成後:
     │
     └─► AES-256-GCM(outer_key, outer_iv) ──► Arweave に書き込む blob
-        (outer_key = HKDF(vault-id))
+        (outer_key = HKDF(rMat) — Phase 7.0w-AR で vault-id を廃止)
 ```
 
 **MEK** は vault 全体で共通の 32-byte 対称鍵で、端末ごとに新規生成されません。端末追加 (`addDevice`) はその端末用の wrap エントリを `wraps.pk[]` と `wraps.kr[]` に追加するだけで、MEK も `wraps.pr` も既存のまま継承されます。
 
-**vault-id** は Recovery Secret から HKDF で導出される 16 byte の値で、**サーバには一切送信せず、Arweave のタグにも含めません**。クライアントは vault-id を以下の 3 つの目的にのみ使います:
+> **Phase 7.0w-AR (2026-05) 更新**: 初期 v5 にあった `vault-id` という中間識別子 (Recovery から派生する 16 byte) は **概念ごと廃止**されました。外側 AES-GCM 層の鍵も Arweave 検索タグも、いまは Recovery 材料 `rMat` から直接派生します。「vault を一意に指す ID」が存在しないため、サーバ・Arweave・localStorage のどこにも vault を指す識別子が残りません。
 
-1. Arweave 検索のための `App-Name` タグ計算
+クライアントが `rMat` (= Recovery Secret から HKDF で導出される 32 byte) を使う用途:
+
+1. Arweave 検索のための匿名タグ (name/value 両方) の派生 — [arweave-tags.md](./arweave-tags.md) を参照
 2. 外側 AES-GCM 層の鍵 `outer_key` 派生
-3. localStorage に保存して次回のキャッシュキーに使う
 
-API リクエストの認証は **publicKey** (MEK から派生) で行い、サーバ側 KV のキーは `H(publicKey)` です。
+API リクエストの認証は **publicKey** (MEK から派生) で行い、サーバ側 KV のキーは `H(publicKey)` です。`X-Vault-Id` ヘッダは存在しません。
 
 ---
 
@@ -109,14 +110,14 @@ API リクエストの認証は **publicKey** (MEK から派生) で行い、サ
 
 ```
 outer_key = HKDF-SHA256(
-  ikm  = vault-id,                       // 16 byte
-  salt = "arpass-outer-v5",
+  ikm  = rMat,                           // 32 byte (Recovery Secret 由来)
+  salt = "arpass-outer-v6",
   info = "envelope-wrap",
   L    = 32                              // 256-bit AES key
 )
 ```
 
-`vault-id` を知っている人 (= ユーザー本人) だけが導出できる鍵です。
+`rMat` (= Recovery Secret) を持つ人 (= ユーザー本人) だけが導出できる鍵です。Phase 7.0w-AR より前は `ikm = vault-id` / `salt = "arpass-outer-v5"` でしたが、vault-id 廃止に伴い `rMat` 直接派生 + ドメイン分離のため salt を `v6` に更新しました。
 
 ### 書き込み手順
 
@@ -145,7 +146,7 @@ envelope   = JSON.parse(envelopeJson)
 
 外側層は **「Arpass の存在自体を Arweave 上で隠す」** ための obfuscation 兼 機密性レイヤです。これがないと、Arweave 全件をスキャンする攻撃者は JSON parse + キー集合 `{v, s, i, c, w}` の一致で「これは Arpass の vault だ」と特定できてしまいます。
 
-外側層を入れることで、Arweave に書かれる blob は完全な乱数バイト列に見え、JSON 構造・フィールド名・暗号アルゴリズム名・サイズ分布などのフィンガープリントが全て消えます。`vault-id` を知る人だけが復号できるので、これは**機密性を提供する**層でもあります (vault-id がサーバ・Arweave のどこにも露出しないため、obfuscation 以上の意味を持つ)。
+外側層を入れることで、Arweave に書かれる blob は完全な乱数バイト列に見え、JSON 構造・フィールド名・暗号アルゴリズム名・サイズ分布などのフィンガープリントが全て消えます。`rMat` を持つ本人だけが `outer_key` を導出して復号できるので、これは**機密性を提供する**層でもあります (`outer_key` がサーバ・Arweave のどこにも露出しないため、obfuscation 以上の意味を持つ)。
 
 詳しい背景は [crypto-rationale.md §外側暗号化](./crypto-rationale.md) を参照。
 
@@ -307,7 +308,7 @@ fetchEnvelope():
 
 cache key: `arpass.cache.envelope.<txid>`、value: 外側暗号化済み blob (= 平文 vault は localStorage に存在しない)。
 クライアントが lock 状態に戻っても cache は残るので、次回 unlock 時に initial fetch が高速化。
-**localStorage 内容も外側暗号化済みなので、ブラウザプロファイル盗難でも解読不能** (vault-id を持たない攻撃者には)。
+**localStorage 内容も外側暗号化済みなので、ブラウザプロファイル盗難でも解読不能** (`rMat` 由来の `outer_key` を持たない攻撃者には)。
 
 ### 5.3-AA: ephemeral session token (Stripe metadata 匿名化)
 
@@ -352,37 +353,35 @@ authenticateWithPasskey(hint, options = {}):
 ### Path AB: Master + Passkey (日常 unlock)
 
 ```
-1. localStorage から vault-id を取得
-2. outer_key = HKDF(vault-id)
-3. Arweave から最新 blob 取得 → outer_key で復号 → envelope JSON
-4. credIdHash = SHA-256(WebAuthn credential id)
-5. wraps.pk[] から credIdHash 一致のエントリを探す
-6. KEK_pk = HKDF(pMat || kMat)
-7. AES-GCM-decrypt(KEK_pk, wrap.iv, wrap.ct) → MEK
-8. AES-GCM-decrypt(MEK, envelope.i, envelope.c) → padded JSON
-9. padding を取り除いて JSON.parse
-10. signing key (d, Q) = HKDF(MEK)
+1. rMat から outer_key = HKDF(rMat) を派生
+2. Arweave から最新 blob 取得 → outer_key で復号 → envelope JSON
+3. credIdHash = SHA-256(WebAuthn credential id)
+4. wraps.pk[] から credIdHash 一致のエントリを探す
+5. KEK_pk = HKDF(pMat || kMat)
+6. AES-GCM-decrypt(KEK_pk, wrap.iv, wrap.ct) → MEK
+7. AES-GCM-decrypt(MEK, envelope.i, envelope.c) → padded JSON
+8. padding を取り除いて JSON.parse
+9. signing key (d, Q) = HKDF(MEK)
 ```
 
 ### Path AC: Master + Recovery (端末紛失時の復旧)
 
 ```
-1. Recovery Secret 入力
-2. vault-id = HKDF(Recovery, "arpass-vault-id-v5")
-3. App-Name tag = HKDF(Recovery, "arpass-app-tag-v1")
-4. Arweave に App-Name タグで問い合わせ → 最新 tx 取得
-5. outer_key = HKDF(vault-id) で blob 復号 → envelope JSON
-6. KEK_pr = HKDF(pMat || rMat)
-7. wraps.pr (1 個) を AES-GCM 復号 → MEK
-8. 本体復号 → vault データ
-9. signing key (d, Q) = HKDF(MEK)  ← v4 と違って、同じ Q が再現される
+1. Recovery Secret 入力 → rMat = HKDF(Recovery)
+2. 匿名タグ (name/value) を rMat から派生 → 全 tier 分を一括計算
+3. Arweave に匿名タグで問い合わせ → 最新 tx 取得
+4. outer_key = HKDF(rMat) で blob 復号 → envelope JSON
+5. KEK_pr = HKDF(pMat || rMat)
+6. wraps.pr (1 個) を AES-GCM 復号 → MEK
+7. 本体復号 → vault データ
+8. signing key (d, Q) = HKDF(MEK)  ← v4 と違って、同じ Q が再現される
 ```
 
 ### Path BC: Passkey + Recovery (Master 忘却時の復旧)
 
 ```
 1. Recovery Secret 入力 + Passkey 認証 (WebAuthn PRF)
-2. vault-id 派生 → Arweave 取得 → 外側復号
+2. rMat 派生 → 匿名タグで Arweave 取得 → outer_key = HKDF(rMat) で外側復号
 3. KEK_kr = HKDF(kMat || rMat)
 4. wraps.kr[] から credIdHash 一致のエントリ → 復号 → MEK
 5. 本体復号 → 全データアクセス可能
@@ -443,10 +442,9 @@ Master Password を変更するには現在の Recovery が必要。
 2. 新 rMat = HKDF(新 Recovery)
 3. wraps.pr 再生成 (新 rMat 使用)
 4. wraps.kr[] を再生成 (この端末分のみ、他は lazy)
-5. 新 vault-id = HKDF(新 Recovery)
-6. 新 outer_key = HKDF(新 vault-id)
-7. envelope を新 vault-id で Arweave に書き込み (1 credit)
-8. localStorage の vault-id を更新
+5. 新 outer_key = HKDF(新 rMat)
+6. 新 匿名タグ (name/value) を新 rMat から派生
+7. envelope を新 outer_key で暗号化 + 新タグで Arweave に書き込み (1 credit)
 
 → MEK 不変、publicKey 不変 → サーバ KV 無関係
 注意: 古い envelope は Arweave 上に永久に残る。古い Recovery + Master を入手された場合は過去 vault が読めてしまう (MEK 同じため)。
@@ -462,13 +460,80 @@ Master Password を変更するには現在の Recovery が必要。
 3. 新 (d, Q) = HKDF(新 MEK)  ← publicKey が変わる
 4. 全 wrap を新 MEK + 新 Recovery で再生成
 5. 本体 c を新 MEK で再暗号化
-6. 新 vault-id で envelope を Arweave に書き込み
+6. 新 rMat 由来の outer_key + 匿名タグで envelope を Arweave に書き込み
 7. POST /api/migrate を旧鍵で署名 → サーバが旧 KV[H(Q)] の credits を新 KV[H(Q')] に移送
 8. localStorage 更新
 
 → publicKey 変わる、サーバ KV migration 必要
 → 古い envelope の中身は古い MEK を持たない人には永久に読めない
 ```
+
+---
+
+## Phase 7.2: Business mode envelope (`m: "business"`)
+
+Phase 7.2-B で、組織向けの **Business mode** 用 envelope バリアントを追加しました。バージョン番号は `v: 5` のまま、`m: "business"` フィールドの有無で Personal / Business を判別します。Personal mode envelope は一切変更しません。
+
+### Business envelope の追加フィールド
+
+```json
+{
+  "v": 5,
+  "m": "business",
+  "kdfV2": true,
+  "cid": "<companyId>",
+  "s": "...", "i": "...", "c": "...",
+  "w": { "a": {...}, "b": [...], "c": [...] },
+  "w_emp": { "i": "...", "c": "..." },
+  "emp_pub": { ... },
+  "k1Pending": true
+}
+```
+
+| JSON | 内容 |
+|---|---|
+| `m` | `"business"` 固定 (このフィールドが無ければ Personal mode) |
+| `kdfV2` | `true` — `real_MEK` を K2 ベースの HKDF で派生する方式 (Phase 7.3-A) |
+| `cid` | companyId (会社識別子) |
+| `w` | Personal mode と同じ 2-of-3 wrap 構造。ただし wrap される鍵は **MEK ではなく K2** |
+| `w_emp` | 社員 ECDH 鍵ペアの秘密鍵を K2 で AES-GCM wrap したもの |
+| `emp_pub` | 社員 ECDH 公開鍵 (JWK)。整合性確認用のキャッシュ (サーバが authoritative) |
+| `k1Pending` | signup 直後で Admin から K1 がまだ配布されていない状態を示す (任意フィールド) |
+
+### Personal mode との暗号上の差分
+
+1. 本体 `c` の暗号鍵は単独の MEK ではなく `real_MEK = HKDF(K1 ‖ K2, salt="arpass-business-mek-v2", info="real-mek")`
+2. `w.{a,b,c}` が wrap するのは K2 (会社共通の K1 ではなく、社員個別の鍵)
+3. 会社共通の K1 は envelope には乗らず、サーバ KV に社員ごとの ECIES wrap (`enc_K1[i]`) として保管される
+4. K1 配布まわりの設計根拠は [crypto-rationale.md の Phase 7.2 節](./crypto-rationale.md) を参照
+
+> v1 設計では K1 を `envelope.ws` として Arweave 上に乗せていましたが、v2 で **K1 関連データを Arweave から完全に除去**し、サーバ KV のみで lifecycle 管理する方式に変更しました。`envelope.ws` / `envelope.kv` フィールドは廃止済みです。
+
+### Business mode の unlock 順序
+
+```
+1. Arweave から vault envelope を取得 (公開 read、認証不要)
+2. w.{a|b|c} を 2-of-3 factor KEK で開く → K2
+3. signing key = HKDF(K2, "arpass-signing-v2")
+   emp_priv = AES-GCM-decrypt(K2, w_emp)
+   ← ここまで K1 不要、K2 のみで完結
+4. signing key で署名して GET /api/corp/unwrap-k1 → enc_K1[i] 取得
+5. emp_priv で ECIES 復号 → K1
+6. real_MEK = HKDF(K1 ‖ K2) (非 extractable CryptoKey)
+7. 本体 c を real_MEK で復号
+```
+
+`k1Pending: true` の envelope は K1 = 全ゼロ 32 byte (sentinel) で本体が暗号化されており、後で Admin が実 K1 を配布したタイミングで実 K1 による再暗号化が行われます。
+
+---
+
+## Phase 7.3: 非 extractable CryptoKey 化 (envelope フォーマット不変)
+
+Phase 7.3-A は **envelope フォーマットを一切変更しません**。Arweave に書かれる v5 / business envelope の暗号文構造はそのままです。
+
+変更されるのは **クライアント実装が鍵をどう保持するか**だけです。従来は `MEK` などを raw な `Uint8Array(32)` で session に保持していましたが、Phase 7.3-A 以降は非 extractable な `CryptoKey` (= JS から生バイト列を取り出せない鍵オブジェクト) として保持します。詳細と防御範囲は [crypto-rationale.md の Phase 7.3 節](./crypto-rationale.md) を参照。
+
+マイグレーションは不要で、既存ユーザは次回 unlock 時に自動的に新しい派生 chain で session を構築します。
 
 ---
 

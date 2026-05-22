@@ -60,8 +60,10 @@ Unwrapping any wrap yields the same MEK (Master Encryption Key).
 Body ciphertext = AES-256-GCM(MEK, iv, vault_json), one per vault.
 
 In v5, the entire envelope above is additionally encrypted with
-AES-256-GCM(HKDF(vault-id), iv) before being written to Arweave (so
-the bytes on Arweave look like completely random bytes).
+AES-256-GCM(HKDF(rMat), iv) before being written to Arweave (so
+the bytes on Arweave look like completely random bytes). Phase 7.0w-AR
+abolished the vault-id concept; the outer key now derives directly from
+the Recovery material rMat.
 ```
 
 What the server (Cloudflare KV) can see (v5 onwards):
@@ -70,7 +72,7 @@ What the server (Cloudflare KV) can see (v5 onwards):
 - Operational statistics like write counts
 
 What does **NOT** exist on the server:
-- vault-id (fully removed server-side in v5 — even compromising Cloudflare ops would not reveal it)
+- vault-id (abolished as a concept in Phase 7.0w-AR — even compromising Cloudflare ops would not reveal it)
 - ciphertext / encrypted envelopes (written directly to Arweave; server does not relay)
 - Any of the Master password / Passkey PRF / Recovery Secret material
 
@@ -90,7 +92,7 @@ See [`docs/envelope-v5.md`](docs/envelope-v5.md) (Japanese) or [`docs/en/envelop
 | API signing | ECDSA P-256 (SHA-256) | per-vault keypair |
 | Recovery string | base32, 160-bit entropy | 8 groups of 4 characters (RS1- prefix, QR-capable since Phase 4.95) |
 | Signing key (v5) | ECDSA P-256, deterministically derived via HKDF(MEK) | Not stored on Arweave; re-derived each session |
-| Outer encryption (v5) | AES-256-GCM, HKDF(vault-id) | Hides JSON structure on Arweave |
+| Outer encryption (v5) | AES-256-GCM, HKDF(rMat) | Hides JSON structure on Arweave (vault-id abolished in Phase 7.0w-AR) |
 
 Everything is implemented with the **browser-standard Web Crypto API**. No dependency on external crypto libraries.
 

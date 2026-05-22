@@ -8,7 +8,7 @@ There are **three major changes** from v4:
 
 1. **Outer AES-GCM layer** — the entire envelope JSON is additionally encrypted before being written to Arweave (hides the JSON structure from Arweave scrapers)
 2. **Signing key not stored** — the ECDSA P-256 keypair is deterministically derived from the MEK (no "private key" or "public key" is written to Arweave)
-3. **No vault-id on the server** — the Cloudflare KV key is `H(publicKey)`, and the `X-Vault-Id` header is removed
+3. **No vault-id on the server** — the Cloudflare KV key is `H(publicKey)`, and the `X-Vault-Id` header is removed (Phase 7.0w-AR abolished the vault-id concept itself)
 
 Everything else (2-of-3 key management, PBKDF2-SHA256 600K, AES-256-GCM, HKDF-SHA256, Recovery Secret format) is inherited from v4.1.
 
@@ -30,11 +30,11 @@ plaintext vault JSON
 
 After the envelope JSON is complete:
     │
-    └─► AES-256-GCM(HKDF(vault-id), iv) ──► written to Arweave
-                                            (the bytes appear as random)
+    └─► AES-256-GCM(outer_key, iv) ──► written to Arweave
+        (outer_key = HKDF(rMat))           (the bytes appear as random)
 ```
 
-The vault-id never reaches the server; it is derived from the Recovery Secret on the device.
+> **Phase 7.0w-AR (2026-05) update**: The `vault-id` intermediate identifier (a 16-byte value derived from the Recovery) that early v5 had was **abolished as a concept**. Both the outer AES-GCM layer key and the Arweave search tags are now derived directly from the Recovery material `rMat`. Since no "ID uniquely pointing to a vault" exists, no vault-pointing identifier remains on the server, Arweave, or localStorage.
 
 ---
 
@@ -78,13 +78,14 @@ The inner envelope JSON is itself encrypted before being placed on Arweave.
 
 ```
 outerKey = HKDF-SHA256(
-  ikm  = vault-id (32 bytes, derived from Recovery Secret),
-  info = "arpass:outer-envelope:v5",
+  ikm  = rMat (32 bytes, derived from the Recovery Secret),
+  salt = "arpass-outer-v6",
+  info = "envelope-wrap",
   L    = 32
 )
 ```
 
-The `vault-id` is never transmitted to any server. It is derived locally from the Recovery Secret each session.
+`rMat` is never transmitted to any server. It is derived locally from the Recovery Secret each session. (Before Phase 7.0w-AR the IKM was `vault-id` with salt `"arpass-outer-v5"`; with vault-id abolished, the key derives directly from `rMat` and the salt was bumped to `v6` for domain separation.)
 
 ### Write procedure
 
@@ -110,7 +111,7 @@ inner_json   = AES-256-GCM-decrypt(outerKey, outer_iv, outer_ct)
 
 - **JSON structure hiding**: An Arweave indexer scraping by data shape cannot identify Arpass envelopes. Field names like `wraps`, `body`, `credentials` are not externally visible.
 - **Algorithm name hiding**: Constants like `"v":5` and `"AES-256-GCM"` are not visible from outside.
-- **Defense in depth**: Even if there were a future hypothetical bug in the inner AES-GCM, the outer layer also requires the vault-id-derived key.
+- **Defense in depth**: Even if there were a future hypothetical bug in the inner AES-GCM, the outer layer also requires the `rMat`-derived key.
 
 ---
 
@@ -260,7 +261,7 @@ fetchEnvelope():
 
 Cache key: `arpass.cache.envelope.<txid>`, value: outer-encrypted blob (= the plaintext vault is **not** in localStorage).
 The cache persists even after the client returns to a locked state, so the next unlock's initial fetch is fast.
-**The localStorage contents are also outer-encrypted**, so even browser-profile theft does not reveal the vault to anyone without the vault-id.
+**The localStorage contents are also outer-encrypted**, so even browser-profile theft does not reveal the vault to anyone without the `rMat`-derived `outer_key`.
 
 ### 5.3-AA: Ephemeral session token (Stripe metadata anonymization)
 
@@ -405,6 +406,73 @@ After Case B:
 - Other devices need Master + new Recovery on next unlock (Master + Passkey / AB path no longer works).
 - Old Arweave envelopes remain forever, but only decryptable to anyone holding the OLD MEK.
 - To protect passwords stored in the old envelopes, you must rotate them on each external site (outside Arweave).
+
+---
+
+## Phase 7.2: Business mode envelope (`m: "business"`)
+
+Phase 7.2-B added a **Business mode** envelope variant for organizations. The version number stays `v: 5`; Personal vs Business is distinguished by the presence of the `m: "business"` field. The Personal mode envelope is not changed at all.
+
+### Additional fields in a Business envelope
+
+```json
+{
+  "v": 5,
+  "m": "business",
+  "kdfV2": true,
+  "cid": "<companyId>",
+  "s": "...", "i": "...", "c": "...",
+  "w": { "a": {...}, "b": [...], "c": [...] },
+  "w_emp": { "i": "...", "c": "..." },
+  "emp_pub": { ... },
+  "k1Pending": true
+}
+```
+
+| JSON | Content |
+|---|---|
+| `m` | fixed `"business"` (absence of this field means Personal mode) |
+| `kdfV2` | `true` — `real_MEK` is derived via K2-based HKDF (Phase 7.3-A) |
+| `cid` | companyId (company identifier) |
+| `w` | the same 2-of-3 wrap structure as Personal mode, but the wrapped key is **K2, not the MEK** |
+| `w_emp` | the employee ECDH key pair's private key, AES-GCM-wrapped with K2 |
+| `emp_pub` | the employee ECDH public key (JWK); a cache for integrity checks (the server is authoritative) |
+| `k1Pending` | indicates the state right after signup, before K1 has been distributed by the Admin (optional field) |
+
+### Cryptographic differences from Personal mode
+
+1. The body `c` encryption key is not a standalone MEK but `real_MEK = HKDF(K1 ‖ K2, salt="arpass-business-mek-v2", info="real-mek")`
+2. `w.{a,b,c}` wrap K2 (the per-employee key, not the company-shared K1)
+3. The company-shared K1 is not carried in the envelope; it is stored in server KV as a per-employee ECIES wrap (`enc_K1[i]`)
+4. For the rationale of K1 distribution, see the [Phase 7.2 section of crypto-rationale.md](crypto-rationale.md)
+
+> The v1 design carried K1 on Arweave as `envelope.ws`, but v2 **removed all K1-related data from Arweave**, managing its lifecycle in server KV only. The `envelope.ws` / `envelope.kv` fields are abolished.
+
+### Business mode unlock order
+
+```
+1. Fetch the vault envelope from Arweave (public read, no auth)
+2. Open w.{a|b|c} with the 2-of-3 factor KEKs → K2
+3. signing key = HKDF(K2, "arpass-signing-v2")
+   emp_priv = AES-GCM-decrypt(K2, w_emp)
+   ← up to here, K1 is not needed; K2 alone suffices
+4. Sign with the signing key and GET /api/corp/unwrap-k1 → obtain enc_K1[i]
+5. ECIES-decrypt with emp_priv → K1
+6. real_MEK = HKDF(K1 ‖ K2) (non-extractable CryptoKey)
+7. Decrypt body c with real_MEK
+```
+
+An envelope with `k1Pending: true` has its body encrypted with K1 = an all-zero 32-byte sentinel; it is re-encrypted with the real K1 when the Admin later distributes it.
+
+---
+
+## Phase 7.3: Non-extractable CryptoKeys (envelope format unchanged)
+
+Phase 7.3-A **does not change the envelope format at all**. The ciphertext structure of the v5 / business envelope written to Arweave is unchanged.
+
+What changes is **only how the client implementation holds keys**. Previously the session held `MEK` and similar as raw `Uint8Array(32)`; from Phase 7.3-A onward they are held as non-extractable `CryptoKey`s (key objects whose raw bytes cannot be extracted from JS). For details and the scope of the defense, see the [Phase 7.3 section of crypto-rationale.md](crypto-rationale.md).
+
+No migration is needed; existing users automatically build their session with the new derivation chain on their next unlock.
 
 ---
 

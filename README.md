@@ -56,9 +56,10 @@ Arpass は **「2 of 3 復旧方式」**の鍵管理を採用しています。
 すべての wrap を unwrap した結果は同一の MEK (Master Encryption Key)。
 本体 ciphertext = AES-256-GCM(MEK, iv, vault_json) で 1 個。
 
-v5 では更に、上記エンベロープ全体を AES-256-GCM(HKDF(vault-id), iv) で
+v5 では更に、上記エンベロープ全体を AES-256-GCM(HKDF(rMat), iv) で
 外側からもう一度暗号化して Arweave に書き込む (Arweave 上の bytes は
-完全な乱数バイト列に見える)。
+完全な乱数バイト列に見える)。Phase 7.0w-AR で vault-id 概念を廃止し、
+外側鍵は Recovery 材料 rMat から直接派生する。
 ```
 
 サーバー (Cloudflare KV) が見られるのは v5 以降:
@@ -67,7 +68,7 @@ v5 では更に、上記エンベロープ全体を AES-256-GCM(HKDF(vault-id), 
 - 書き込み回数等の運用統計
 
 サーバーには **存在しない** もの:
-- vault-id (v5 でサーバ側完全撤去 — Cloudflare 運用者を侵害しても出ない)
+- vault-id (Phase 7.0w-AR で概念ごと廃止 — Cloudflare 運用者を侵害しても出ない)
 - ciphertext / 暗号化された envelope (Arweave に直接書き、サーバは中継しない)
 - Master password / Passkey PRF / Recovery Secret のいずれの素材も
 
@@ -87,7 +88,7 @@ v5 では更に、上記エンベロープ全体を AES-256-GCM(HKDF(vault-id), 
 | API 署名 | ECDSA P-256 (SHA-256) | per-vault keypair |
 | Recovery 文字列 | base32, 160 bit エントロピー | 8 グループ × 4 文字 (RS1- 接頭辞付き、Phase 4.95 で QR 化) |
 | 署名鍵 (v5) | ECDSA P-256, HKDF(MEK) で決定論派生 | Arweave に保存しない、毎セッション再導出 |
-| 外側暗号化 (v5) | AES-256-GCM, HKDF(vault-id) | Arweave 上で JSON 構造を隠す |
+| 外側暗号化 (v5) | AES-256-GCM, HKDF(rMat) | Arweave 上で JSON 構造を隠す (Phase 7.0w-AR で vault-id 廃止) |
 
 すべて **ブラウザ標準の Web Crypto API** で実装。外部暗号ライブラリには依存しません。
 
