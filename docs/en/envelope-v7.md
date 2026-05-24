@@ -489,21 +489,22 @@ Through v6, opening an existing vault on a new device required the outer key (`H
 The 57-byte payload below is stored in the Passkey's WebAuthn `user.id` (the userHandle — up to 64 bytes, held and synced/carried by the authenticator):
 
 ```
-[1 byte version=7][8 bytes appNameTag.name][16 bytes appNameTag.value][32 bytes outer_key]
+[1 byte version=7][8 bytes appNameTag.name][16 bytes appNameTag.value][32 bytes outer_key (Master-wrapped)]
 ```
 
-- `outer_key` is the same `HKDF(rMat)` as in v6.
+- `outer_key` is the same `HKDF(rMat)` as in v6, but inside user.id it is stored Master-wrapped (see below).
 - `appNameTag` is the anonymized Arweave lookup tag (name/value) — see [arweave-tags.md](./arweave-tags.md).
 
 On a new device, a single WebAuthn `get()` yields the userHandle and the PRF output together. The client extracts the outer key and appNameTag from the userHandle, fetches the vault from Arweave, decrypts the outer AES-GCM layer, and runs the normal 2-of-3 unlock. **No localStorage and no Recovery input are required.**
 
-### Why the outer key is stored "raw" inside user.id
+### The outer key is Master-wrapped inside user.id
 
-`user.id` is an input value that must be fixed *before* the credential is created, whereas the PRF can only be obtained *after* that credential exists. It is therefore fundamentally impossible to encrypt a credential's user.id with that credential's own PRF (a chicken-and-egg problem). The outer key is thus held raw inside user.id. This is acceptable:
+`user.id` is an input value that must be fixed *before* the credential is created, whereas the PRF can only be obtained *after* that credential exists. It is therefore fundamentally impossible to encrypt a credential's user.id with that credential's own PRF (a chicken-and-egg problem), so the PRF cannot be used. Instead, **the outer key is wrapped with a Master-password-derived key (AES-256-CTR) before being stored in user.id** (v7 hardening, 2026-05-24). The Master is independent of the credential-creation order, so it does not hit the ordering constraint. The wrapping key is `PBKDF2-SHA256(Master, salt=appNameTag.value, 600k)`; AES-CTR is non-expanding, so user.id stays 57 bytes. A wrong Master is not detected by a dedicated tag — detection is delegated to the downstream outer AES-GCM layer (wrong Master -> wrong outer key -> envelope decryption fails there). This design is safe:
 
-- `user.id` is gated by the Passkey hardware; reading it requires the physical key plus touch plus user verification (UV). Neither malware nor an Arweave scraper can read it.
+- `user.id` is gated by the Passkey hardware; reading it requires the physical key plus touch plus user verification (UV). Neither malware nor an Arweave scraper can read it. Furthermore, since the outer key is Master-wrapped, even if user.id leaks to some unanticipated future surface (passkey export formats, OS changes, forensics, etc.), it is only ciphertext to anyone who does not know the Master.
 - The public Arweave object is completely identical to v6, and the outer key never appears on the public side, so anti-fingerprinting remains intact.
 - The outer key is the key of the obfuscation layer (outer AES-GCM), not the confidentiality key of the vault body. The body is protected by the MEK plus the 2-of-3 factors. The only party to whom the outer key can be exposed is someone holding your physical Passkey — and that party already holds factor B.
+- appNameTag (the vault's location) is not a secret — it is the anonymized Arweave tag itself — so it is held in plaintext inside user.id (only the 32-byte outer key is wrapped).
 
 ### Scope
 

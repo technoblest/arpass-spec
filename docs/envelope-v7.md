@@ -550,21 +550,22 @@ v6 まで、新しい端末で既存 vault を開くには outer 鍵 (`HKDF(rMat
 Passkey の WebAuthn `user.id` (userHandle、認証器が保持・同期/携行する最大 64 byte 領域) に、次の 57 byte ペイロードを格納します。
 
 ```
-[1 byte version=7][8 byte appNameTag.name][16 byte appNameTag.value][32 byte outer_key]
+[1 byte version=7][8 byte appNameTag.name][16 byte appNameTag.value][32 byte outer_key (Master ラップ済)]
 ```
 
-- `outer_key` は v6 と同一の `HKDF(rMat)`。
+- `outer_key` は v6 と同一の `HKDF(rMat)`。ただし user.id 内では Master でラップして格納します (下記)。
 - `appNameTag` は Arweave 検索用の匿名タグ (name/value) — [arweave-tags.md](./arweave-tags.md) を参照。
 
 新端末では WebAuthn の `get()` を 1 回行うだけで userHandle と PRF が同時に得られます。userHandle から outer 鍵と appNameTag を取り出し → Arweave から vault を取得 → 外側 AES-GCM を復号 → 通常の 2-of-3 unlock。**localStorage も Recovery 入力も不要**です。
 
-### outer 鍵を user.id 内に「生」で持つ理由
+### outer 鍵は Master でラップして user.id に持つ
 
-`user.id` は credential を作成する *前* に確定する入力値で、PRF はその credential を作成した *後* にしか得られません。したがって「その credential 自身の PRF で user.id を暗号化する」ことは原理的に不可能です (鶏と卵)。よって outer 鍵は user.id 内に生で持ちます。これは許容できます:
+`user.id` は credential を作成する *前* に確定する入力値で、PRF はその credential を作成した *後* にしか得られません。したがって「その credential 自身の PRF で user.id を暗号化する」ことは原理的に不可能です (鶏と卵)。よって PRF は使えません。代わりに **outer 鍵を Master パスワード由来鍵で AES-256-CTR ラップして user.id に持ちます** (v7 ハードニング 2026-05-24)。Master は credential 作成順序と独立なので順序制約に抵触しません。ラップ鍵 = `PBKDF2-SHA256(Master, salt=appNameTag.value, 600k)`、AES-CTR は非膨張なので user.id は 57 byte を維持します。誤 Master の検出は独自タグを持たず下流の外側 AES-GCM 層に委譲します (誤 Master → 誤 outer 鍵 → envelope 復号がそこで失敗)。この設計は安全です:
 
-- `user.id` は Passkey ハードウェアでゲートされ、読み出しに物理鍵 + タッチ + UV を要します。マルウェアも Arweave スクレイパーも読めません。
+- `user.id` は Passkey ハードウェアでゲートされ、読み出しに物理鍵 + タッチ + UV を要します。マルウェアも Arweave スクレイパーも読めません。さらに outer 鍵は Master でラップ済なので、仮に user.id が将来想定外の場所 (パスキー export 規格・OS 変更・フォレンジック等) へ漏れても、Master を知らない者には暗号文でしかありません。
 - Arweave 公開オブジェクトは v6 と完全に同一で、outer 鍵は公開側に一切載りません → anti-fingerprint は無傷。
 - outer 鍵は難読化層 (外側 AES-GCM) の鍵であり、vault 本体の機密性鍵ではありません。本体は MEK + 2-of-3 要素で守られます。露出しうるのは「あなたの物理 Passkey を持つ者」だけで、その者は既に要素 B を握っています。
+- appNameTag (vault の所在) は秘密ではなく Arweave 上の匿名タグそのものなので、user.id 内では平文で持ちます (ラップ対象は outer 鍵 32 byte のみ)。
 
 ### 適用範囲
 
