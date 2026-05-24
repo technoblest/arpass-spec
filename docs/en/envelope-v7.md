@@ -361,16 +361,20 @@ The MEK itself is unchanged. Other devices' wraps are preserved.
 
 ## Change password (`changePassword`)
 
+Changing the Master password requires the current Recovery Secret. In envelope v7 the outer key is stored inside user.id wrapped under the Master (Phase 7.4), and user.id is immutable after the credential is created (there is no API to rewrite it). Changing the Master therefore requires **creating one new Passkey whose user.id is wrapped under the new Master**.
+
 ```
 Pre-conditions: the unlocked session, plus the user-supplied Recovery Secret
-  1. New pMat' = PBKDF2(new_password, salt.p)
-  2. Rebuild wraps.pr with the new KEK_pr (uses pMat' || rMat)
-  3. Rebuild wraps.pk[i] for THIS device with the new KEK_pk (uses pMat' || kMat for this device)
-  4. wraps.kr[*] is unchanged (no Master factor in there)
-  5. saveVault
+  1. Create a new Passkey whose user.id is wrapped under the new Master (createPasskey)
+  2. New pMat' = PBKDF2(new_password, salt.p)
+  3. Rebuild wraps.pr with the new KEK_pr (uses pMat' || rMat)
+  4. Drop ALL wraps.pk[] and keep a single AB wrap for the new Passkey
+     (new KEK_pk = pMat' || kMat' of the new Passkey)
+  5. Add a BC wrap (wraps.kr) for the new Passkey (no Master factor)
+  6. saveVault
 ```
 
-Other devices' `wraps.pk` cannot be re-derived without the user re-entering the new Master on each device, so they continue working with the OLD Master temporarily. To propagate, the user must run "Change password" with the same new Master on each other device. (See the "Important if you use this on other devices" warning in Settings.)
+Because every `wraps.pk` is discarded, the old Master can no longer AB-unlock on any device (this also resolves v6's lazy-completion issue where the old Master stayed valid on other devices for a while). With a synced passkey the new Passkey propagates to every device automatically; other devices simply pick it and enter the new Master next time. With per-device passkeys, other devices lose their AB wrap and must re-open with `Master + Recovery` or `Passkey + Recovery`. Old Passkeys remain in the OS but can no longer unlock, so the user deletes them manually.
 
 ---
 
@@ -505,6 +509,10 @@ On a new device, a single WebAuthn `get()` yields the userHandle and the PRF out
 - The public Arweave object is completely identical to v6, and the outer key never appears on the public side, so anti-fingerprinting remains intact.
 - The outer key is the key of the obfuscation layer (outer AES-GCM), not the confidentiality key of the vault body. The body is protected by the MEK plus the 2-of-3 factors. The only party to whom the outer key can be exposed is someone holding your physical Passkey — and that party already holds factor B.
 - appNameTag (the vault's location) is not a secret — it is the anonymized Arweave tag itself — so it is held in plaintext inside user.id (only the 32-byte outer key is wrapped).
+
+### A new Passkey is created when the Master changes (Option A)
+
+`user.id` is immutable after the credential is created, so changing the Master would leave the wrap inside the old user.id undecryptable. To handle this, changing the Master **creates one new Passkey** whose user.id is wrapped under the new Master. `changePassword` rebuilds the AC wrap under the new Master, **discards all AB wraps (wraps.pk)** keeping only one for the new Passkey, and adds a BC wrap for the new Passkey. The old Master can then no longer AB-unlock on any device (this also resolves v6's lazy-completion issue where the old Master stayed valid on other devices). With a synced passkey the new Passkey propagates to every device automatically and other devices just pick it and enter the new Master; with per-device passkeys, other devices re-open with `Master + Recovery` or `Passkey + Recovery`. Old Passkeys remain in the OS / authenticator but can no longer AB-unlock, so the user deletes them manually.
 
 ### Scope
 
