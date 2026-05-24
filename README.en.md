@@ -19,8 +19,8 @@ Anyone can verify at the code level whether the claim "**operations cannot see y
 | [`lib/client-auth.js`](lib/client-auth.js) | API authentication (X-Public-Key + ECDSA signature), Arweave data fetching (Turbo + arweave.net in parallel, outer AES-GCM decryption), tx status (GraphQL + L1 status) |
 | [`lib/vendor/noble-curves-and-hashes.mjs`](lib/vendor/noble-curves-and-hashes.mjs) | The required portions of @noble/curves v2 + @noble/hashes v2 bundled with esbuild into one file (~70 KB). Provides p256 / sha256 / hkdf / hmac / mod. MIT (Paul Miller). Required because the Web Crypto API cannot deterministically derive ECDSA P-256 keys from seed bytes. |
 | [`lib/vendor/LICENSE-noble`](lib/vendor/LICENSE-noble) | Full @noble license text |
-| [`docs/envelope-v5.md`](docs/envelope-v5.md) | (Japanese) **Current** v5 envelope JSON structure + outer encryption specification |
-| [`docs/en/envelope-v5.md`](docs/en/envelope-v5.md) | English version |
+| [`docs/envelope-v7.md`](docs/envelope-v7.md) | (Japanese) **Current** envelope specification — v7 (the Passkey's user.id carries the outer key; new devices unlock without entering the Recovery Secret) |
+| [`docs/en/envelope-v7.md`](docs/en/envelope-v7.md) | English version |
 | [`docs/envelope-v4.md`](docs/envelope-v4.md) | (Japanese, historical) v4 envelope spec — referenceable since past v4 envelopes remain on Arweave |
 | [`docs/arweave-tags.md`](docs/arweave-tags.md) | (Japanese) Meaning and anonymization policy of Arweave transaction tags (v4.1 / v5) |
 | [`docs/en/arweave-tags.md`](docs/en/arweave-tags.md) | English version |
@@ -77,7 +77,7 @@ What does **NOT** exist on the server:
 - Any of the Master password / Passkey PRF / Recovery Secret material
 
 → **The MEK exists only on the device** and never reaches the server.
-See [`docs/envelope-v5.md`](docs/envelope-v5.md) (Japanese) or [`docs/en/envelope-v5.md`](docs/en/envelope-v5.md) (English) for details.
+See [`docs/envelope-v7.md`](docs/envelope-v7.md) (Japanese) or [`docs/en/envelope-v7.md`](docs/en/envelope-v7.md) (English) for details.
 
 ---
 

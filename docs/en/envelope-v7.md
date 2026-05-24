@@ -1,6 +1,6 @@
-# Envelope v5 Specification
+# Arpass Envelope Specification — v7
 
-> 🌐 日本語版: [docs/envelope-v5.md](../envelope-v5.md)
+> 🌐 日本語版: [docs/envelope-v7.md](../envelope-v7.md)
 
 The v5 storage format for Arpass. Defines the encrypted envelope structure that each device assembles in the browser, writes to Arweave, and reconstructs on decryption.
 
@@ -473,6 +473,41 @@ Phase 7.3-A **does not change the envelope format at all**. The ciphertext struc
 What changes is **only how the client implementation holds keys**. Previously the session held `MEK` and similar as raw `Uint8Array(32)`; from Phase 7.3-A onward they are held as non-extractable `CryptoKey`s (key objects whose raw bytes cannot be extracted from JS). For details and the scope of the defense, see the [Phase 7.3 section of crypto-rationale.md](crypto-rationale.md).
 
 No migration is needed; existing users automatically build their session with the new derivation chain on their next unlock.
+
+---
+
+## Phase 7.4: envelope v7 — the Passkey carries the outer key (new-device unlock)
+
+Phase 7.4 **does not change the envelope JSON format at all** (`v: 5` is unchanged, identical for Personal / Business). The ciphertext structure written to Arweave, the size padding, and the anonymized tags are all identical to Phase 7.0w-AR. What changes is **where the outer key comes from**.
+
+### Motivation
+
+Through v6, opening an existing vault on a new device required the outer key (`HKDF(rMat)`), which exists only in the device's localStorage. A new device therefore always had to have the Recovery Secret entered. Because printing and reliably storing the Recovery Secret is impractical for many users, the goal is a state where any device can be opened with just a key (Passkey / YubiKey) and the Master password.
+
+### Mechanism — storing the outer key in the WebAuthn user.id
+
+The 57-byte payload below is stored in the Passkey's WebAuthn `user.id` (the userHandle — up to 64 bytes, held and synced/carried by the authenticator):
+
+```
+[1 byte version=7][8 bytes appNameTag.name][16 bytes appNameTag.value][32 bytes outer_key]
+```
+
+- `outer_key` is the same `HKDF(rMat)` as in v6.
+- `appNameTag` is the anonymized Arweave lookup tag (name/value) — see [arweave-tags.md](./arweave-tags.md).
+
+On a new device, a single WebAuthn `get()` yields the userHandle and the PRF output together. The client extracts the outer key and appNameTag from the userHandle, fetches the vault from Arweave, decrypts the outer AES-GCM layer, and runs the normal 2-of-3 unlock. **No localStorage and no Recovery input are required.**
+
+### Why the outer key is stored "raw" inside user.id
+
+`user.id` is an input value that must be fixed *before* the credential is created, whereas the PRF can only be obtained *after* that credential exists. It is therefore fundamentally impossible to encrypt a credential's user.id with that credential's own PRF (a chicken-and-egg problem). The outer key is thus held raw inside user.id. This is acceptable:
+
+- `user.id` is gated by the Passkey hardware; reading it requires the physical key plus touch plus user verification (UV). Neither malware nor an Arweave scraper can read it.
+- The public Arweave object is completely identical to v6, and the outer key never appears on the public side, so anti-fingerprinting remains intact.
+- The outer key is the key of the obfuscation layer (outer AES-GCM), not the confidentiality key of the vault body. The body is protected by the MEK plus the 2-of-3 factors. The only party to whom the outer key can be exposed is someone holding your physical Passkey — and that party already holds factor B.
+
+### Scope
+
+Personal / Business / Admin modes are all covered. It works with both synced passkeys (iCloud Keychain / Google Password Manager) and security keys such as YubiKey. The 8-character minimum length for the Master password has also been removed (only empty is disallowed). Because the service has not launched, no v6 to v7 data migration is implemented; v7 is the format for all newly created vaults.
 
 ---
 

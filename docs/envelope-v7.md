@@ -1,6 +1,6 @@
-# Envelope v5 仕様書
+# Arpass Envelope 仕様書 — v7
 
-> 🌐 English version: [en/envelope-v5.md](en/envelope-v5.md)
+> 🌐 English version: [en/envelope-v7.md](en/envelope-v7.md)
 
 Arpass の v5 保存フォーマット。各端末がブラウザ上で組み立てて Arweave に書き込み、復号時に再構築する暗号化エンベロープの構造を定義します。
 
@@ -534,6 +534,41 @@ Phase 7.3-A は **envelope フォーマットを一切変更しません**。Arw
 変更されるのは **クライアント実装が鍵をどう保持するか**だけです。従来は `MEK` などを raw な `Uint8Array(32)` で session に保持していましたが、Phase 7.3-A 以降は非 extractable な `CryptoKey` (= JS から生バイト列を取り出せない鍵オブジェクト) として保持します。詳細と防御範囲は [crypto-rationale.md の Phase 7.3 節](./crypto-rationale.md) を参照。
 
 マイグレーションは不要で、既存ユーザは次回 unlock 時に自動的に新しい派生 chain で session を構築します。
+
+---
+
+## Phase 7.4: envelope v7 — Passkey が outer 鍵を運ぶ (新端末解錠)
+
+Phase 7.4 は **envelope の JSON フォーマットを一切変更しません** (`v: 5` のまま、Personal / Business とも同一)。Arweave に書かれる暗号文構造・サイズパディング・匿名タグはすべて Phase 7.0w-AR と同一です。変わるのは **outer 鍵をどこから入手するか**だけです。
+
+### 動機
+
+v6 まで、新しい端末で既存 vault を開くには outer 鍵 (`HKDF(rMat)`) が必要でしたが、これは端末の localStorage にしか無いため、新端末は必ず Recovery Secret の入力を要しました。Recovery Secret の現実的な保管 (印刷) が難しい利用者が多いため、「鍵 (Passkey / YubiKey) と Master だけで、どの端末でも開ける」状態を目指します。
+
+### 仕組み — outer 鍵を WebAuthn user.id に格納
+
+Passkey の WebAuthn `user.id` (userHandle、認証器が保持・同期/携行する最大 64 byte 領域) に、次の 57 byte ペイロードを格納します。
+
+```
+[1 byte version=7][8 byte appNameTag.name][16 byte appNameTag.value][32 byte outer_key]
+```
+
+- `outer_key` は v6 と同一の `HKDF(rMat)`。
+- `appNameTag` は Arweave 検索用の匿名タグ (name/value) — [arweave-tags.md](./arweave-tags.md) を参照。
+
+新端末では WebAuthn の `get()` を 1 回行うだけで userHandle と PRF が同時に得られます。userHandle から outer 鍵と appNameTag を取り出し → Arweave から vault を取得 → 外側 AES-GCM を復号 → 通常の 2-of-3 unlock。**localStorage も Recovery 入力も不要**です。
+
+### outer 鍵を user.id 内に「生」で持つ理由
+
+`user.id` は credential を作成する *前* に確定する入力値で、PRF はその credential を作成した *後* にしか得られません。したがって「その credential 自身の PRF で user.id を暗号化する」ことは原理的に不可能です (鶏と卵)。よって outer 鍵は user.id 内に生で持ちます。これは許容できます:
+
+- `user.id` は Passkey ハードウェアでゲートされ、読み出しに物理鍵 + タッチ + UV を要します。マルウェアも Arweave スクレイパーも読めません。
+- Arweave 公開オブジェクトは v6 と完全に同一で、outer 鍵は公開側に一切載りません → anti-fingerprint は無傷。
+- outer 鍵は難読化層 (外側 AES-GCM) の鍵であり、vault 本体の機密性鍵ではありません。本体は MEK + 2-of-3 要素で守られます。露出しうるのは「あなたの物理 Passkey を持つ者」だけで、その者は既に要素 B を握っています。
+
+### 適用範囲
+
+Personal / Business / Admin の全モードが対象です。同期パスキー (iCloud Keychain / Google Password Manager) と YubiKey 等のセキュリティキーの双方で動作します。あわせて Master の最低長 8 文字を撤廃しました (空のみ不可)。サービス未公開のため v6 → v7 のデータ移行は実装せず、v7 を全新規 vault の形式とします。完全な実装仕様はサービス本体リポジトリの `docs/envelope-v7-spec.md` に対応します。
 
 ---
 
