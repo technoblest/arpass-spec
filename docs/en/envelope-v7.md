@@ -520,6 +520,51 @@ Personal / Business / Admin modes are all covered. It works with both synced pas
 
 ---
 
+## Phase 7.5: envelope v7 increment 2 — YubiKey-only mode (hwkey)
+
+Phase 7.5 adds a **YubiKey-only mode** (`m: "hwkey"`) that opens a vault with several registered YubiKeys alone — no Master and no Recovery Secret. It is an independent mode selected exclusively at vault-creation time, distinct from the standard 2-of-3 mode. Like Phase 7.4 (increment 1), it is a non-breaking extension that keeps the v6 / v7 cryptographic skeleton.
+
+### Motivation and positioning
+
+This is an advanced option for users who want a physical security key at the centre of authentication. There is no Master to memorize and no Recovery Secret to keep on paper; touching any one of the registered YubiKeys is enough to open the vault. The trade-off is that **there is no recovery path if all registered YubiKeys are lost**. The mode therefore **requires registering two or more YubiKeys** at creation time (a backup against losing or breaking one).
+
+### The hwkey envelope and `k[]` — 1-of-N unlock
+
+The inner envelope for hwkey mode has the structure:
+
+```
+{ v: 5, m: "hwkey", i, c, k: [ { h, w }, ... ] }
+```
+
+- `v: 5` is the format marker shared with the standard mode; `m: "hwkey"` is the mode discriminator.
+- `i` / `c` are the IV / ciphertext of the body (vault data) encrypted with the MEK under AES-256-GCM.
+- `k[i]` is a per-YubiKey MEK wrap. `h` is the SHA-256 of that YubiKey's credentialId (a non-secret index used to narrow down `k[]` at unlock time). `w` is the MEK wrapped with AES-256-GCM under a key HKDF-derived from that YubiKey's WebAuthn PRF.
+- There is no 2-of-3 wrap object (`wraps`) and no PBKDF2 salt.
+
+Unlock tries `k[]` in turn with the PRF of the single YubiKey in hand; if any one entry decrypts, the MEK is recovered — a **1-of-N** scheme.
+
+### keyslot blob — protecting the outer key with the YubiKey's PRF
+
+Because hwkey mode has no Master, the Phase 7.4 approach of Master-wrapping the outer key inside user.id cannot be used. Instead, a separate **keyslot blob** is created on Arweave for each YubiKey. A keyslot blob is an object distinct from the vault body; it encrypts the vault's location (`appNameTag`) and the 32-byte outer key under AES-256-GCM with a key HKDF-derived from that YubiKey's PRF in a dedicated domain. Its contents are immutable for the life of the vault, so it is write-once, and it is padded to the same size band as the body, making it indistinguishable from the body on Arweave (anti-fingerprinting preserved).
+
+The hwkey-mode `user.id` contains no secret at all. It is a 25-byte structure `[1 byte version=8][8 bytes keyslotTag.name][16 bytes keyslotTag.value]` carrying only a random tag that points to the keyslot blob's location. Even if user.id leaks, only the anonymized tag is readable; the keyslot body itself cannot be decrypted without that YubiKey's PRF.
+
+### Unlock flow
+
+A WebAuthn `get()` yields the userHandle and PRF from the YubiKey → the keyslot location tag is extracted from the userHandle (version=8) → the keyslot blob is fetched and decrypted with the PRF to obtain `appNameTag` and the outer key → the vault body is fetched and its outer layer decrypted with the outer key → `k[]` is decrypted with the PRF to obtain the MEK, and the body is decrypted. No Master, no Recovery, no localStorage. On already-registered devices a credentialId-specific `get()` goes straight to the YubiKey without showing a passkey list; new devices use a list-style `get()`. Freshly created keyslot / body blobs may be temporarily unavailable while propagating across Arweave, so not-yet-propagated errors are retried with a backoff of about 60 seconds.
+
+### Making the PRF UV-independent, and the Mac Safari limitation
+
+The WebAuthn PRF output changes depending on whether user verification (UV, a PIN entry) is performed. If platforms disagree on whether UV runs, the PRF will not match and the keyslot cannot be decrypted, so every WebAuthn call in hwkey mode is unified to `userVerification: "discouraged"`, fixing the PRF to the "no-UV" variant.
+
+Even so, Safari on Mac implements WebAuthn differently from other browsers: for the same YubiKey, its PRF value does not match other environments (Mac Chrome / Edge, Windows, iPhone, Android). This is a browser-specific incompatibility that cannot be fixed from app code. An hwkey vault created or used in Mac Safari becomes Mac-Safari-only and cannot be opened elsewhere. The app does not block this; it shows a notice instead.
+
+### Safety invariants
+
+At least two registered YubiKeys at all times (the minimum at creation and the lower bound on removal); no Recovery door is created; credentials are discoverable (resident key required); WebAuthn is fixed UV-independent as above. The full implementation specification corresponds to `docs/envelope-v7-spec.md` in the service repository.
+
+---
+
 ## Compatibility
 
 - The `v` field (`5`) is checked at decode time. v4 envelopes still on Arweave are handled by the legacy reader path defined in `envelope-v4.md`.

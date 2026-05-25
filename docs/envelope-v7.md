@@ -595,6 +595,51 @@ Personal / Business / Admin の全モードが対象です。同期パスキー 
 
 ---
 
+## Phase 7.5: envelope v7 増分2 — YubiKey 専用モード (hwkey)
+
+Phase 7.5 は、Master も Recovery Secret も持たず、登録した複数本の YubiKey のみで vault を開く **YubiKey 専用モード** (`m: "hwkey"`) を追加します。標準の 2-of-3 モードとは vault 作成時に排他選択する独立したモードで、Phase 7.4 (増分1) と同じく v6 / v7 の暗号骨格を維持する非破壊的な拡張です。
+
+### 動機と位置づけ
+
+物理セキュリティキーを認証の中心に据えたい利用者に向けた上級者向けの選択肢です。覚える Master も、紙で保管する Recovery Secret もありません。登録した YubiKey のうちいずれか 1 本をタッチするだけで開けます。その代償として、登録 YubiKey を**すべて失うと復旧手段はありません**。このためモードは作成時に **YubiKey 2 本以上の登録を必須**とします (1 本の紛失・故障に備えたバックアップ)。
+
+### hwkey envelope と `k[]` — 1-of-N 解錠
+
+hwkey モードの inner envelope は次の構造です。
+
+```
+{ v: 5, m: "hwkey", i, c, k: [ { h, w }, ... ] }
+```
+
+- `v: 5` は標準モードと共通のフォーマットマーカー、`m: "hwkey"` がモード判別子です。
+- `i` / `c` = 本体 (vault データ) を MEK で AES-256-GCM 暗号化した IV / 暗号文です。
+- `k[i]` = 登録 YubiKey ごとの MEK wrap。`h` = その YubiKey の credentialId の SHA-256 (解錠時に `k[]` を絞り込む非秘密の索引)。`w` = その YubiKey の WebAuthn PRF から HKDF 派生した鍵で MEK を AES-256-GCM ラップしたもの。
+- 標準モードの 2-of-3 wrap オブジェクト (`wraps`) も PBKDF2 ソルトもありません。
+
+解錠は手元の YubiKey 1 本の PRF で `k[]` を順に試し、いずれか 1 エントリが復号できれば MEK が得られる **1-of-N** 方式です。
+
+### keyslot blob — outer 鍵を YubiKey の PRF で守る
+
+hwkey モードは Master を持たないため、Phase 7.4 の「outer 鍵を Master でラップして user.id に格納」する方式は使えません。代わりに、YubiKey ごとに独立した **keyslot blob** を Arweave 上に作ります。keyslot blob は vault 本体とは別のオブジェクトで、その YubiKey の PRF から専用ドメインで HKDF 派生した鍵を用い、vault の所在 (`appNameTag`) と outer 鍵 (32 byte) を AES-256-GCM 暗号化したものです。中身は vault の生涯不変なので write-once であり、本体と同じサイズ帯までパディングするため Arweave 上では本体と区別がつきません (anti-fingerprint 維持)。
+
+hwkey モードの `user.id` は秘密を一切含みません。25 byte の構造 `[1 byte version=8][8 byte keyslotTag.name][16 byte keyslotTag.value]` を持ち、keyslot blob の所在を指すランダムタグだけを運びます。万一 user.id が漏れても読めるのは匿名タグのみで、keyslot 本体はその YubiKey の PRF がなければ復号できません。
+
+### 解錠フロー
+
+WebAuthn `get()` で YubiKey から userHandle と PRF を得る → userHandle (version=8) から keyslot 所在タグを取り出す → keyslot blob を取得し PRF で復号して `appNameTag` と outer 鍵を得る → vault 本体を取得し outer 鍵で外側を復号 → `k[]` を PRF で復号して MEK を得て本体を復号。Master も Recovery も localStorage も不要です。登録済み端末では credentialId を名指しした `get()` でパスキー一覧を出さず YubiKey に直行し、新端末では一覧から選びます。作成直後は keyslot / 本体の Arweave 伝播待ちで一時的に取得できないことがあるため、未反映系のエラーには約 60 秒のバックオフ再試行を行います。
+
+### WebAuthn PRF の UV 非依存化と Mac Safari の制約
+
+WebAuthn PRF の出力は利用者検証 (UV、PIN 入力) の有無で値が変わります。プラットフォーム間で UV の有無が食い違うと PRF が一致せず keyslot を復号できないため、hwkey モードの全 WebAuthn 呼び出しを `userVerification: "discouraged"` に統一し、PRF を「UV なしの変種」に固定しました。
+
+なお Mac の Safari は WebAuthn の実装が他ブラウザと異なり、同一の YubiKey でも他環境 (Mac Chrome / Edge、Windows、iPhone、Android) と PRF 値が一致しません。これはアプリ側で修正できないブラウザ固有の非互換です。Mac Safari で作成・利用した hwkey vault は Mac Safari 専用となり、他環境とは相互に開けません。アプリはこれをブロックせず、その旨を注意喚起します。
+
+### 安全装置
+
+登録 YubiKey は常に 2 本以上 (作成時の最低本数、削除時の下限)。Recovery の扉は作らない。資格情報は discoverable (resident key 必須)。WebAuthn は上記のとおり UV 非依存に固定。完全な実装仕様はサービス本体リポジトリの `docs/envelope-v7-spec.md` に対応します。
+
+---
+
 ## 互換性
 
 - v4 / v4.1 envelope と **互換性なし** (Arpass は公開前のため、移行ユーザーは存在しない)
