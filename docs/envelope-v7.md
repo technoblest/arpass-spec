@@ -1,653 +1,373 @@
-# Arpass Envelope 仕様書 — v7
+# Arpass envelope v7 — 詳細仕様（YubiKey 対応 / outer 鍵を Passkey が運ぶ）
 
-> 🌐 English version: [en/envelope-v7.md](en/envelope-v7.md)
+最終更新: 2026-05-25（増分2 実装確定版に改訂）
+ステータス: **増分1 本番反映済 / 増分2 実装完了・staging 検証済**
+担当: Yamaki / Technoblest
+上位メモ: [yubikey-outer-key-redesign.md](./yubikey-outer-key-redesign.md)
+前形式: envelope v6（[crypto-2of3.md](./crypto-2of3.md)）
 
-Arpass の v5 保存フォーマット。各端末がブラウザ上で組み立てて Arweave に書き込み、復号時に再構築する暗号化エンベロープの構造を定義します。
-
-v4 から **3 つの大きな変更**があります:
-
-1. **外側 AES-GCM 層** — エンベロープ JSON 全体をさらに暗号化してから Arweave に書く (Arweave スクレイパーから JSON 構造を隠蔽)
-2. **署名鍵を保存しない** — ECDSA P-256 鍵ペアは MEK から決定論的に派生する (Arweave 上に「秘密鍵」「公開鍵」のいずれも書かない)
-3. **vault-id がサーバに無い** — Cloudflare KV のキーは `H(publicKey)`、`X-Vault-Id` ヘッダ廃止 (Phase 7.0w-AR では vault-id 概念そのものを廃止)
-
-それ以外 (2-of-3 鍵管理、PBKDF2-SHA256 600K、AES-256-GCM、HKDF-SHA256、Recovery Secret 形式) は v4.1 を継承します。
-
----
-
-## 概要
-
-`vault` (= ユーザの平文エントリのリスト) は次の手順で **エンベロープ** に変換され、外側暗号化されたうえで Arweave に保存されます。
-
-```
-平文 vault JSON
-    │
-    ├─► AES-256-GCM(MEK, iv) ──► 本体 ciphertext (パディングあり)
-    │
-    └─► MEK は 3 種の wrap で別ルートで保管:
-         • wraps.pr   = AES-GCM(MEK, KEK(P, R))            1 個
-         • wraps.pk[] = AES-GCM(MEK, KEK(P, K_device))     端末ごと
-         • wraps.kr[] = AES-GCM(MEK, KEK(K_device, R))     端末ごと
-
-エンベロープ JSON 完成後:
-    │
-    └─► AES-256-GCM(outer_key, outer_iv) ──► Arweave に書き込む blob
-        (outer_key = HKDF(rMat) — Phase 7.0w-AR で vault-id を廃止)
-```
-
-**MEK** は vault 全体で共通の 32-byte 対称鍵で、端末ごとに新規生成されません。端末追加 (`addDevice`) はその端末用の wrap エントリを `wraps.pk[]` と `wraps.kr[]` に追加するだけで、MEK も `wraps.pr` も既存のまま継承されます。
-
-> **Phase 7.0w-AR (2026-05) 更新**: 初期 v5 にあった `vault-id` という中間識別子 (Recovery から派生する 16 byte) は **概念ごと廃止**されました。外側 AES-GCM 層の鍵も Arweave 検索タグも、いまは Recovery 材料 `rMat` から直接派生します。「vault を一意に指す ID」が存在しないため、サーバ・Arweave・localStorage のどこにも vault を指す識別子が残りません。
-
-クライアントが `rMat` (= Recovery Secret から HKDF で導出される 32 byte) を使う用途:
-
-1. Arweave 検索のための匿名タグ (name/value 両方) の派生 — [arweave-tags.md](./arweave-tags.md) を参照
-2. 外側 AES-GCM 層の鍵 `outer_key` 派生
-
-API リクエストの認証は **publicKey** (MEK から派生) で行い、サーバ側 KV のキーは `H(publicKey)` です。`X-Vault-Id` ヘッダは存在しません。
+> 改訂メモ: 初版にあった「キースロット・オブジェクト（Arweave 上の別オブジェクト）」案は撤回。
+> Arweave の伝播ラグと書き込みコスト（anti-fingerprint padding で各キースロットが本体並みの
+> サイズになる）が割に合わない。代わりに **outer 鍵を Passkey の user.id に格納**する。
+> Arweave オブジェクトは本体 1 個のまま、書き込みパターンも v6 と同じ。
 
 ---
 
-## JSON 構造 (内側 — 復号後)
+## 0. 位置づけ
 
-実際にネットワークを流れる本体は外側暗号化されているため不透明バイト列ですが、**外側を復号した後の内側 JSON** は以下の構造を持ちます。
+- **範囲**: personal / business / admin 全モードの envelope v7（増分1・増分2）。標準 2-of-3 と YubiKey 専用モード。
+- business モードも v7 対象（2026-05-23 決定）: IP allowlist + K1 退社制御でアクセス管理は担保されるため端末追加を admin ゲートする必要は薄く、会社ユーザーこそ多端末利用が多い。encryptVaultBusiness の outer 鍵 / appNameTag 導出は encryptVault と同一なので v7 user.id 機構がそのまま転用できる。
+- **移行**: サービス未公開＝実ユーザー不在のため v6→v7 マイグレーションは実装しない。v7 を全新規 vault の形式とする。
 
-```json
-{
-  "v": 5,
-  "s": "<base64url 16-byte salt>",
-  "i": "<base64url 12-byte ciphertext IV>",
-  "c": "<base64url ciphertext (vault JSON、padded)>",
-  "w": {
-    "a": { "i": "<wrap IV>", "c": "<wrap ciphertext>" },
-    "b": [
-      { "h": "<credIdHash>", "i": "<wrap IV>", "c": "<wrap ciphertext>" },
-      ...
-    ],
-    "c": [
-      { "h": "<credIdHash>", "i": "<wrap IV>", "c": "<wrap ciphertext>" },
-      ...
-    ]
-  }
-}
-```
+---
 
-| JSON | 内部名 | 内容 |
+## 1. 目的
+
+1. 「鍵（Passkey / YubiKey）＋ Master」で、新端末を含むどの端末でも解錠できる。新端末ごとの登録・localStorage 依存・Recovery 入力を不要にする。
+2. outer 鍵を localStorage に生で置くのをやめる。
+3. 2-of-3 の「端末を全部失っても Master+Recovery で復旧」を維持。
+4. サーバ非依存性（運営撤退後も手元の鍵だけで復号）を保つ。
+5. オプションで Master も Recovery も持たない「YubiKey モード」を選べる。
+
+---
+
+## 2. v6 → v7 変更サマリー
+
+| | v6（現行） | v7 |
 |---|---|---|
-| `v` | `version` | 整数 `5` (フォーマットバージョン) |
-| `s` | `salt` | base64url、16 byte (PBKDF2 用、vault ごとにランダム) |
-| `i` | `iv` | base64url、12 byte (本体 ciphertext の AES-GCM IV) |
-| `c` | `ciphertext` | base64url (本体 ciphertext、padded、AES-GCM 認証タグ込み) |
-| `w` | `wraps` | wrap 群 |
-| `w.a` | `wraps.pr` | Master+Recovery で MEK を取り出す唯一の wrap (1 個) |
-| `w.b` | `wraps.pk` | 端末ごとの Master+Passkey wrap の配列 |
-| `w.c` | `wraps.kr` | 端末ごとの Passkey+Recovery wrap の配列 |
-
-各 wrap エントリ:
-
-| JSON | 内部名 | 内容 |
-|---|---|---|
-| `h` | `credIdHash` | base64url、SHA-256(WebAuthn credential id) (端末識別、`w.a` には不要) |
-| `i` | `iv` | base64url、12 byte (この wrap の AES-GCM IV) |
-| `c` | `ciphertext` | base64url (MEK を KEK で AES-GCM 包んだもの、認証タグ込み) |
-
-### v4 から削除されたフィールド
-
-| 削除されたフィールド | 削除理由 |
-|---|---|
-| `k` (KDF パラメータブロック `{n, i, s}`) | algorithm name と iteration 数は `v` で暗黙規定。salt のみ top-level `s` に昇格 |
-| `d` (devices メタ配列) | 端末名・追加日・deviceId が **平文で** Arweave 上に残っていたフィールド。本体 `c` (暗号化領域) の中に移動 |
-| 各 wrap の `d` (deviceId) | credIdHash と 1:1 対応する死にフィールドだったため削除 |
-| 各 wrap の `n`, `a` (name, addedAt) | 同上、本体 `c` 内に移動 |
-| `migratedFromV3At`, `passwordChangedAt` | UI metadata 扱いとして本体 `c` 内に統合 |
+| outer 鍵の入手 | localStorage に生保存。新端末は Recovery 必須 | Passkey の `user.id` に格納（案A、§3） |
+| Arweave オブジェクト数 | 本体 1 個 | 本体 1 個（変更なし） |
+| 新端末での Master+Passkey 解錠 | 不可 | 可 |
+| localStorage | outer 鍵の必須保管先 | **outer 鍵を一切保存しない**（毎回 user.id から復元） |
+| モード | 2-of-3 のみ | 2-of-3 ＋ YubiKey モード（排他選択） |
+| Master 最低長 | 8 文字 | 撤廃（短くても可。空は §10 参照） |
+| Master 変更 | 現端末の AB wrap だけ再生成（他端末は lazy、旧 Master が残る） | 新 Passkey を作成し全 AB wrap を再構成（§14、旧 Master は即全端末無効） |
 
 ---
 
-## 外側暗号化層 (Arweave に書く blob)
+## 3. 中核アイデア（案A）
 
-エンベロープ JSON を完成させたあと、**さらにもう一段** AES-256-GCM で wrap してから Arweave に書きます。
+Passkey の `user.id`（WebAuthn userHandle、最大 64 byte、鍵が保持・同期/携行する）に、
+**vault の所在（appNameTag）と outer 鍵（32 byte）** を載せる。
 
-### 鍵の派生
+新端末では WebAuthn get 一回で userHandle と PRF が同時に取れる → userHandle から
+outer 鍵を取り出して → vault を取得・外層復号できる。localStorage も
+Recovery 入力も不要。
 
-```
-outer_key = HKDF-SHA256(
-  ikm  = rMat,                           // 32 byte (Recovery Secret 由来)
-  salt = "arpass-outer-v6",
-  info = "envelope-wrap",
-  L    = 32                              // 256-bit AES key
-)
-```
+**outer 鍵を Master でラップして user.id に持つ（WebAuthn 順序制約への対処、v7 ハードニング 2026-05-24）**:
+`user.id` は credential を作る *前* に確定する入力値であり、PRF はその credential を
+作った *後* にしか得られない。したがって「ある credential の user.id を、その credential
+自身の PRF で暗号化する」ことは原理的に不可能（鶏と卵）。よって PRF は使えない。
+代わりに **outer 鍵を Master パスワード由来鍵で AES-256-CTR ラップして user.id に持つ**。
+Master は credential 作成順序と独立なので順序制約に抵触しない。ラップ鍵 =
+`Argon2id(Master, salt=appNameTag.value, m=64MiB, t=3, p=4)`、CTR カウンタは appNameTag から
+決定論導出。AES-CTR は非膨張なので user.id は 57 byte を維持。誤 Master の検出は独自
+タグを持たず下流の外側 AES-GCM 層に委譲する（誤 Master → 誤 outer 鍵 → envelope 復号
+がそこで失敗）。この設計は安全である:
 
-`rMat` (= Recovery Secret) を持つ人 (= ユーザー本人) だけが導出できる鍵です。Phase 7.0w-AR より前は `ikm = vault-id` / `salt = "arpass-outer-v5"` でしたが、vault-id 廃止に伴い `rMat` 直接派生 + ドメイン分離のため salt を `v6` に更新しました。
+- user.id は Passkey ハードウェアでゲートされる（読み出しに物理キー＋タッチ＋UV が
+  要る。マルウェアも Arweave スクレイパーも読めない）。さらに outer 鍵は Master で
+  ラップ済なので、仮に user.id が将来想定外の場所（パスキー export 規格・OS 変更・
+  フォレンジック等）へ漏れても、Master を知らない者には暗号文でしかない。
+- Arweave 公開オブジェクトは v6 と完全に同一で、outer 鍵は公開側に一切載らない
+  → anti-fingerprint は 100% 無傷。
+- outer 鍵は難読化層の鍵であって金庫の機密性鍵ではない（金庫は MEK＋要素で守られる）。
+  露出し得るのは「あなたの物理 Passkey を持つ者」だけで、その者は既に要素 B を握っている。
+- appNameTag（vault の所在）は秘密ではなく Arweave 上の匿名タグそのものなので、
+  user.id 内では平文で持つ（ラップ対象は outer 鍵 32 byte のみ）。
 
-### 書き込み手順
-
-```
-envelopeJson = JSON.stringify({ v: 5, s, i, c, w })
-outerIv      = randomBytes(12)
-outerCt      = AES-256-GCM(outer_key, outerIv, envelopeJson)
-blob         = outerIv || outerCt              // 12 + N + 16 byte
-↓
-Arweave に blob を書き込む (タグは下記)
-```
-
-### 読み込み手順
-
-```
-blob       = Arweave から取得
-outerIv    = blob.slice(0, 12)
-outerCt    = blob.slice(12)
-envelopeJson = AES-256-GCM-decrypt(outer_key, outerIv, outerCt)
-envelope   = JSON.parse(envelopeJson)
-↓
-通常の v5 復号フロー (wrap 選択 → MEK → 本体 c 復号)
-```
-
-### この層の目的
-
-外側層は **「Arpass の存在自体を Arweave 上で隠す」** ための obfuscation 兼 機密性レイヤです。これがないと、Arweave 全件をスキャンする攻撃者は JSON parse + キー集合 `{v, s, i, c, w}` の一致で「これは Arpass の vault だ」と特定できてしまいます。
-
-外側層を入れることで、Arweave に書かれる blob は完全な乱数バイト列に見え、JSON 構造・フィールド名・暗号アルゴリズム名・サイズ分布などのフィンガープリントが全て消えます。`rMat` を持つ本人だけが `outer_key` を導出して復号できるので、これは**機密性を提供する**層でもあります (`outer_key` がサーバ・Arweave のどこにも露出しないため、obfuscation 以上の意味を持つ)。
-
-詳しい背景は [crypto-rationale.md §外側暗号化](./crypto-rationale.md) を参照。
+> **Master 変更時**: `user.id` は credential 作成後 *不変* なので、Master を変えると
+> 既存 user.id 内のラップが解けなくなる。対処として Master 変更時に新 Master で
+> ラップした user.id を持つ新しい Passkey を作成する（§14）。
 
 ---
 
-## 鍵導出
-
-### 1. パスワード材料 `pMat`
-
-ユーザーが入力した Master Password から PBKDF2 で派生される 32 byte。
+## 4. user.id v7 レイアウト（57 byte）
 
 ```
-pMat = PBKDF2-HMAC-SHA256(
-  password,
-  salt = envelope.s,         // 16 byte、vault ごとにランダム
-  iterations = 600_000,
-  L = 32
-)
+[1B version=7] [8B appNameTag.name] [16B appNameTag.value] [32B outerKey（Master ラップ済）]  = 57 byte
 ```
 
-### 2. Passkey 材料 `kMat`
+- `outerKey` = 32 byte の AES-GCM 外層鍵を **Master 由来鍵で AES-256-CTR ラップ**して
+  格納する（非膨張: 32→32 byte、IV/tag のオーバーヘッド無し、user.id は 57 byte 維持、
+  64 byte 以内）。当初案の「16 byte seed → HKDF 展開」は不要と判明し撤回。
+- **標準モード**: `outerKey = deriveOuterKeyBytes(rMat)` ── 既存 v6 の関数をそのまま使う。
+  Recovery 経路（rMat から導出）と Passkey 経路（user.id から読む）が同一の 32 byte に到達。
+  → **新たな鍵導出も envelope 形式変更も不要**。
+- **YubiKey モード**: `outerKey` はランダム生成（rMat なし）。
+- appNameTag.name / value は v6 と同様、両方とも独立に乱数派生（anti-fingerprint、crypto-2of3.md §0.2）。
+- codec（`encodeUserIdV7` / `decodeUserIdV7` / `isUserIdV7`、Master-wrap 含む）を実装・検証済み（`scripts/test-envelope-v7.mjs` 23 項目 PASS）。
 
-WebAuthn PRF 拡張で得る端末固有の 32 byte。
-
-```
-kMat = HKDF-SHA256(
-  ikm  = prfOutput,          // navigator.credentials.get() の PRF 出力 (32 byte)
-  salt = "arpass-passkey-prf-v1",
-  info = "passkey-material",
-  L    = 32
-)
-```
-
-### 3. Recovery 材料 `rMat`
-
-Recovery Secret の文字列から HKDF で派生される 32 byte。
-
-```
-rMat = HKDF-SHA256(
-  ikm  = utf8(recoverySecretString),     // RS1-XXXX-... 43 文字
-  salt = "arpass-recovery-v1",
-  info = "recovery-material",
-  L    = 32
-)
-```
-
-### 4. KEK 導出
-
-3 種の wrap に対応する 3 つの KEK を、上記材料の組み合わせで導出。
-
-```
-KEK_pr = HKDF(ikm = pMat || rMat,    salt = "arpass-kek-pr-v1", info = "kek-pr", L = 32)
-KEK_pk = HKDF(ikm = pMat || kMat,    salt = "arpass-kek-pk-v1", info = "kek-pk", L = 32)
-KEK_kr = HKDF(ikm = kMat || rMat,    salt = "arpass-kek-kr-v1", info = "kek-kr", L = 32)
-```
-
-### 5. wrap
-
-vault 共通の MEK を 3 通りに包む。
-
-```
-MEK = randomBytes(32)                  // vault 作成時に 1 回だけ生成、以降不変
-
-wraps.pr   = { iv: rand12, ct: AES-GCM(KEK_pr, iv, MEK) }
-wraps.pk[] = [ { h: credIdHash, iv: rand12, ct: AES-GCM(KEK_pk, iv, MEK) }, ... ]
-wraps.kr[] = [ { h: credIdHash, iv: rand12, ct: AES-GCM(KEK_kr, iv, MEK) }, ... ]
-```
-
-### 6. 本体暗号化
-
-```
-plaintext  = JSON.stringify(vault)
-padded     = padToBucket(plaintext)       // on-chain ~110 KiB ±6 KiB バケット (Phase 6.7)
-iv         = randomBytes(12)
-ciphertext = AES-256-GCM(MEK, iv, padded)
-```
-
-### 7. 署名鍵 (v5 新規 — Arweave に保存しない)
-
-ECDSA P-256 鍵ペアを MEK から決定論的に派生する。**保存はしない**。
-
-```
-seed = HKDF-SHA256(
-  ikm  = MEK,
-  salt = "arpass-signing-key-v5",
-  info = "p256-keypair",
-  L    = 32
-)
-
-d = bytesToBigInt(seed) mod n            // P-256 curve order
-Q = d × G                                // 公開鍵 (基準点 G の d 倍)
-```
-
-毎セッション開始時 (= unlock 後) に MEK から派生して使う。同じ MEK からは必ず同じ (d, Q) が出るので、端末復旧後も同じ identity が再現される。
+> **ロケーティング監査済（2026-05-23、§12-2）**: user.id が運ぶ appNameTag は
+> **legacy（tier 非依存）** のもの。現行コードでも Arweave 書き込みタグは常に
+> legacy tag（`deriveAppNameTag(rMat)` tier=null）で、tier 変更では移動しない
+> （tier は `body.tier` で別途サーバ申告）。よって user.id の appNameTag は永続的に有効。
 
 ---
 
-## サイズパディング (Phase 5.2 改訂)
+## 5. モード（vault 作成時に排他選択）
 
-本体 `c` のサイズで vault のエントリ数を推定されないよう、**離散バケット + ジッタ**にパディングしてから AES-GCM 暗号化する。
+### 5.1 標準モード（2-of-3）
+
+- 要素 A=Master / B=Passkey+PRF / C=Recovery。v6 と同じ 2-of-3。
+- `outerKey` は rMat 由来（`deriveOuterKeyBytes(rMat)`）。Recovery 経路で新端末をブートストラップ可能。
+- v7 追加点: 登録 Passkey の user.id に outer 鍵（Master でラップ済）を載せる → 新端末 Master+Passkey 解錠が可能。
+
+### 5.2 YubiKey モード（1-of-N ハードウェア）
+
+- Master 無し、Recovery 無し、rMat 無し。
+- `outerKey` / `appNameTag` / `MEK` はランダム生成。
+- 登録した任意の 1 本の YubiKey で解錠（1-of-N）。鍵は 2 本以上必須（§10）。
+- **user.id に秘密を一切載せない**（標準モードの Master-wrap §3 は適用外）。
+  代わりに各 YubiKey ごとに **keyslot blob**（その YubiKey の PRF で暗号化した
+  独立 Arweave オブジェクト、§5.3）を作り、そこに `appNameTag` と `outerKey` を
+  格納する。user.id は keyslot blob の所在タグ（25 byte、version=8、§5.4）だけを運ぶ。
+- 設計根拠: hwkey は Master を持たないため「PRF で user.id を守る」ことができず
+  （PRF は credential 作成後にしか得られない＝§3 と同じ鶏卵問題）、生の outer 鍵を
+  user.id に置くと物理キー所持者以外への漏洩面が広がる。keyslot blob 方式なら
+  user.id は秘密ゼロ、outer 鍵は PRF ゲートの暗号文としてのみ存在する。
+- 安全装置は §10。
+
+### 5.3 keyslot blob（増分2、hwkey 専用）
+
+各 YubiKey は固有の **keyslot blob** を 1 つ持つ。これは vault 本体とは別の
+独立した Arweave オブジェクトで、構造は次のとおり:
 
 ```
-buckets = [80 KiB, 160 KiB, 240 KiB]   // Phase 6.7: on-chain 110 KiB ターゲット
-jitter  = 0..8 KiB のランダム加算
-target  = 最も小さい bucket s.t. plaintext.length + 16 <= bucket
-        + jitter
-padded  = plaintext || 0x80 || 0x00 * (target - plaintext.length - 17)
+[12B IV] [AES-GCM( _keyslotKey(PRF), padPlaintext(JSON{ t:appNameTag, o:outerKey }) )]
 ```
 
-復号時は末尾の `0x80` マーカーを後方探索して padding を取り除く (ジッタ加算分のゼロ埋めは scan が継続できるため復号に影響しない)。
+- 暗号鍵 `_keyslotKey` = `HKDF(PRF, salt="arpass-keyslot-v7", info="keyslot-wrap", 32B)`。
+  MEK wrap 用の鍵（info=`"mek-wrap"`）とはドメイン分離されている。
+- 中身（`appNameTag` ＋ `outerKey` 32 byte）は **vault 生涯不変** なので keyslot blob は
+  write-once（vault 本体の追記とは無関係）。
+- 中身は `padPlaintext` で vault 本体と同じサイズ帯（~80 KiB+）まで膨らませる
+  → Arweave 上では本体と区別のつかない乱数列に見える（anti-fingerprint 維持）。
+- keyslot blob は user.id が運ぶランダムな所在タグ（§5.4 の keyslotTag）で
+  `findLatestVaultTx` により GraphQL 発見される。タグ name/value とも乱数。
+- codec は `encodeKeyslot` / `decodeKeyslot`、書き込み/取得は `writeKeyslot` /
+  `fetchKeyslotBlob`。鍵追加時は新しい YubiKey 用に keyslot blob を 1 つ追記する（§8.2）。
 
-外側暗号化が加わったため、Arweave 上の最終 blob サイズは `12 + (bucket + jitter) + 16` の範囲。
+### 5.4 hwkey の user.id レイアウト（25 byte、version=8）
 
-### バケット最小値が 80 KiB である理由 (Phase 6.7、旧 Phase 5.2 = 120 KiB)
+```
+[1B version=8] [8B keyslotTag.name] [16B keyslotTag.value]  = 25 byte
+```
 
-最小バケット 80 KiB raw → on-chain 約 110 KiB は **4 つの目的を同時に達成する** ように設計されている。Phase 5.2 では 120 KiB raw だったが、on-chain 162.97 KiB / ¥0.47/write が過剰だったため、Phase 6.7 で実 upload 測定に基づき 80 KiB raw / on-chain 110 KiB / ¥0.33/write に最適化した。
-
-| 目的 | v5.0 退化 [4 KiB, ...] | v5.2 復元 [120 KiB, ...] | v6.7 最適化 [80 KiB, ...] |
-|---|---|---|
-| (a) フィンガープリント耐性 | tx サイズで Arpass vault を一発抽出できた | on-chain ~163 KiB 固定で抽出耐性 ✓ | on-chain ~110 KiB ± 6 KiB jitter で揺らぎ + 抽出耐性 ✓ |
-| (b) Turbo フリーライド回避 | 4 KiB write は Turbo 無料枠に収まり全 user が無料枠で書き続ける状態 = AUP 違反 | 全 write が有料 tier (¥0.47/write) | 全 write が有料 tier (¥0.33/write、無料枠 100 KiB を on-chain ~110 KiB で確実に超過) ✓ |
-| (c) サイズ秘匿 | エントリ数の増減で bucket が頻繁に変わり外部に漏れた | bucket 変化が稀 ✓ | bucket [80, 160, 240] KiB の階層化 + jitter で同様 ✓ |
-| (d) コスト最小化 (Phase 6.7 追加) | n/a | ¥0.47/write (過剰) | ¥0.33/write (Turbo 実測ベース最適化、Free tier 自社負担を ¥47→¥33 に圧縮) ✓ |
-
-旧値 [4 KiB, 16 KiB, 64 KiB, 256 KiB, 1 MiB, 4 MiB] は v5 cutover 直後 (Phase 5.0〜5.1) に存在したが、(a) と (b) を同時に破る重大バグだった。Phase 5.2 で [120 KiB, ...] に復元。Phase 6.7 で実 upload 測定 (`scripts/measure-turbo-write-cost.mjs`) により Turbo 無料枠が on-chain 100 KiB と確定したため、[80 KiB, 160 KiB, 240 KiB] に最適化した。raw 80 KiB → base64 1.33× → on-chain 約 110 KiB で安全余裕 ~10 KiB を確保しつつ、コストを 30% 圧縮。
-
-ジッタ (`PAD_JITTER_BYTES = 8 KiB`) は同一ユーザーの連続書き込みでも tx サイズが揺らぐので「サイズ X = Arpass」というフィンガープリントが成立しない追加防御。
+- 標準 v7 の user.id（57 byte、version=7、§4）とは **長さと version で区別** される。
+- 焼くのは keyslot blob の所在タグ（§5.3）だけ。**outer 鍵も MEK も載らない**
+  ＝ user.id が万一漏れても、そこから読めるのは「Arweave 上の匿名タグ」のみで、
+  keyslot 本体はその YubiKey の PRF がなければ復号できない。
+- codec は `encodeUserIdHwkey` / `decodeUserIdHwkey` / `isUserIdHwkey`。
 
 ---
 
-## Phase 5.3 改訂: クライアント耐性とサーバ匿名化
+## 6. inner envelope 構造（外層復号後）
 
-v5 公開後に追加された 4 つの重要な改修。
+### 6.1 標準モード
+v6 の envelope をそのまま使う（`{ v:5, s, i, c, w:{a,b[],c[]} }`、構造変更なし）。MEK は w から 2 要素で復号。v7 性は user.id 側だけにあり envelope は不変。
 
-### 5.3-A: 楽観的並行制御 (`expectedLatestTxId`)
-
-複数端末で同時編集 → 後保存が古いデータで上書きするのを防ぐ。
-
-```
-1. unlock 時にサーバから latestTxId を取得して session に保存
-2. saveVault: signedFetch("/api/save", { ..., expectedLatestTxId: session.latestTxId })
-3. サーバ側: KV の現在の latestTxId と一致しなければ 409 version_conflict を返す
-4. クライアント側: 409 を受けたら toast「他端末で更新されました。ロック解除し直してください」+ 編集を破棄せず保留
-```
-
-server-side `_safeOptLock(expected, current)` で照合。`expected === undefined` の場合は古いクライアントとみなして警告のみ (互換性)。
-
-### 5.3-B: localStorage envelope cache (cache-first fetch)
-
-bundling 中の Arweave gateway の 0〜2 分窓 (= Turbo CDN は受領済みだが arweave.net は 404) でユーザを 30 秒待たせない設計。
-
-```
-fetchEnvelope():
-  1. localStorage から cache lookup (sync 同等で即時)
-     a. hit → 即座に return + 裏で network probe を発火 (background fresh)
-     b. cache の latestTxId とサーバの latestTxId を比較し、差異があれば update
-  2. cache miss → network fetch (Turbo + arweave.net 並列、30s timeout)
-```
-
-cache key: `arpass.cache.envelope.<txid>`、value: 外側暗号化済み blob (= 平文 vault は localStorage に存在しない)。
-クライアントが lock 状態に戻っても cache は残るので、次回 unlock 時に initial fetch が高速化。
-**localStorage 内容も外側暗号化済みなので、ブラウザプロファイル盗難でも解読不能** (`rMat` 由来の `outer_key` を持たない攻撃者には)。
-
-### 5.3-AA: ephemeral session token (Stripe metadata 匿名化)
-
-旧設計: Stripe Checkout の `metadata` に `publicKeyHash` を直接渡していた → Stripe DB に persistent な Arpass 識別子が永続的に残るリスク。
-
-新設計: 30 分有効の使い捨て token を Cloudflare KV に発行し、Stripe metadata には token のみを渡す。webhook 受信時に KV から resolve → consume (delete) する。
-
-```
-checkout.js (POST /api/checkout):
-  sessionToken = randomBase64Url(32)  // 256-bit, 43 chars
-  ARPASS_LEDGER.put(`checkout:${sessionToken}`, { publicKeyHash, pack, credits, createdAt },
-                    { expirationTtl: 30 * 60 })  // KV 側自動削除
-  form.append("metadata[sessionToken]", sessionToken)
-
-webhook.js (POST /api/webhook/stripe):
-  sessionToken = event.data.object.metadata.sessionToken
-  data = ARPASS_LEDGER.get(`checkout:${sessionToken}`)
-  ARPASS_LEDGER.delete(`checkout:${sessionToken}`)  // consume
-  // クレジット加算
-```
-
-これで Stripe 側の DB に Arpass の persistent identifier が一切残らない。
-
-### 5.3-J: Passkey hint + picker hybrid
-
-複数 Passkey を同一 Relying Party に登録している場合、`allowCredentials = [{ id: hintId }]` だけだと「現在の hint が消えた」「ユーザーが別の Passkey を選びたい」ケースで詰む。
-
-```
-authenticateWithPasskey(hint, options = {}):
-  if hint && !options.forcePicker:
-    allowCredentials = [{ id: hint }]    // 1 クリック (auto-fill)
-  else:
-    allowCredentials = []                 // 全候補ピッカー
-```
-
-呼出側は: hint 経路で失敗 (NotAllowedError 等) → catch して `forcePicker: true` で再呼出。「別の Passkey で開錠する」UI ボタンも `forcePicker: true` で同じ関数を呼ぶ。
+### 6.2 YubiKey モード（増分2 as-built）
+`{ v:5, m:"hwkey", i, c, k:[ {h,w}, ... ] }`
+- `v:5` は `VAULT_FORMAT_V5`（標準モードと共通）、`m:"hwkey"` がモード判別子。
+- `i` / `c` = 本体 AES-GCM の IV / 暗号文（MEK で暗号化、構造は標準と同形）。
+- `k[i]` = `{ h: credIdHash, w: b64u(wrapMekForPrf(PRF_i, MEK)) }`
+  - `h` = その YubiKey の credentialId の SHA-256（解錠時に k[] を絞り込む索引、秘密でない）。
+  - `w` = `[IV][AES-GCM(HKDF(PRF_i, "arpass-mek-wrap-v7"/"mek-wrap"), MEK)]`。登録鍵ごとの MEK wrap。
+- `s`（Argon2id salt）も `w`（標準モードの 2-of-3 wrap オブジェクト）も無い。
+- 解錠は k[] を 1 本の YubiKey の PRF で順に試す 1-of-N（`decryptVaultHwkey`）。
 
 ---
 
-## 復号ロジック
+## 7. 解錠フロー
 
-### Path AB: Master + Passkey (日常 unlock)
+### 7.1 標準モード — Master + Passkey（新端末・localStorage 空。今回直す摩擦）
+1. WebAuthn get（discoverable）→ Passkey 選択 → `userHandle` ＋ `PRF`。
+2. userHandle を parse → `appNameTag`、`outerKey`（生 32 byte）。
+3. appNameTag で vault 取得 → outerKey で外層復号 → inner envelope。
+4. `AB_KEY = HKDF(Argon2id(Master) ‖ PRF)` → `w.b[i]` 復号 → MEK。
+5. MEK で本体 `c` 復号。**Recovery も localStorage も不要。**
 
-```
-1. rMat から outer_key = HKDF(rMat) を派生
-2. Arweave から最新 blob 取得 → outer_key で復号 → envelope JSON
-3. credIdHash = SHA-256(WebAuthn credential id)
-4. wraps.pk[] から credIdHash 一致のエントリを探す
-5. KEK_pk = HKDF(pMat || kMat)
-6. AES-GCM-decrypt(KEK_pk, wrap.iv, wrap.ct) → MEK
-7. AES-GCM-decrypt(MEK, envelope.i, envelope.c) → padded JSON
-8. padding を取り除いて JSON.parse
-9. signing key (d, Q) = HKDF(MEK)
-```
+### 7.2 標準モード — Master + Recovery（端末全喪失からの復旧）
+1. Recovery 入力 → `rMat` → `outerKey = deriveOuterKeyBytes(rMat)`、`appNameTag = HKDF(rMat)`。
+2. vault 取得・外層復号。
+3. `AC_KEY = HKDF(Argon2id(Master) ‖ rMat)` → `w.a` 復号 → MEK。
 
-### Path AC: Master + Recovery (端末紛失時の復旧)
-
-```
-1. Recovery Secret 入力 → rMat = HKDF(Recovery)
-2. 匿名タグ (name/value) を rMat から派生 → 全 tier 分を一括計算
-3. Arweave に匿名タグで問い合わせ → 最新 tx 取得
-4. outer_key = HKDF(rMat) で blob 復号 → envelope JSON
-5. KEK_pr = HKDF(pMat || rMat)
-6. wraps.pr (1 個) を AES-GCM 復号 → MEK
-7. 本体復号 → vault データ
-8. signing key (d, Q) = HKDF(MEK)  ← v4 と違って、同じ Q が再現される
-```
-
-### Path BC: Passkey + Recovery (Master 忘却時の復旧)
-
-```
-1. Recovery Secret 入力 + Passkey 認証 (WebAuthn PRF)
-2. rMat 派生 → 匿名タグで Arweave 取得 → outer_key = HKDF(rMat) で外側復号
-3. KEK_kr = HKDF(kMat || rMat)
-4. wraps.kr[] から credIdHash 一致のエントリ → 復号 → MEK
-5. 本体復号 → 全データアクセス可能
-6. UI: 「新しい Master Password を設定」
-7. 新 Master を入力すると wrap_pr と wrap_pk (この端末分) が再生成される
-```
+### 7.3 YubiKey モード — 任意端末・YubiKey 1 本（増分2 as-built）
+1. WebAuthn get → `userHandle`（hwkey 形式 user.id）＋ `credentialId` ＋ `PRF`。
+   - 登録済み端末（localStorage meta に credentialId あり）は credentialId 名指しの
+     specific get → ブラウザのパスキー一覧を出さず YubiKey に直行。
+   - 新端末（meta なし）は discoverable get（picker）。`hwkeyAuthenticateForUnlock` が
+     自動判定し、specific get 失敗時は picker に fallback する。
+2. `decodeUserIdHwkey(userHandle)` → keyslot blob の所在タグ `keyslotTag`。
+3. `findLatestVaultTx(keyslotTag)` で keyslot blob を GraphQL 発見 → 取得 →
+   `decodeKeyslot(PRF, blob)` → `appNameTag` ＋ `outerKey`。
+4. `appNameTag` で vault 本体を取得 → `outerKey` で外層復号 → inner envelope。
+5. `decryptVaultHwkey(envelope, PRF, credIdHash)` → `k[]` を PRF で復号 → MEK → `c` 復号。
+6. 作成直後は keyslot / 本体が Arweave 伝播待ちで一時的に 404/5xx になり得るため、
+   「未反映」系エラーのみバックオフ再試行（~60s、`_retryArweaveFetch`）。それでも
+   取得できなければ `hwkey_not_propagated`（「数分待って」案内）。
+   Master も Recovery も localStorage も不要。
 
 ---
 
-## 端末追加 (`addDevice`)
+## 8. 鍵の登録・追加
 
-新端末を追加するには **常に Recovery Secret が必要** です (v5 では QR ペアリングは採用しない)。
+解錠済み（outerKey / MEK / appNameTag 保持）であること。
 
-```
-[新端末で Master + Recovery で unlock 済み (= MEK を持っている)]
-1. 新 Passkey を WebAuthn で登録 → credentialId, prfOutput 取得
-2. credIdHash = SHA-256(credentialId)
-3. kMat = HKDF(prfOutput)
-4. KEK_pk = HKDF(pMat || kMat) → wraps.pk に新エントリ追加
-5. KEK_kr = HKDF(kMat || rMat) → wraps.kr に新エントリ追加
-6. envelope を Arweave に書き直し (1 credit 消費)
+### 8.1 標準モード
+1. WebAuthn create（`residentKey:"required"`、`userVerification:"required"`）。
+   user.id に §4 のレイアウト（version=7 ＋ appNameTag ＋ Master-wrap outerKey）を焼き込む。
+2. inner に `w.b[j]`/`w.c[j]` 追加。
+3. vault オブジェクトを書き直す（1 write、v6 の「Passkey 追加」と同じ）。
 
-→ MEK 不変、publicKey 不変 → サーバ KV は無関係
-```
+### 8.2 YubiKey モード（増分2、`addHwkeyDevice`）
+別の端末に YubiKey を持っていって追加するケースも含む。解錠済みの hwkey vault に
+YubiKey を 1 本足す:
+1. 既存の登録済み YubiKey で認証 → その keyslot blob から `outerKey`/`appNameTag` を、
+   `envelope.k[]` から raw MEK を取り出す（session の MEK は zeroize 済のため再取得）。
+2. 新しい YubiKey を登録（`createPasskey`、resident 必須、`userVerification:"discouraged"` §10）。
+   user.id に新しいランダム keyslotTag（version=8、§5.4）を焼く。
+3. `addHwkey` で `envelope.k[]` に新鍵の PRF-wrap を追加し、新鍵専用の keyslot blob を
+   `encodeKeyslot` で作って書き込む（write-once）。
+4. `saveVault` で envelope を永続化。raw MEK / outerKey は `finally` で必ず zeroize。
 
----
-
-## パスワード変更 (`changePassword`)
-
-Master Password を変更するには現在の Recovery が必要。envelope v7 では outer 鍵が
-user.id 内に Master でラップされて入っており (Phase 7.4)、user.id は credential 作成後
-*不変* で書き換え API が無い。したがって Master を変えるには、新 Master でラップした
-user.id を持つ**新しい Passkey を 1 つ作成**する必要がある。
-
-```
-[現端末で unlock 済み + Recovery 入力]
-1. 新 Master Password 入力
-2. 新 Master でラップした user.id を持つ新 Passkey を作成 (createPasskey)
-3. 新 pMat = PBKDF2(新 Master, envelope.s)
-4. 新 KEK_pr = HKDF(新 pMat || rMat) → wraps.pr を新 Master で再生成
-5. 全 wraps.pk[] を破棄し、新 Passkey 用の AB wrap 1 個だけにする
-   (新 KEK_pk = HKDF(新 pMat || 新 Passkey の kMat))
-6. 新 Passkey 用の BC wrap (wraps.kr) を追加 (Master 無関係)
-7. envelope を Arweave に書き直し (1 credit)
-
-→ MEK 不変、publicKey 不変 → サーバ KV は無関係
-→ 全 wraps.pk[] を破棄したので、旧 Master はどの端末でも AB 解錠に使えない
-  (v6 の lazy 補完が抱えていた「旧 Master が他端末で当面有効」問題も解消)
-→ 共有 (同期) パスキーなら新 Passkey は各端末へ自動同期。他端末は次回それを選んで
-  新 Master を入力するだけ
-→ 端末ごとに別の Passkey なら、他端末は AB を失うので Master+Recovery または
-  Passkey+Recovery で開き直す。旧 Passkey は OS に残るが解錠に使えないので手動削除
-```
+> user.id は資格情報作成時に確定し後から変更不可。標準モードの outer 鍵、hwkey の
+> keyslotTag はいずれも作成時に判っているので焼き込める。
 
 ---
 
-## Recovery 再発行
+## 9. 鍵の削除・無効化
 
-2 通りの選択肢があります。
-
-### ケース A — MEK 据え置き
-
-「紙を紛失したが盗まれた可能性は低い」場合の軽量 rotation。
-
-```
-1. 新 Recovery 生成
-2. 新 rMat = HKDF(新 Recovery)
-3. wraps.pr 再生成 (新 rMat 使用)
-4. wraps.kr[] を再生成 (この端末分のみ、他は lazy)
-5. 新 outer_key = HKDF(新 rMat)
-6. 新 匿名タグ (name/value) を新 rMat から派生
-7. envelope を新 outer_key で暗号化 + 新タグで Arweave に書き込み (1 credit)
-
-→ MEK 不変、publicKey 不変 → サーバ KV 無関係
-注意: 古い envelope は Arweave 上に永久に残る。古い Recovery + Master を入手された場合は過去 vault が読めてしまう (MEK 同じため)。
-```
-
-### ケース B — MEK ごと一新
-
-「Recovery を盗まれた疑いがある」場合の本格 rotation。
-
-```
-1. 新 MEK = randomBytes(32)
-2. 新 Recovery 生成
-3. 新 (d, Q) = HKDF(新 MEK)  ← publicKey が変わる
-4. 全 wrap を新 MEK + 新 Recovery で再生成
-5. 本体 c を新 MEK で再暗号化
-6. 新 rMat 由来の outer_key + 匿名タグで envelope を Arweave に書き込み
-7. POST /api/migrate を旧鍵で署名 → サーバが旧 KV[H(Q)] の credits を新 KV[H(Q')] に移送
-8. localStorage 更新
-
-→ publicKey 変わる、サーバ KV migration 必要
-→ 古い envelope の中身は古い MEK を持たない人には永久に読めない
-```
+- envelope から該当鍵の wrap（`w.b`/`w.c` または `k`）を外して vault を書き直す（ソフト削除）。
+- Arweave 追記型ゆえ過去 envelope は残る。真の無効化には MEK のローテーション＋移行が必要（タスク #100）。加えて保存済みパスワードの変更も推奨。
+- Master 変更（§14）は新 Passkey を作るため、旧 Passkey が OS / authenticator に蓄積する。WebAuthn に削除 API はないのでユーザーが手動削除する（旧 Passkey は AB 解錠に使えないので残っても解錠面の害はない）。
 
 ---
 
-## Phase 7.2: Business mode envelope (`m: "business"`)
+## 10. 安全装置（実装で強制する不変条件）
 
-Phase 7.2-B で、組織向けの **Business mode** 用 envelope バリアントを追加しました。バージョン番号は `v: 5` のまま、`m: "business"` フィールドの有無で Personal / Business を判別します。Personal mode envelope は一切変更しません。
+YubiKey モード:
+1. **鍵 2 本以上必須**（`HWKEY_MIN_KEYS=2`）— 作成フローは 2 本登録完了まで vault 作成を
+   完了させない。`removeHwkey` も 2 本未満になる削除を拒否する（Master/Recovery が
+   無いぶん 1 本運用は全鍵喪失で復旧不能になり危険）。
+2. **Recovery 扉を作らない** — Recovery 秘密を生成せず `w` も `encryptedRecovery` も作らない。
+3. **discoverable 必須** — `residentKey:"required"`（新端末で userHandle を読むため）。
+4. **UV 非依存（`userVerification:"discouraged"`、増分2 で確定）** — 当初は「UV 必須
+   （`"required"`）」を予定したが、WebAuthn PRF は **UV（PIN 入力）の有無で出力値が
+   変わる**。プラットフォーム間で UV の有無が食い違うと PRF が一致せず keyslot を
+   復号できない（特に Mac Safari は `"required"` でも UV を省くことがある）。そこで
+   hwkey の全 WebAuthn 呼び出し（create / get / follow-up get）を `"discouraged"` に
+   統一し、PRF を常に「UV なし変種（タッチのみ）」に固定する。全プラットフォームで
+   PRF が一致する。`createPasskey` は hwkey では create() が返す PRF（create ceremony の
+   UV あり PRF）を捨て、必ず follow-up get（discouraged）の PRF を採用する。
 
-### Business envelope の追加フィールド
+> **Mac Safari の制約（増分2、アプリ側で修正不能）**: Mac の Safari は WebAuthn の
+> 実装が他ブラウザと異なり、同じ YubiKey でも他ブラウザ（Mac Chrome/Edge、Windows、
+> iPhone、Android）と PRF 値が一致しない。このため Mac Safari で作成・利用した hwkey
+> ドライブは Mac Safari 専用になり、他環境と相互に開けない（逆も同様）。当初は Mac
+> Safari を検出してブロックしたが、Safari 内で完結する利用は可能なため、ブロックは
+> 撤廃し **「他ブラウザ/他端末と共有できない」旨の注意喚起（toast）にとどめる**
+> （作成・解錠の実行は許可）。検出は `_isMacSafari()`（iPad は maxTouchPoints で除外）。
 
-```json
-{
-  "v": 5,
-  "m": "business",
-  "kdfV2": true,
-  "cid": "<companyId>",
-  "s": "...", "i": "...", "c": "...",
-  "w": { "a": {...}, "b": [...], "c": [...] },
-  "w_emp": { "i": "...", "c": "..." },
-  "emp_pub": { ... },
-  "k1Pending": true
-}
-```
-
-| JSON | 内容 |
-|---|---|
-| `m` | `"business"` 固定 (このフィールドが無ければ Personal mode) |
-| `kdfV2` | `true` — `real_MEK` を K2 ベースの HKDF で派生する方式 (Phase 7.3-A) |
-| `cid` | companyId (会社識別子) |
-| `w` | Personal mode と同じ 2-of-3 wrap 構造。ただし wrap される鍵は **MEK ではなく K2** |
-| `w_emp` | 社員 ECDH 鍵ペアの秘密鍵を K2 で AES-GCM wrap したもの |
-| `emp_pub` | 社員 ECDH 公開鍵 (JWK)。整合性確認用のキャッシュ (サーバが authoritative) |
-| `k1Pending` | signup 直後で Admin から K1 がまだ配布されていない状態を示す (任意フィールド) |
-
-### Personal mode との暗号上の差分
-
-1. 本体 `c` の暗号鍵は単独の MEK ではなく `real_MEK = HKDF(K1 ‖ K2, salt="arpass-business-mek-v2", info="real-mek")`
-2. `w.{a,b,c}` が wrap するのは K2 (会社共通の K1 ではなく、社員個別の鍵)
-3. 会社共通の K1 は envelope には乗らず、サーバ KV に社員ごとの ECIES wrap (`enc_K1[i]`) として保管される
-4. K1 配布まわりの設計根拠は [crypto-rationale.md の Phase 7.2 節](./crypto-rationale.md) を参照
-
-> v1 設計では K1 を `envelope.ws` として Arweave 上に乗せていましたが、v2 で **K1 関連データを Arweave から完全に除去**し、サーバ KV のみで lifecycle 管理する方式に変更しました。`envelope.ws` / `envelope.kv` フィールドは廃止済みです。
-
-### Business mode の unlock 順序
-
-```
-1. Arweave から vault envelope を取得 (公開 read、認証不要)
-2. w.{a|b|c} を 2-of-3 factor KEK で開く → K2
-3. signing key = HKDF(K2, "arpass-signing-v2")
-   emp_priv = AES-GCM-decrypt(K2, w_emp)
-   ← ここまで K1 不要、K2 のみで完結
-4. signing key で署名して GET /api/corp/unwrap-k1 → enc_K1[i] 取得
-5. emp_priv で ECIES 復号 → K1
-6. real_MEK = HKDF(K1 ‖ K2) (非 extractable CryptoKey)
-7. 本体 c を real_MEK で復号
-```
-
-`k1Pending: true` の envelope は K1 = 全ゼロ 32 byte (sentinel) で本体が暗号化されており、後で Admin が実 K1 を配布したタイミングで実 K1 による再暗号化が行われます。
+標準モード: Master 最低長ルールは撤廃。ただし **空 Master は標準モードでは不可**。空にすると w.a が「Recovery 単独で開く扉」に静かに変わるため。Master 無しが欲しい場合は YubiKey モードを使う（明示・安全装置付き）。
 
 ---
 
-## Phase 7.3: 非 extractable CryptoKey 化 (envelope フォーマット不変)
+## 11. 増分（実装の段階分け）
 
-Phase 7.3-A は **envelope フォーマットを一切変更しません**。Arweave に書かれる v5 / business envelope の暗号文構造はそのままです。
+### 増分 1 — 「どの端末でも・Recovery 入力なしで」（小・自己完結）
+- outer 鍵（32 byte、Master ラップ済）を user.id に格納（案A、§3）。
+- 解錠経路を userHandle に一本化。**localStorage には outer 鍵を一切保存しない**（2026-05-24、目的 #2 達成）。端末追加で作るパスキーも v7 user.id を焼く。
+- Master 最低長 8 文字ルールを撤廃（短い Master を許容、空は不可のまま）。
+- 標準モードのみ。YubiKey も Passkey として従来どおり使える。
 
-変更されるのは **クライアント実装が鍵をどう保持するか**だけです。従来は `MEK` などを raw な `Uint8Array(32)` で session に保持していましたが、Phase 7.3-A 以降は非 extractable な `CryptoKey` (= JS から生バイト列を取り出せない鍵オブジェクト) として保持します。詳細と防御範囲は [crypto-rationale.md の Phase 7.3 節](./crypto-rationale.md) を参照。
-
-マイグレーションは不要で、既存ユーザは次回 unlock 時に自動的に新しい派生 chain で session を構築します。
-
----
-
-## Phase 7.4: envelope v7 — Passkey が outer 鍵を運ぶ (新端末解錠)
-
-Phase 7.4 は **envelope の JSON フォーマットを一切変更しません** (`v: 5` のまま、Personal / Business とも同一)。Arweave に書かれる暗号文構造・サイズパディング・匿名タグはすべて Phase 7.0w-AR と同一です。変わるのは **outer 鍵をどこから入手するか**だけです。
-
-### 動機
-
-v6 まで、新しい端末で既存 vault を開くには outer 鍵 (`HKDF(rMat)`) が必要でしたが、これは端末の localStorage にしか無いため、新端末は必ず Recovery Secret の入力を要しました。Recovery Secret の現実的な保管 (印刷) が難しい利用者が多いため、「鍵 (Passkey / YubiKey) と Master だけで、どの端末でも開ける」状態を目指します。
-
-### 仕組み — outer 鍵を WebAuthn user.id に格納
-
-Passkey の WebAuthn `user.id` (userHandle、認証器が保持・同期/携行する最大 64 byte 領域) に、次の 57 byte ペイロードを格納します。
-
-```
-[1 byte version=7][8 byte appNameTag.name][16 byte appNameTag.value][32 byte outer_key (Master ラップ済)]
-```
-
-- `outer_key` は v6 と同一の `HKDF(rMat)`。ただし user.id 内では Master でラップして格納します (下記)。
-- `appNameTag` は Arweave 検索用の匿名タグ (name/value) — [arweave-tags.md](./arweave-tags.md) を参照。
-
-新端末では WebAuthn の `get()` を 1 回行うだけで userHandle と PRF が同時に得られます。userHandle から outer 鍵と appNameTag を取り出し → Arweave から vault を取得 → 外側 AES-GCM を復号 → 通常の 2-of-3 unlock。**localStorage も Recovery 入力も不要**です。
-
-### outer 鍵は Master でラップして user.id に持つ
-
-`user.id` は credential を作成する *前* に確定する入力値で、PRF はその credential を作成した *後* にしか得られません。したがって「その credential 自身の PRF で user.id を暗号化する」ことは原理的に不可能です (鶏と卵)。よって PRF は使えません。代わりに **outer 鍵を Master パスワード由来鍵で AES-256-CTR ラップして user.id に持ちます** (v7 ハードニング 2026-05-24)。Master は credential 作成順序と独立なので順序制約に抵触しません。ラップ鍵 = `PBKDF2-SHA256(Master, salt=appNameTag.value, 600k)`、AES-CTR は非膨張なので user.id は 57 byte を維持します。誤 Master の検出は独自タグを持たず下流の外側 AES-GCM 層に委譲します (誤 Master → 誤 outer 鍵 → envelope 復号がそこで失敗)。この設計は安全です:
-
-- `user.id` は Passkey ハードウェアでゲートされ、読み出しに物理鍵 + タッチ + UV を要します。マルウェアも Arweave スクレイパーも読めません。さらに outer 鍵は Master でラップ済なので、仮に user.id が将来想定外の場所 (パスキー export 規格・OS 変更・フォレンジック等) へ漏れても、Master を知らない者には暗号文でしかありません。
-- Arweave 公開オブジェクトは v6 と完全に同一で、outer 鍵は公開側に一切載りません → anti-fingerprint は無傷。
-- outer 鍵は難読化層 (外側 AES-GCM) の鍵であり、vault 本体の機密性鍵ではありません。本体は MEK + 2-of-3 要素で守られます。露出しうるのは「あなたの物理 Passkey を持つ者」だけで、その者は既に要素 B を握っています。
-- appNameTag (vault の所在) は秘密ではなく Arweave 上の匿名タグそのものなので、user.id 内では平文で持ちます (ラップ対象は outer 鍵 32 byte のみ)。
-
-### Master 変更時は新しい Passkey を作る (Option A)
-
-`user.id` は credential 作成後 *不変* なので、Master を変えると user.id 内のラップが
-旧 Master のままで解けなくなる。対処として、Master 変更時には新 Master でラップした
-user.id を持つ**新しい Passkey を 1 つ作成**する。`changePassword` は AC wrap を新
-Master で再生成し、**全 AB wrap (wraps.pk) を破棄**して新 Passkey 用の 1 個だけにし、
-新 Passkey 用の BC wrap を追加する。これにより旧 Master はどの端末でも AB 解錠に
-使えなくなる (v6 の lazy 補完が抱えていた「旧 Master が他端末で当面有効」問題も解消)。
-共有パスキーなら新 Passkey は各端末へ自動同期され、他端末は次回それを選んで新 Master
-を入力するだけでよい。端末ごとに別の Passkey の場合、他端末は `Master + Recovery`
-または `Passkey + Recovery` で開き直す。旧 Passkey は OS / 認証器に残るが AB 解錠には
-使えないため、利用者が手動で削除する。
-
-### 適用範囲
-
-Personal / Business / Admin の全モードが対象です。同期パスキー (iCloud Keychain / Google Password Manager) と YubiKey 等のセキュリティキーの双方で動作します。あわせて Master の最低長 8 文字を撤廃しました (空のみ不可)。サービス未公開のため v6 → v7 のデータ移行は実装せず、v7 を全新規 vault の形式とします。完全な実装仕様はサービス本体リポジトリの `docs/envelope-v7-spec.md` に対応します。
+### 増分 2 — YubiKey モード（「本当に YubiKey だけ」を安全に）— **実装完了（2026-05-25、staging 検証済）**
+- `m:"hwkey"` envelope、`k[]` の per-YubiKey MEK wrap（§6.2）。
+- keyslot blob 方式で outer 鍵 / appNameTag を運ぶ（§5.3）。user.id は所在タグのみ（§5.4）。
+- 作成フロー（モード選択 UI、≥2 本、Recovery 非生成、`createHwkeyVault`）。
+- 任意端末での解錠（§7.3、`unlockWithHwkeyAuthed` / `hwkeyAuthenticateForUnlock`）。
+- 別端末での YubiKey 追加（§8.2、`addHwkeyDevice`）。
+- WebAuthn を全て `userVerification:"discouraged"` に統一し PRF を UV 非依存に固定（§10）。
+- Arweave 伝播遅延のバックオフ再試行（§7.3 step 6）。
+- Mac Safari は PRF 非互換のため共有不可。ブロックせず注意喚起のみ（§10）。
+- test-envelope-v7.mjs 56/56 PASS、lint:security clean、i18n:check 0 errors。
 
 ---
 
-## Phase 7.5: envelope v7 増分2 — YubiKey 専用モード (hwkey)
+## 12. 未確定事項（実装で詰める）
 
-Phase 7.5 は、Master も Recovery Secret も持たず、登録した複数本の YubiKey のみで vault を開く **YubiKey 専用モード** (`m: "hwkey"`) を追加します。標準の 2-of-3 モードとは vault 作成時に排他選択する独立したモードで、Phase 7.4 (増分1) と同じく v6 / v7 の暗号骨格を維持する非破壊的な拡張です。
-
-### 動機と位置づけ
-
-物理セキュリティキーを認証の中心に据えたい利用者に向けた上級者向けの選択肢です。覚える Master も、紙で保管する Recovery Secret もありません。登録した YubiKey のうちいずれか 1 本をタッチするだけで開けます。その代償として、登録 YubiKey を**すべて失うと復旧手段はありません**。このためモードは作成時に **YubiKey 2 本以上の登録を必須**とします (1 本の紛失・故障に備えたバックアップ)。
-
-### hwkey envelope と `k[]` — 1-of-N 解錠
-
-hwkey モードの inner envelope は次の構造です。
-
-```
-{ v: 5, m: "hwkey", i, c, k: [ { h, w }, ... ] }
-```
-
-- `v: 5` は標準モードと共通のフォーマットマーカー、`m: "hwkey"` がモード判別子です。
-- `i` / `c` = 本体 (vault データ) を MEK で AES-256-GCM 暗号化した IV / 暗号文です。
-- `k[i]` = 登録 YubiKey ごとの MEK wrap。`h` = その YubiKey の credentialId の SHA-256 (解錠時に `k[]` を絞り込む非秘密の索引)。`w` = その YubiKey の WebAuthn PRF から HKDF 派生した鍵で MEK を AES-256-GCM ラップしたもの。
-- 標準モードの 2-of-3 wrap オブジェクト (`wraps`) も PBKDF2 ソルトもありません。
-
-解錠は手元の YubiKey 1 本の PRF で `k[]` を順に試し、いずれか 1 エントリが復号できれば MEK が得られる **1-of-N** 方式です。
-
-### keyslot blob — outer 鍵を YubiKey の PRF で守る
-
-hwkey モードは Master を持たないため、Phase 7.4 の「outer 鍵を Master でラップして user.id に格納」する方式は使えません。代わりに、YubiKey ごとに独立した **keyslot blob** を Arweave 上に作ります。keyslot blob は vault 本体とは別のオブジェクトで、その YubiKey の PRF から専用ドメインで HKDF 派生した鍵を用い、vault の所在 (`appNameTag`) と outer 鍵 (32 byte) を AES-256-GCM 暗号化したものです。中身は vault の生涯不変なので write-once であり、本体と同じサイズ帯までパディングするため Arweave 上では本体と区別がつきません (anti-fingerprint 維持)。
-
-hwkey モードの `user.id` は秘密を一切含みません。25 byte の構造 `[1 byte version=8][8 byte keyslotTag.name][16 byte keyslotTag.value]` を持ち、keyslot blob の所在を指すランダムタグだけを運びます。万一 user.id が漏れても読めるのは匿名タグのみで、keyslot 本体はその YubiKey の PRF がなければ復号できません。
-
-### 解錠フロー
-
-WebAuthn `get()` で YubiKey から userHandle と PRF を得る → userHandle (version=8) から keyslot 所在タグを取り出す → keyslot blob を取得し PRF で復号して `appNameTag` と outer 鍵を得る → vault 本体を取得し outer 鍵で外側を復号 → `k[]` を PRF で復号して MEK を得て本体を復号。Master も Recovery も localStorage も不要です。登録済み端末では credentialId を名指しした `get()` でパスキー一覧を出さず YubiKey に直行し、新端末では一覧から選びます。作成直後は keyslot / 本体の Arweave 伝播待ちで一時的に取得できないことがあるため、未反映系のエラーには約 60 秒のバックオフ再試行を行います。
-
-### WebAuthn PRF の UV 非依存化と Mac Safari の制約
-
-WebAuthn PRF の出力は利用者検証 (UV、PIN 入力) の有無で値が変わります。プラットフォーム間で UV の有無が食い違うと PRF が一致せず keyslot を復号できないため、hwkey モードの全 WebAuthn 呼び出しを `userVerification: "discouraged"` に統一し、PRF を「UV なしの変種」に固定しました。
-
-なお Mac の Safari は WebAuthn の実装が他ブラウザと異なり、同一の YubiKey でも他環境 (Mac Chrome / Edge、Windows、iPhone、Android) と PRF 値が一致しません。これはアプリ側で修正できないブラウザ固有の非互換です。Mac Safari で作成・利用した hwkey vault は Mac Safari 専用となり、他環境とは相互に開けません。アプリはこれをブロックせず、その旨を注意喚起します。
-
-### 安全装置
-
-登録 YubiKey は常に 2 本以上 (作成時の最低本数、削除時の下限)。Recovery の扉は作らない。資格情報は discoverable (resident key 必須)。WebAuthn は上記のとおり UV 非依存に固定。完全な実装仕様はサービス本体リポジトリの `docs/envelope-v7-spec.md` に対応します。
+1. ~~business モード（K1/K2）への適用~~ **増分1 で対応済（§0、createVault が全モードで v7 user.id を焼き込む。decryptVaultAuto は元々 business envelope を処理可）。**
+2. ~~user.id に載せる所在情報の最小集合~~ **解決済（2026-05-23 ロケーティング監査）**:
+   - vault の Arweave 書き込みタグは現行・v7 とも **legacy（tier 非依存）appNameTag** 固定。
+     tier（free/paid/corp）は `body.tier` で別途サーバ申告し、タグは動かさない。
+     → user.id は legacy appNameTag を持てばよく、tier 変更後も有効。
+   - 新端末の vault 特定: userHandle → appNameTag → サーバ `?app=`（高速路）
+     → GraphQL `findLatestVaultTx`（フォールバック、サーバ非依存）。
+   - サーバ側: `vlatest:<appName>→pkHash` 索引は実コード上すでに TTL なしで恒久
+     （write.js のコメントに「30 日 TTL」とあったが未実装の名残）。v7 はこの索引を
+     `?app=` 高速路に使うため、deprecation しない旨を write.js コメントに明記済。
+   - pkHash は MEK 由来で `createPasskey` 後にしか定まらず user.id に入れられない
+     （鶏と卵）。`?pk=` は localStorage を持つ既知端末用の高速路として従来どおり。
+3. HKDF info 文字列の最終確定、`v:7` フォーマットマーカー細部。
+4. ~~固定 IV の安全性レビュー~~ **不要化（seed/PRF-wrap 撤回済。wrapMekForPrf はランダム IV）。**
+5. YubiKey モードへの任意 Recovery（深いバックアップ）を後から足せる設計余地。
 
 ---
 
-## 互換性
+## 13. 実装ステップ（feature ブランチ `feat/envelope-v7`）
 
-- v4 / v4.1 envelope と **互換性なし** (Arpass は公開前のため、移行ユーザーは存在しない)
-- 読み込み時は `envelope.v` をチェックし、`v: 5` 以外は明示的に reject する
+1. ~~`vault-crypto.js`: v7 鍵導出 ＋ user.id v7 codec ＋ MEK wrap の純関数 ＋ ラウンドトリップ検証~~ **完了（案A + Master-wrap、23 項目 PASS）。**
+2. ~~増分1（サーバ）: `vlatest` 索引の恒久化~~ **完了（既に TTL なし。write.js に v7 依存を明記）。**
+3. ~~増分1: `createVault` で user.id に v7 ペイロードを焼き込む~~ **完了（personal mode、`createPasskey` bytes 受付化）。**
+4. ~~増分1: 解錠経路を userHandle 経由に + 新端末 UI 入口~~ **完了（Mac / iPhone 実機でクロスデバイス検証済 2026-05-23）。**
+5. ~~増分1: Master 最低長ルール撤廃~~ **完了（8 文字 min を撤廃、空のみ不可）。**
+6. ~~増分2: `m:"hwkey"` envelope ＋ `k[]` wrap、keyslot blob、createVault 分岐~~ **完了。**
+7. ~~増分2: モード選択 UI、≥2 本の強制、解錠 §7.3、別端末 YubiKey 追加 §8.2~~ **完了（staging 検証済）。**
+8. ~~`web/prf-test.html` / `prf-test.js` を削除~~ **完了（PRF 検証完了済）。**
+9. ラウンドトリップ検証、staging 検証 → main。
+10. ~~増分1（Option A）: Master 変更時に新 Passkey を作成し全 AB wrap を再構成（§14）~~ **完了（`changePassword` / `changePasswordUI` 改修、test-vault-crypto 53 項目 PASS）。**
+
+各ステップ独立にレビュー・テスト可能な粒度。envelope 根幹ゆえステップごとにバイト一致のラウンドトリップ確認を必須とする。
 
 ---
 
-## 関連
+## 14. Master 変更（user.id 不変への対処 — Option A）
 
-- [crypto-rationale.md](./crypto-rationale.md) — アルゴリズム選定の根拠と v5 で新たに追加した設計の理由
-- [arweave-tags.md](./arweave-tags.md) — Arweave トランザクションタグの仕様
+`user.id` は credential 作成後 *不変* だが、outer 鍵はそこに Master でラップして
+格納されている（§3）。したがって Master を変更すると、既存 user.id 内のラップは
+旧 Master のままで新 Master では解けなくなる。`user.id` を後から書き換える API は
+WebAuthn に存在しない。
+
+**対処（Option A）**: Master 変更時に、新 Master でラップした user.id を持つ
+**新しい Passkey を 1 つ作成する**。`changePasswordUI`（→ `changePassword`）の手順:
+
+1. 現 Passkey で再認証して PRF を取得し、MEK（business は K2）を transient に復元。
+2. `encodeUserIdV7(appNameTag, outerKey, newMaster)` で新 user.id を構築し、それを
+   焼いた新しい Passkey を `createPasskey`（discoverable 必須）。
+3. envelope の wrap を再構成:
+   - `w.a`（AC = Master+Recovery）を新 Master で再生成。
+   - `w.b`（AB = Master+Passkey）を **全削除**し、新 Passkey 用の 1 個だけにする。
+   - `w.c`（BC = Passkey+Recovery）に新 Passkey 用エントリを追加（Master 無関係）。
+     旧 Passkey の BC wrap は残す（Master 非依存に有効、各端末の救済路）。
+4. envelope を書き戻し、localStorage meta と session を新 credential に更新。
+
+**帰結**:
+- 旧 Master はどの端末でも AB 解錠に使えない（全 `w.b` が破棄されたため）。これは
+  「Master を変えても旧 Master が他端末で生き続ける」問題（v6 の lazy 補完）も同時に解消する。
+- 共有（同期）Passkey の場合: 新 Passkey は各端末へ自動同期される。他端末は次回、
+  新 Passkey を選び新 Master を入力するだけ（Recovery 不要）。
+- 端末ごとに別 Passkey の場合: 他端末は旧 Passkey の AB wrap を失うので、次回
+  `Master + Recovery`（AC）または `Passkey + Recovery`（BC）で開き直し、必要なら
+  その端末で新 Passkey を登録（§8）する。
+- 旧 Passkey は OS / authenticator に残る（WebAuthn に削除 API はない）。AB 解錠には
+  使えないので、ユーザーが端末設定から手動削除する。
+
+**解錠時の失敗の見分け（unlock-AB）**:
+- *outer 失敗*（`unlock_outer_failed_v7`）: `decodeUserIdV7` が旧 Master ラップを
+  別の Master で解こうとして誤った outer 鍵を返し、外層 AES-GCM 復号が失敗する。
+  Master 取り違え、または「別端末で Master 変更後に古い Passkey を選んだ」。UI は
+  新パスワード入力＋「別の Passkey で開錠する」（picker）を案内する。
+- *inner 失敗*（`passkey_wrong_for_vault`）: 外層は解けたが `w.b` に該当 Passkey の
+  wrap が無い。UI は同じく別 Passkey を案内する。
+
