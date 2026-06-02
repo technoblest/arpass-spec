@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T17:35:56.120Z
+**Generated**: 2026-06-02T17:39:23.192Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `8c485bc9eb89ba8c244b21e8d2b3d37233def23a8692171e8f443a3e94dcb665` | 155120 | `app.html` |
+| `e8bf6a66175eca67337758fbe873339609d1d3ddef3e0a79e1e7b0538eb5fb95` | 155120 | `app.html` |
 | `16cd76e436a743b95e8f8b82e27f5c32411170aa834af18515c9e0d830367cde` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
@@ -176,7 +176,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `8af044bf01fc308ad913ccd88f7639928cc130895ccad37986f4699e5bb2ac3f` | 83695 | `index.html` |
-| `52711146b4930ceb4232409b4d7e930a27ef86a539910318c53fb66bb6a7e9a5` | 410994 | `lib/app-main.js` |
+| `bf0d18a4aa9b4bb1cc656661ebff41a3c860c810b087f28edc4ff20f5e02f27b` | 411636 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `9a1f8d6a7d3c7cd46679fa04f2af4219fa5a3c4c5bb6f140a03eb45d04e6ebe4` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
@@ -212,6 +212,6 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
-| `daf0133766ba57abfca078eabdc6dfaaf65ee03a22bd04fae86f91fb3b1f9f73` | 6838 | `sw.js` |
+| `70caafc6acb5e94bc47093e08f95710dc7d1661f94b3a325c3c401a7284c1aa5` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
