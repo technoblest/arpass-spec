@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T10:09:44.657Z
+**Generated**: 2026-06-02T10:18:04.534Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
@@ -212,6 +212,6 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
-| `410521df7e861622dfd5fb0bcfdae211b8c13e05b0171b2715f2f581da21c79a` | 6485 | `sw.js` |
+| `450fe9af680d747a077924ea6c3f4b0800a7af3369034a8f5f2a691b53f58690` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
