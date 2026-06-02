@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T02:20:11.259Z
+**Generated**: 2026-06-02T05:58:14.989Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `c520fa33617393360b28a0cd9911c7463925c9086dd67ac6110478c2eda27899` | 151820 | `app.html` |
+| `b99acc4c3a47cfdb5d7b35d86a46be7ee4fd2da92406b273c30a5e7b51fc9a9d` | 151810 | `app.html` |
 | `351682344aec03a597f2a680883a40463e49840ad79125f33fc71cfb856af304` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
@@ -176,7 +176,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `bccab1ef4ff41fe9de6bff2eb609fec62cea95fe0d565992426f1ab074782854` | 83695 | `index.html` |
-| `9e76305a7afa7c83c97ac7d37abecab71978990fff734b2a5f711aceabdbc7e6` | 402700 | `lib/app-main.js` |
+| `630e51e84d4d7de636e3b48d140e7a8970478c0523a01230aebb0be56ae702ad` | 402802 | `lib/app-main.js` |
 | `98807e015715c981d33bab5eca31f2b9a497bbca3dd7b7c46eb9c1b62a3ef1e4` | 43749 | `lib/client-auth.js` |
 | `76e8e66397a5229c52d3855076ff582cdfe1f2674491d073210626a6cf81ccfa` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
