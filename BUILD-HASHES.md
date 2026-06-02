@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T17:12:35.758Z
+**Generated**: 2026-06-02T17:35:56.120Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
@@ -153,24 +153,24 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e8e7685b16bbcf1a456626326bd249dfceb71d3e4141d4d3c8fd3759477447e2` | 8893 | `guide/zh-TW/yubikey-guide.html` |
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `df3253f7803fba585f2879a4cfd558391aa07011701d9c98ee52fbf3a209cb18` | 42117 | `help.html` |
-| `be0269b859523187033c1bc4d71b3ccfdc36888e5cbd979aa03343592213cb33` | 214161 | `i18n/ar.json` |
-| `ca3d724f6c1a63b156468d418a407f18d9ea2a243fc99937410781b145daba29` | 184964 | `i18n/de.json` |
-| `10a2f247903a5908a3bc9748d8a47d5a9bf7309796ad9650bcd326a7bd8c9122` | 165843 | `i18n/en.json` |
-| `8fa92b85d351c4caa7ffb9be38bd0c1b0b6a1a7b7da59bd2d19e12529e61e4cc` | 180135 | `i18n/es.json` |
-| `d269f0c768423a07262b2c33d86d89069e65ae5e6fea76692e6c9c0db3fa795c` | 186307 | `i18n/fr.json` |
-| `d1d23d75f932ce53b0e7d5b3d700fdbb6bff3a677afde1cb29e6bb7e905c145d` | 286201 | `i18n/hi.json` |
-| `2f5dd1f6feaaa25eaeb8ff5f4ff632f780b685cbdd7d923c519bd126ab893c5c` | 171264 | `i18n/id.json` |
-| `23337b8bf393af959ecd706b52d6c136e8959b6be7aa16a498ee339011eaa5ab` | 177324 | `i18n/it.json` |
-| `935eb7322e254fc24634ddba22029440fc23479c3aa23eb148831ffa8ebbd28c` | 197454 | `i18n/ja.json` |
-| `9d302ac4da925fd29af13ec3f743a1c4bd9529dcef0cfa53683f73488a18382b` | 183734 | `i18n/ko.json` |
-| `1d5e9b6d2a947daf77803a5f82920f9ff7ceb0f5f0c9055681f29229966f4526` | 177359 | `i18n/pt-BR.json` |
+| `89bccb3798a7e8f75839cdd622d0762a91a76f22e0c143acb7a194acedfd9e2a` | 44728 | `help.html` |
+| `e0a17e91f329b6790e7c15119a66ae338c4446742a54f536e7bd5495f80d1f04` | 216067 | `i18n/ar.json` |
+| `ba75fb83fa781b5c593eb916bc000a2d7f52984c5abc8b95c83e24cf7c5c2f58` | 186870 | `i18n/de.json` |
+| `07753e92de012badca3217c5a2cd8562acbc38019d2be0d36fb10e58cb9f49d6` | 167749 | `i18n/en.json` |
+| `2e381e9611a4f83fb4362900644af34129393cedb021bd1b37c20f130534e790` | 182041 | `i18n/es.json` |
+| `16fbfa6fda73296b2440b94e8d8ea68f7525fab24e86f96afa9dbccb3f96cdc1` | 188213 | `i18n/fr.json` |
+| `8ece5063f46dc330f58822f96ea450935041f43a00ef5af98cf72f5d5fc832a6` | 288107 | `i18n/hi.json` |
+| `fff97a0b2ec8033b35c86bb3a359b35b11d961d0bed6f271c794344308bb6d82` | 173170 | `i18n/id.json` |
+| `29af45cba5861c0c1d3311f5c94dc8f646635c36cdb3af0c9e8ba996f74e4298` | 179230 | `i18n/it.json` |
+| `e6da690183c7548d9413dc5cf397f50f79ff529661d07b10e8261e7dd7d43adc` | 199854 | `i18n/ja.json` |
+| `47be23ddbe57fda6e71b41072bbfb477078f77d551d95a2c41f6bae932f6797e` | 185640 | `i18n/ko.json` |
+| `4330ba11871ab113a3801f42c708873d3592b84d00dc17332281589d2066a614` | 179265 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `39f38e26fed65201bc12886933e502c87304127e372cceb5efc99544ad7816f6` | 249617 | `i18n/ru.json` |
-| `7ae5536ca3b3b25585bc6d39b060cc8f265ca4ac7fa19dbe515deb6eced292e0` | 177037 | `i18n/tr.json` |
-| `593a62d0835dd72197e4b49620193060c902fcb40429454e6f3eab9fd7645246` | 190678 | `i18n/vi.json` |
-| `4c93f0418a1daeb0fde43c522cb6cfcfe20c3892792794180c9dbdec4a7a6633` | 158386 | `i18n/zh-CN.json` |
-| `d9f6e88359eb9438ae5a042c5221c606f9aeaa3f37b87ce71188ce43906e44a6` | 158492 | `i18n/zh-TW.json` |
+| `5611598e73e9325cfb8a3a6cd7ae5aae0ca7b80dff205527b358ff78a2d38b9e` | 251523 | `i18n/ru.json` |
+| `dc4bf9d8c1e6c4491112d2dafb6d995e6e11909f9ff1027fe1788652fd0a5d57` | 178943 | `i18n/tr.json` |
+| `18539b0d403f91e56bb28013f7b0d3ebb29b5aea7047608ec571f0b975322d1a` | 192584 | `i18n/vi.json` |
+| `ed74813ef0cddc08754e593a2954d53b66abd25a0d9b3fa4d340fe224905fb8e` | 160292 | `i18n/zh-CN.json` |
+| `94f68b9881b21ef48db979ab478b3a291cd7acab662c6efd896352d6a303b5dd` | 160398 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
