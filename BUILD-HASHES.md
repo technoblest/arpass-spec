@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T16:01:24.337Z
+**Generated**: 2026-06-02T16:19:16.592Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `c4e3513a464f2b8f31b4555593b63192eb69199ac79076d87dbd8cc475d89940` | 154829 | `app.html` |
+| `1e7798825e101183ef64295536554a14a49582ead9b09c74473273a67a15bb1e` | 154829 | `app.html` |
 | `37b217cac61e832c3cec75845bc3d571367585448ae39a850884396f9b0d05e2` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
@@ -156,13 +156,13 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `df3253f7803fba585f2879a4cfd558391aa07011701d9c98ee52fbf3a209cb18` | 42117 | `help.html` |
 | `8252c877889c7dc0a11be6b2539b625ee93664cad76051bf9ac32535e3bacf5c` | 213845 | `i18n/ar.json` |
 | `da7302c2e694d1121d3d039d5fdf07e5743bf020ff3932dbbd467d631304eb14` | 184751 | `i18n/de.json` |
-| `3cf0b3b7ec2214bfed4967260757d5af336d19d51b7c8cf0c678d91dbd9fe4a0` | 165580 | `i18n/en.json` |
+| `9d0fc2a8ac2f7c3a4201b73a9c93541bc80d0ce8c08e923606022ea72d7c7fd3` | 165675 | `i18n/en.json` |
 | `a011ba7f89fa4738034f6ae4db1b387ad0f55f5bc478e4202764ef74f4d6cac6` | 179834 | `i18n/es.json` |
 | `dc1f2e220aedbaf86e23af2a5e9c5ddee1370065e814537d25292134bfc07196` | 185978 | `i18n/fr.json` |
 | `d176f1b1eab3b0669933bde07b0eff648a3076d6869c1bdf3076b505dcf06008` | 285770 | `i18n/hi.json` |
 | `1923ea9ec3ddde558ec4a909bcd4875239431c3bcbdd6f0330dc3888d065caca` | 170980 | `i18n/id.json` |
 | `2cf16f6543aeb42ed0d11a42d1e7b6782892a7316f2b15ed1d4df808eb9fb733` | 177054 | `i18n/it.json` |
-| `8e9baec8296e48457d32ff8cbaac86e816cda42662b63f61bd97afac147b7151` | 197080 | `i18n/ja.json` |
+| `b99765e026dfc858012add3377487258d52197912f1ccc9576de36003155ce29` | 197222 | `i18n/ja.json` |
 | `bf60468cc10dbb1ef133e50deca036e269f1c6e18d389dc6a9ed39d24a22395b` | 183428 | `i18n/ko.json` |
 | `20a2ec579650a48534394d0133938a49a6913528ffa401432eaedb09391555d7` | 177069 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
@@ -176,7 +176,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `8af044bf01fc308ad913ccd88f7639928cc130895ccad37986f4699e5bb2ac3f` | 83695 | `index.html` |
-| `927a1f359ba4b756a6b99cfb46d59b3d311e8912e4388191f56fbb172f2f9a4c` | 409181 | `lib/app-main.js` |
+| `c7ee340da978ee153513e0494d43fd14b81790d75d69b9b31b0345b852e46082` | 409181 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `3d1e9ccca823465261fd69bce0583e58d4a9184e0d19806ea4499e538b3ee68e` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
@@ -192,7 +192,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `76605c41334ed1ed5b522fc19e5f40a73d63c22a5f9f54b69d09a3d5b9329827` | 7421 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
-| `4624b714ced9c3562690c6e3a57045a84401efc24c1d19811d33a013b8833fa4` | 8805 | `lib/qr.js` |
+| `10f0a55e3cbea59890d8fad01959056e80643ad31ae8fbf65b5e12c5f7152a07` | 9127 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
 | `3dc82ddd5059247f7a858cf7aeacacd11e0f86bef59808a2dbc803972cbff4cb` | 663 | `lib/security-main.js` |
 | `f7d9d4ecaafc4c361320a55866fb1c8e3646ccc22472f3358c8085d7e930a5d7` | 219022 | `lib/vault-client.js` |
@@ -212,6 +212,6 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
-| `43bf35c12709a0f41cd5ec5ed46fb89183696b2969c87d9ea9e0d9170ef47ceb` | 6838 | `sw.js` |
+| `2403e1cd84fc0b0b4985ae86067f2116529cdd6b9c9773b43048fad9f6426875` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
