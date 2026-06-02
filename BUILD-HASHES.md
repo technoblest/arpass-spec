@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T17:07:49.783Z
+**Generated**: 2026-06-02T17:12:35.758Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
@@ -154,23 +154,23 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
 | `df3253f7803fba585f2879a4cfd558391aa07011701d9c98ee52fbf3a209cb18` | 42117 | `help.html` |
-| `f23efdf4917a2f67d7982e0f6a9096880b4acc481e3afc3107b6fabb6eee4e6d` | 214026 | `i18n/ar.json` |
-| `f03451e1d3ffb8331c28f9e37b2f4e63ecff54837059e020a8508f8a0866c9b7` | 184912 | `i18n/de.json` |
-| `47853cf9e8a6e049f089404412c361bdca1d5a3976e29143629ca3954a1e0ea7` | 165835 | `i18n/en.json` |
-| `2173243af09686818d3a1ffda8a197e9e417525d6f8cb4e1d1d9a27190de0a91` | 180008 | `i18n/es.json` |
-| `d5b77d8626b04bf821ba7614ea0e10e1f97812cb093f2f16bfcc77a8045a7234` | 186148 | `i18n/fr.json` |
-| `05ee2369990cb54d96ee90b43fa3c83fcfed59f24c83acb0c3f0c4f9bb68762b` | 286013 | `i18n/hi.json` |
-| `3793567460a640a176a70be21081a981185e7f51776cc21e6bd6b1159d6cc2be` | 171145 | `i18n/id.json` |
-| `6e79ed01f5254cb340c9b6613d790c1ba0680dbf5c18a537041d73cdead3a918` | 177233 | `i18n/it.json` |
-| `af3c5fcdc86ce7ac16085cf15174c55d2dda172da94c677ff9a8406862b1ab6d` | 197447 | `i18n/ja.json` |
-| `5c3b0cc787e2fa54713b1587b7fbc2cdaf1090b46eccae0bc55967b49402b83b` | 183628 | `i18n/ko.json` |
-| `364e258af3c9f5d2590d952a1936def7b095ef8f8eee940222e34b801ceea53e` | 177245 | `i18n/pt-BR.json` |
+| `be0269b859523187033c1bc4d71b3ccfdc36888e5cbd979aa03343592213cb33` | 214161 | `i18n/ar.json` |
+| `ca3d724f6c1a63b156468d418a407f18d9ea2a243fc99937410781b145daba29` | 184964 | `i18n/de.json` |
+| `10a2f247903a5908a3bc9748d8a47d5a9bf7309796ad9650bcd326a7bd8c9122` | 165843 | `i18n/en.json` |
+| `8fa92b85d351c4caa7ffb9be38bd0c1b0b6a1a7b7da59bd2d19e12529e61e4cc` | 180135 | `i18n/es.json` |
+| `d269f0c768423a07262b2c33d86d89069e65ae5e6fea76692e6c9c0db3fa795c` | 186307 | `i18n/fr.json` |
+| `d1d23d75f932ce53b0e7d5b3d700fdbb6bff3a677afde1cb29e6bb7e905c145d` | 286201 | `i18n/hi.json` |
+| `2f5dd1f6feaaa25eaeb8ff5f4ff632f780b685cbdd7d923c519bd126ab893c5c` | 171264 | `i18n/id.json` |
+| `23337b8bf393af959ecd706b52d6c136e8959b6be7aa16a498ee339011eaa5ab` | 177324 | `i18n/it.json` |
+| `935eb7322e254fc24634ddba22029440fc23479c3aa23eb148831ffa8ebbd28c` | 197454 | `i18n/ja.json` |
+| `9d302ac4da925fd29af13ec3f743a1c4bd9529dcef0cfa53683f73488a18382b` | 183734 | `i18n/ko.json` |
+| `1d5e9b6d2a947daf77803a5f82920f9ff7ceb0f5f0c9055681f29229966f4526` | 177359 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `b71e7bd2e6a5bc44e958ac203a2074c4c866e41d6cafeaf62ffa6cf09dca0913` | 249389 | `i18n/ru.json` |
-| `bc4acf0520f3adeeba108bd02cf57c2c75a310da6bc13432ac1c308db0f83353` | 176928 | `i18n/tr.json` |
-| `b4b1a0a71e324cdac13a8d71fd1c77f159d1e5504dd6fc16c05a1b8bfaba9e4c` | 190573 | `i18n/vi.json` |
-| `9b99287781b87e881eab4bed1e0e41c196a6c1de1953b280474f15f1645f26ff` | 158278 | `i18n/zh-CN.json` |
-| `87e2a18e49ba51cd0d8399b33197448672d20cbf4e1e7e41eb65898b67da32ac` | 158384 | `i18n/zh-TW.json` |
+| `39f38e26fed65201bc12886933e502c87304127e372cceb5efc99544ad7816f6` | 249617 | `i18n/ru.json` |
+| `7ae5536ca3b3b25585bc6d39b060cc8f265ca4ac7fa19dbe515deb6eced292e0` | 177037 | `i18n/tr.json` |
+| `593a62d0835dd72197e4b49620193060c902fcb40429454e6f3eab9fd7645246` | 190678 | `i18n/vi.json` |
+| `4c93f0418a1daeb0fde43c522cb6cfcfe20c3892792794180c9dbdec4a7a6633` | 158386 | `i18n/zh-CN.json` |
+| `d9f6e88359eb9438ae5a042c5221c606f9aeaa3f37b87ce71188ce43906e44a6` | 158492 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
