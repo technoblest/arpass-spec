@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T08:01:17.833Z
+**Generated**: 2026-06-02T08:28:13.575Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `ecd148b4252283efecc952bd46509390e9829144cc90076f9b9ac3bb5d206dbc` | 152136 | `app.html` |
+| `904d7727680fb9f2a5490a03e9344a57d60f8db9b87d982b5e4f9959623f321e` | 152136 | `app.html` |
 | `351682344aec03a597f2a680883a40463e49840ad79125f33fc71cfb856af304` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
@@ -176,8 +176,8 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `bccab1ef4ff41fe9de6bff2eb609fec62cea95fe0d565992426f1ab074782854` | 83695 | `index.html` |
-| `f47c6a1353941df60fa29d280dd7fd66940b7ffe753afc52fcc1199c97c0e642` | 404072 | `lib/app-main.js` |
-| `98807e015715c981d33bab5eca31f2b9a497bbca3dd7b7c46eb9c1b62a3ef1e4` | 43749 | `lib/client-auth.js` |
+| `795b5d39baa5db30cc25b324d27623567362c515b806c032749c451da60460dd` | 404072 | `lib/app-main.js` |
+| `895f428eb2bf62aa9bab37b2c72e00e313cd15bdb24ad78bc24ad890219a7f6f` | 43464 | `lib/client-auth.js` |
 | `76e8e66397a5229c52d3855076ff582cdfe1f2674491d073210626a6cf81ccfa` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
 | `e85cb4b9927714c92e74727659262009567b75d5fc478489c749f7f97436b3d2` | 14774 | `lib/i18n.js` |
@@ -189,7 +189,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `41491be2883c6331b6acb1790505c9875d8caabf101812531ea07df134f5f604` | 659 | `lib/pay-cancel-main.js` |
 | `fabbb5e079f6ea0fcab7a8b1cc61ad1586a32b522692eb660d122a43c4cc2211` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `f99cb57c31c795707c0c5a49f6d316d6fb6d207cd726ea9fbd64003e5bb9b607` | 7421 | `lib/pricing-main.js` |
+| `0d4602d5b5b233e3fb36ae68f8faa4fa536b00bb5f7c707bb8750a20c91a7180` | 7421 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `3cebd362416146c63cdc1e7cd4ca914af1b4c711f88d70f5e821d7bc3c051f42` | 4565 | `lib/pwa-install.js` |
 | `67bec11bfb8ec7e49b5a88b58bf84b78ae26c28d45937644ba8775ad1d2a1b4b` | 7901 | `lib/qr.js` |
@@ -209,7 +209,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `b69a59d3b42af0c03e8951a872c2085b23fcf76728a9f1b21c50b595a1f43ceb` | 805 | `manifest.webmanifest` |
 | `a497535fccd91da695b43ecfa27af9de68280dc78fc62e25e3a91c399a160f6a` | 1782 | `pay-cancel.html` |
 | `ebaa23314540ed436a9f9bffa0ad2cba8b947f066caedf43a7296fade93dc6c8` | 2493 | `pay-success.html` |
-| `6fac013101acdc126a4c9d737c2a7276eb9dc9c524cbb375d4d371317b3fc057` | 7801 | `pricing.html` |
+| `4dcfbdd3c34a1459e60a27de2a63242862f6d461f956af2272f9a6e6c9aece0b` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
 | `4140d05c789b8dfaa622986066670fa02e094d9fd240e6d84bbc1442f8d4db98` | 5836 | `sw.js` |
