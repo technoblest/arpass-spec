@@ -43,8 +43,8 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T19:07:31.076Z
-**Files**: 167
+**Generated**: 2026-06-02T19:13:12.361Z
+**Files**: 169
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
@@ -99,7 +99,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `2e42f44f9b842935b3b8982a5b5239a723bee46f46c8b904116413c05fc456e9` | 9073 | `guide/id/yubikey-guide.html` |
 | `bbca9aef3916a718a3c57fb75c34ff022062b94faa35c92784c32c44bea8b615` | 6752 | `guide/id/yubikey-price.html` |
 | `27a90c245326d64435c54d35146c93cbb466ad1e94957350f4388efc33a400c7` | 7995 | `guide/id/yubikey-vs-passkey.html` |
-| `5f37a2215494bd0f3cb6800dce6c2d0a05e60434cce12c3e4f07e1a6aadfd26f` | 3533 | `guide/index.html` |
+| `6a0102f2f8c88e6aed9e5d7c0298dc61561b66d2e1acc2c79e3607a673d1bf7a` | 4375 | `guide/index.html` |
 | `129eae3782ae0da251ca5f09c0cbe4197e157af4460fab53151919e752976d94` | 3225 | `guide/it/index.html` |
 | `6ab0c319ce48cfd247d5474efcbfd05589c241d3724f43cfcf28ea448ca132f7` | 10103 | `guide/it/security-glossary.html` |
 | `5df7ca28ce56f530a310dc902f523cd0cf8c60b27c2f928b4077e520c7305784` | 8054 | `guide/it/yubikey-arpass.html` |
@@ -153,7 +153,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e8e7685b16bbcf1a456626326bd249dfceb71d3e4141d4d3c8fd3759477447e2` | 8893 | `guide/zh-TW/yubikey-guide.html` |
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `89bccb3798a7e8f75839cdd622d0762a91a76f22e0c143acb7a194acedfd9e2a` | 44728 | `help.html` |
+| `12d483465e003c0092360a34cb4154c1c9a0843d79724c82705b47ec4a667e70` | 45576 | `help.html` |
 | `e0a17e91f329b6790e7c15119a66ae338c4446742a54f536e7bd5495f80d1f04` | 216067 | `i18n/ar.json` |
 | `ba75fb83fa781b5c593eb916bc000a2d7f52984c5abc8b95c83e24cf7c5c2f58` | 186870 | `i18n/de.json` |
 | `07753e92de012badca3217c5a2cd8562acbc38019d2be0d36fb10e58cb9f49d6` | 167749 | `i18n/en.json` |
@@ -175,7 +175,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
-| `8af044bf01fc308ad913ccd88f7639928cc130895ccad37986f4699e5bb2ac3f` | 83695 | `index.html` |
+| `ff6b3aacd4714eda164fc29715fd85653fc1254841b4568979ff92f538ddbfdc` | 89293 | `index.html` |
 | `e5a7533dcf175810afd3de5dc0ea1e977c7f0c5ac2467685cdb0553c0134117e` | 413273 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `9a1f8d6a7d3c7cd46679fa04f2af4219fa5a3c4c5bb6f140a03eb45d04e6ebe4` | 19883 | `lib/emergency-restore-main.js` |
@@ -209,9 +209,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `b69a59d3b42af0c03e8951a872c2085b23fcf76728a9f1b21c50b595a1f43ceb` | 805 | `manifest.webmanifest` |
 | `a497535fccd91da695b43ecfa27af9de68280dc78fc62e25e3a91c399a160f6a` | 1782 | `pay-cancel.html` |
 | `ebaa23314540ed436a9f9bffa0ad2cba8b947f066caedf43a7296fade93dc6c8` | 2493 | `pay-success.html` |
-| `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
+| `2d4875f96e15423fe3832bbe30bdc345d30c61337366d52bd29d2895fa0948f4` | 8655 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
-| `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
+| `0b95164f3e0a89a1885ffeea7c5556a9730d364048a397e8e5585978c74dde7d` | 328 | `robots.txt` |
+| `231ae9a6763bf171570f05e96515098bf05fe7ae1fa6e7df9e350d834d551832` | 25086 | `security.html` |
+| `13a1daaec260c42c07a4ac9afdd9ac7d2cfb52875f250a86e01f5e38fe9cd5bf` | 159547 | `sitemap.xml` |
 | `a3b6ac93408aa0474556fb4a3585337ae8160bf397918aa1862dc4569ae321b7` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
