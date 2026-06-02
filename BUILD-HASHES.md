@@ -43,15 +43,15 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T10:18:04.534Z
+**Generated**: 2026-06-02T11:17:35.137Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `23abb3f606015f1ca027c9db5d67bef45c7273ba93861968a694ec2534852a90` | 152136 | `app.html` |
-| `551374119319c25f5a4655d661906405450827935499a28362d4142cc8776296` | 10228 | `arpass-emergency-restore.html` |
+| `165b2e34406c1a3cf883402e7653c6259bedbbc2f1372a4ed7f1110cac6d2c8a` | 152136 | `app.html` |
+| `e68a54bb4b570fb21faf43fc51dfdd0a11485023c5f497f36f0c457b9f50e133` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
 | `bb52ebe86d04fca009d38d88da2366f3e3eba013b926c0c6f9b8fa5094471a03` | 1637 | `favicon-32.png` |
@@ -175,15 +175,15 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
-| `aba3bd59207ff27d9d096376d6d7e7dfe1543daa60d158d1b561c4cb480c80a7` | 83695 | `index.html` |
-| `7161c44f42575954bd956dc07838a65f38b6e99016b9fe4d41187d92ef10c050` | 404702 | `lib/app-main.js` |
+| `8af044bf01fc308ad913ccd88f7639928cc130895ccad37986f4699e5bb2ac3f` | 83695 | `index.html` |
+| `d93ca09e81e00f0c90cd808b29ab9fb13da980dde8e7c3e7a449807407f40087` | 404702 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
-| `ae813032f8589960f37f26236e0cae6f3344622785bc03a668e550eed1e4978a` | 19883 | `lib/emergency-restore-main.js` |
+| `dca62089985307f7fd5ce3909b07aca56a53a3e74398b54bf5570a37b101c11e` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
 | `e85cb4b9927714c92e74727659262009567b75d5fc478489c749f7f97436b3d2` | 14774 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
-| `1eb78a7c618d3ca6acde638d60e0ffb84fc5bfb316683a16e1f7cb1945a7b983` | 2008 | `lib/index-main.js` |
+| `f62f3cf4b0d5ac808f03681dfdd4146f4eb0cae4c7b16f99af40f1495f222048` | 2008 | `lib/index-main.js` |
 | `d1a16bde114faddd1a81827dfee00545a02d05385074a32ed7b47394cc2fc36a` | 10097 | `lib/local-cache.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
 | `41491be2883c6331b6acb1790505c9875d8caabf101812531ea07df134f5f604` | 659 | `lib/pay-cancel-main.js` |
@@ -191,11 +191,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
 | `76605c41334ed1ed5b522fc19e5f40a73d63c22a5f9f54b69d09a3d5b9329827` | 7421 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
-| `f70ac60a2db7095ac33ef470f6eac543360bc1bab1efe2e4ee2d7b90ab1c50da` | 7582 | `lib/pwa-install.js` |
+| `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `67bec11bfb8ec7e49b5a88b58bf84b78ae26c28d45937644ba8775ad1d2a1b4b` | 7901 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
 | `3dc82ddd5059247f7a858cf7aeacacd11e0f86bef59808a2dbc803972cbff4cb` | 663 | `lib/security-main.js` |
-| `068b738ebd3d3277ab7eadd7473201d91a04961fe3c873d9b7d3571f4a546fd3` | 212398 | `lib/vault-client.js` |
+| `2a0da72c84859bfc4152a5483f8a405d8828e8cf15f644f64c4be9551f3d20f9` | 212907 | `lib/vault-client.js` |
 | `31123a489d42ef1058f784392c27b17aad7d839e21e954e2704a7af1167755d8` | 125532 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
@@ -212,6 +212,6 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
-| `450fe9af680d747a077924ea6c3f4b0800a7af3369034a8f5f2a691b53f58690` | 6838 | `sw.js` |
+| `caa29974e92ba4c79df0613f7900640357869fc8f83ace90e4783941e77f40eb` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
