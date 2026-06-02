@@ -43,15 +43,15 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T09:55:42.420Z
+**Generated**: 2026-06-02T10:09:44.657Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `be0878603044eba71a8028b6026ddcb143c4e804a25dd759aebdc588b23218c7` | 152136 | `app.html` |
-| `72dd8be6754f77173e5a8f0f998c8e3c6f94a0221fb2796d08e610cd7376b9a0` | 10228 | `arpass-emergency-restore.html` |
+| `23abb3f606015f1ca027c9db5d67bef45c7273ba93861968a694ec2534852a90` | 152136 | `app.html` |
+| `551374119319c25f5a4655d661906405450827935499a28362d4142cc8776296` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
 | `bb52ebe86d04fca009d38d88da2366f3e3eba013b926c0c6f9b8fa5094471a03` | 1637 | `favicon-32.png` |
@@ -154,31 +154,31 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
 | `df3253f7803fba585f2879a4cfd558391aa07011701d9c98ee52fbf3a209cb18` | 42117 | `help.html` |
-| `0059302ed326c55a1581e4c2a1a1cf50055d4d10c2d8fa26be11fb1a0f87e529` | 211913 | `i18n/ar.json` |
-| `d36fa8befce861dd2f3f42a835022e9e6d02a210cda70ce2bbdafbc9dc65438e` | 183074 | `i18n/de.json` |
-| `4e9027072b24b106638cd75d1480ded90c24bb4c59a5bde4c72b2e49ecc496ad` | 164061 | `i18n/en.json` |
-| `fac3849c6958754cc6661949b3106593e236f3f4f31999576c4fbb401bf9536b` | 178196 | `i18n/es.json` |
-| `7a6042a70c7528098fe470e5e19fd7fead73ba78c16c108bdbd4e0bc4c2d06f0` | 184301 | `i18n/fr.json` |
-| `ed5954ae2a3091d9de0531bf3a0583c89e8c4916af87e2d1a87d7e752e1e49ee` | 283053 | `i18n/hi.json` |
-| `7faebe543df90b45e543b449fb4c46d98a310d6515396c054f59fb1ab247cba3` | 169450 | `i18n/id.json` |
-| `5981b12ddb6d0399daa6efa6b4126c9aaed0367b2ce76ed33026fd0bcaec479c` | 175442 | `i18n/it.json` |
-| `b34cc8225b728f76c5521e225a408d6928f447c9be1de04608a04d8997f85328` | 195213 | `i18n/ja.json` |
-| `44781e01c3c8ffe16d3b75b34bead735c5167028f0cf4b96092cc00cee9028df` | 181681 | `i18n/ko.json` |
-| `bd0412bb1fbd4e809632683a7005c4ad27e2e8f2a542ec30090cc5c702c0b282` | 175434 | `i18n/pt-BR.json` |
+| `c61d5b5b763ba047cbb84686d8d7b2a556632e90ce5bd3961c80611a204032c1` | 212524 | `i18n/ar.json` |
+| `f7aa404643b98c19a4ec4538463b0670beedfb321f58afd568dcc2cd8cc7ea9d` | 183574 | `i18n/de.json` |
+| `3cc6a9bc804fb6a40bbb1cabdd2981f9ee3b0d2bde4570dd04fd1145fde94fde` | 164539 | `i18n/en.json` |
+| `17c3a1644ef9401751e1b4017160d44f89d748fa0c8fb6bbf6dfbca9a844cdd1` | 178689 | `i18n/es.json` |
+| `ae7553d6e4178f61ca1dca231fb7f2ba9d87d57511b1934d9f46d7daa7456ef2` | 184817 | `i18n/fr.json` |
+| `8e8d6dbc6c64a6316039ec4df45bd3ca73bbccdbdc36d751c82483ef18d5a5db` | 283863 | `i18n/hi.json` |
+| `751c84c3a98157e5f07e51f0338f4834f6c6b8eed2d5b25a925bba41c3610df7` | 169925 | `i18n/id.json` |
+| `d7dafcb97e2713cccbced975ef4fac0753d881805bd02f50ea26cce5456f9de1` | 175936 | `i18n/it.json` |
+| `4bb5c9e4e2b429797cfccc77c676b96d70f654c14d03ef7c6c28977215fc0cb2` | 195736 | `i18n/ja.json` |
+| `682427a880052cdf707cf6a6805040c7161ff81ca4923e46316a257098e6fa33` | 182207 | `i18n/ko.json` |
+| `47be7c5e657ce7fde83d0a494a48561883f52e946cf868f0670beecea0cfe697` | 175929 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `84d169b0a525e4f402c7d1ce128335ee4da380930af48577ba4873979ad6a677` | 247042 | `i18n/ru.json` |
-| `e4bdae4b2ac6114c1cfe1fc05538a50e4b0e268ddf199b369f215877880e929d` | 175145 | `i18n/tr.json` |
-| `6b808c76ce907a96a2d7d77dc13f2bb22aec4a1473d4f6bfb1f96ee568002c91` | 188683 | `i18n/vi.json` |
-| `b707c00fcb26ff5b59725bc1b0a36f1450c2387204983d3b1c70c1e4e8008cab` | 156522 | `i18n/zh-CN.json` |
-| `3ad013779e83e839f21554e53aa17021a7e63cc24ba2faa0ee646acf3ac81bdf` | 156637 | `i18n/zh-TW.json` |
+| `3f554e01c84d0f6a80a927fc38bc8811684b4bc2c146aae15ece0ef4463bcaad` | 247601 | `i18n/ru.json` |
+| `c34b0c4d6fff0e5701b6054da1afc96e2f8bfb66f0c879120191a0e45837e4e8` | 175665 | `i18n/tr.json` |
+| `0877a6fab935132043a13b3913369d525f274eaa1b8e674340f83c3793b7f6cd` | 189222 | `i18n/vi.json` |
+| `75d3f7f46a680e1766be545a71b3ba674ed48717e326cca5bc46cb2ae28b6644` | 157031 | `i18n/zh-CN.json` |
+| `016fcf745ccac5c2204cde620b0081d45853aeaa56eb67c920bec4e63de93b42` | 157146 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `aba3bd59207ff27d9d096376d6d7e7dfe1543daa60d158d1b561c4cb480c80a7` | 83695 | `index.html` |
-| `a7d68660be03de06526408d6a1ed5f02caf2aa1eaccca97094a0e9af4917e436` | 404605 | `lib/app-main.js` |
+| `7161c44f42575954bd956dc07838a65f38b6e99016b9fe4d41187d92ef10c050` | 404702 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
-| `5e2f134a8a74999facf5e88120c031dbf30061a8c516e45f50faaf33ccabf09f` | 19883 | `lib/emergency-restore-main.js` |
+| `ae813032f8589960f37f26236e0cae6f3344622785bc03a668e550eed1e4978a` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
 | `e85cb4b9927714c92e74727659262009567b75d5fc478489c749f7f97436b3d2` | 14774 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -195,7 +195,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `67bec11bfb8ec7e49b5a88b58bf84b78ae26c28d45937644ba8775ad1d2a1b4b` | 7901 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
 | `3dc82ddd5059247f7a858cf7aeacacd11e0f86bef59808a2dbc803972cbff4cb` | 663 | `lib/security-main.js` |
-| `4194217f32ccb6b13e8ce14a32ab533b52b3d43b68618d25f5e752d578396c64` | 212462 | `lib/vault-client.js` |
+| `068b738ebd3d3277ab7eadd7473201d91a04961fe3c873d9b7d3571f4a546fd3` | 212398 | `lib/vault-client.js` |
 | `31123a489d42ef1058f784392c27b17aad7d839e21e954e2704a7af1167755d8` | 125532 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
