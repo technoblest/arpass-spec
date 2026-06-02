@@ -371,3 +371,99 @@ WebAuthn に存在しない。
 - *inner 失敗*（`passkey_wrong_for_vault`）: 外層は解けたが `w.b` に該当 Passkey の
   wrap が無い。UI は同じく別 Passkey を案内する。
 
+
+---
+
+## 15. hwkey の運用改善 (Phase 7.5N+ / 2026-06-02 サービスイン直後)
+
+サービスイン (2026-06-02) 翌日の集中改修で、 v7 hwkey モードの解錠経路に複数の運用改善が入った。 envelope 自体の構造 (= §6 / §10) は変更なし。 解錠時の補助インデックス、 別 device 追加経路、 ブラウザ実装差への defensive 対処 を追加した。
+
+### 15.1 keyslot KV 索引 — `/api/keyslot/latest` (Phase 7.5N)
+
+#### 問題
+v7 hwkey の解錠時、 client は `keyslotTag` (= user.id v7 から復号した anonymized tag) で Arweave 上の keyslot blob を探す必要がある。 §3 / §7 では公開 GraphQL を経路として想定していたが、 サービスイン後の実運用で **公開 GraphQL の indexing lag (= upload 受領後反映まで数分〜数十分)** が user 体感を直撃。 vault 作成直後の unlock で `hwkey_keyslot_not_found` 頻発。
+
+#### 設計変更
+write.js に `kind: "keyslot"` を新設し、 client は `writeKeyslot()` でこの kind を指定して書き込む。 server は `KV[ks:<tagName>:<tagValue>] = txid` を記録。 client は新 endpoint `GET /api/keyslot/latest?name=<>&value=<>` でこの索引を引く。 索引にヒットすれば即時 (≈ 数十 ms)、 ヒットしなければ公開 GraphQL fallback (= 旧 keyslot や KV 障害時の救済)。
+
+#### ZK 影響評価
+- keyslotTag は元々 Arweave tag として **公開情報** (= 誰でも Arweave GraphQL で引ける)
+- txid も公開情報
+- 索引は単に 「server が既知の公開情報を高速 lookup できるようにする」 だけ
+- PRF / outerKey / 暗号鍵 は索引に一切含まれない
+- pkHash と異なり、 user が anonymous でも `?name=&value=` で引けるため認証不要
+
+「サーバ完全非依存」 を理由に索引化を避けていた初期方針 ([[arpass-hwkey-keyslot-indexing]] 参照) を撤回。 索引はキャッシュであり、 GraphQL fallback さえあれば 「廃業しても YubiKey で解錠」 性質は失われない。 §3 の 「公開ガテートウェイで解錠」 という invariant は維持。
+
+### 15.2 端末追加コード (AP1 形式) — picker bug 救済 + 多端末高速セットアップ (Phase 7.5Z / ZB)
+
+#### 動機
+
+§7 の 「別 device 解錠」 想定では、 新 device は WebAuthn `navigator.credentials.get()` を **discoverable mode (`allowCredentials=[]`)** で呼び、 YubiKey が自身に保存された discoverable credential を返す picker get に依存していた。 ところが Android Chrome の CredentialManager API は **外部 security key の discoverable credentials を列挙する CTAP2 コマンド (`authenticatorCredentialManagement`) を未実装** で、 picker get が `NotReadableError: An unknown error occurred while talking to the credential manager` で確定的に失敗する。 Chrome 132+ で対応予定とされつつ 2026 時点も未修正、 対応時期は不明。
+
+Mac Chrome / iPhone Safari / Windows Chrome は picker get + PRF が正常動作するため、 hwkey vault を作って解錠まで一気通貫で動く。 Android Chrome のみがこの flow から外れる。
+
+#### 設計
+Android で picker get を **完全に回避する** ため、 「端末追加コード」 という新しい補助路を導入。
+
+##### コード形式
+```
+AP1.<b64u credentialId>.<keyslotTag.name>.<keyslotTag.value>
+```
+
+- `AP1` prefix = Arpass Passkey 端末追加コード v1 (= 形式識別用)
+- separator は `.` (= b64u alphabet 外文字)。 初期は `-` だったが b64u 内 hyphen と衝突して flaky だったため Phase 7.5ZB で変更
+- credentialId は **WebAuthn の rawId** (= 各 credential 固有の不変識別子、 YubiKey 内で生成された CTAP credential id)
+- keyslotTag は §6.5 の anonymized tag (`{name, value}` の b64u 短文字列)
+
+##### 使い方
+1. 既存解錠済み端末 (= localStorage `meta.credentialId` + `meta.appNameTag` が populate された端末) で 「📲 別端末で開くコードを表示」 ボタン → 文字列 + QR で表示
+2. 新端末で 「📲 端末追加コード (AP1....) で開く」 リンク → ペースト or QR 読取
+3. 新端末は `localStorage.meta` に `credentialId` + `appNameTag` (= keyslotTag に相当) を保存
+4. unlock 時 `hwkeyAuthenticateForUnlock` は meta から `credentialId` を取得 → **specific get** (= `allowCredentials=[{id: credentialId, transports: ["usb","nfc","ble"]}]`) で呼ぶ
+5. Android Chrome は specific get なら CTAP2 listing コマンド不要 → YubiKey に 「ID=X の credential で署名して」 と直接命令、 picker 経路を完全 bypass
+6. PRF 取得 → keyslot 復号 → §7 の通常 unlock fl
+
+#### ZK / セキュリティ評価
+- **credentialId**: WebAuthn 仕様上、 各 RP が認証時に YubiKey から公開で受け取る値 (= rp と credentialId のペアは secret ではない)。 第三者が credentialId を入手しても、 物理的に YubiKey をタッチしない限り PRF は取れない
+- **keyslotTag**: §6.5 の通り Arweave tag として元から完全公開
+- **コードに含まれない**: PRF / outerKey / MEK / Recovery / Master / signing key
+- 漏洩しても vault は守られる (= YubiKey 物理タッチが必須、 第三者がコードを持っていても使えない)
+- ephemeral 想定 (= 1 回貼り付けて meta 保存したら破棄) なので長期保管しない方針
+
+#### 副次効果 — 全 platform 高速セットアップ
+Android 救済を目的に設計したが、 specific get は picker get より高速 (= タッチ 1 回減る、 UI 確認時間も短縮)。 単一 YubiKey で iPhone → Mac → Win → Android と多端末展開する場合、 各端末で picker tap + 待ち時間 を コード貼付 1 回で代替できる。 当初想定外の **全 platform 価値ある UX 改善** になった。
+
+### 15.3 iPhone Safari の `extensions` placement sensitivity (Phase 7.5ZA)
+
+#### 観察された regression
+Phase 7.5Y で `authenticateWithPasskey` の `_getPk` (= `navigator.credentials.get` の publicKey 引数) から `extensions: { prf: ... }` を object literal の外に取り出し、 条件付きで後付け代入する refactor を実施。 JS object としては **functionally identical** (= 完成形の object property は同じ) のはずだが、 user 報告で iPhone Safari NFC YubiKey の 2nd tap (= PRF 取得用) が認識されなくなる regression が発生。
+
+#### 仮説と対処
+iOS Safari の WebAuthn 実装は `publicKey` 引数 object の property placement に何らかの sensitivity を持っている (= 仕様外の挙動)。 仕様上は許されないはずの挙動だが、 実装の一致を取るため spread (`..._prfExt`) を使い literal 内で条件分岐する形に戻したところ即時復活。
+
+#### 教訓 (= envelope v7 実装ガイドへの追記)
+- WebAuthn `publicKey` 引数 object は **必ず単一の object literal で構築する**
+- 条件付き field は spread (`...(cond ? { extensions: {...} } : {})`) で literal 内に embed
+- 「functional equivalent な refactor」 でも iOS Safari は壊れることがある → 触らないが吉
+- [[arpass-webauthn-extensions-placement]] にメモリ化
+
+### 15.4 Android picker mode 2-tap (Phase 7.5Y) — 暫定救済
+
+§15.2 の AP1 端末追加コードが完成する前の暫定救済として、 `hwkeyAuthenticateForUnlock` に `_isAndroidChrome()` 検知 + 2-tap 分割を実装:
+
+- Tap 1: `skipPrfExtension: true` で PRF 無しの picker get → credentialId + userHandle を発見
+- Tap 2: 発見した credentialId で specific get + PRF → 解錠
+
+ただし console log で 「Android Chrome は PRF を抜いても picker get 自体が `NotReadableError`」 と判明し、 2-tap でも picker 経路は機能しないことが分かった。 §15.2 の AP1 コード方式が picker を完全 bypass できる根本解になったため、 7.5Y の 2-tap 分岐は実質 dead code 化したが、 将来 Android Chrome が listing コマンドを実装したとき自動的に利用される無害な防御層として残置。
+
+### 15.5 SW 自動更新の基盤 (Phase 7.5Q + V + W) — envelope に直接関係しない補足
+
+envelope v7 自体には影響しないが、 hwkey UX を頻繁に改修する Phase 7.5 シリーズの体験を支えるため SW 自動更新バナーの仕組みも整備:
+
+- `sw.js` に `BUILD_ID` placeholder + `CACHE = "arpass-shell-" + BUILD_ID`
+- `inject-cache-bust.mjs` が全 JS hash 集約から BUILD_ID を計算 → sw.js に書き込む
+- `build-hashes.yml` workflow が sw.js + web/lib/ も commit 対象に含めるよう修正 (= 旧設定は HTML のみで sw.js 変更が repo に push されない長期バグ)
+
+deploy ごとに sw.js のバイト列が確実に変わり、 ブラウザの `updatefound` が発火 → `pwa-install.js` の 「🔄 新しいバージョンがあります」 バナー → 1 タップで自動 reload。 envelope v7 に間接的な利益は 「user に最新の hwkey 解錠 path / バグ修正が確実に届く」 こと。
+
