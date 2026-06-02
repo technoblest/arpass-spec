@@ -43,15 +43,15 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T15:14:00.946Z
+**Generated**: 2026-06-02T16:01:24.337Z
 **Files**: 167
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `0d9c86cf6db3cd40f8cdffdaa118294c07ad0f458329fc7d7a412129b5db8f3c` | 152136 | `app.html` |
-| `cfe46edee44ad4aee7e48dc10b6b519158bbb644713a69a11d8d8887fd896331` | 10228 | `arpass-emergency-restore.html` |
+| `c4e3513a464f2b8f31b4555593b63192eb69199ac79076d87dbd8cc475d89940` | 154829 | `app.html` |
+| `37b217cac61e832c3cec75845bc3d571367585448ae39a850884396f9b0d05e2` | 10228 | `arpass-emergency-restore.html` |
 | `f95e3afbf046101041abac282cb5da357b09a4599bf6efd5b25b9b54eb496326` | 403588 | `arpass-image.png` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
 | `bb52ebe86d04fca009d38d88da2366f3e3eba013b926c0c6f9b8fa5094471a03` | 1637 | `favicon-32.png` |
@@ -154,31 +154,31 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
 | `df3253f7803fba585f2879a4cfd558391aa07011701d9c98ee52fbf3a209cb18` | 42117 | `help.html` |
-| `80b6f0f4a51e65032fcefdb5481045599536487329d770d1aa33d2a3ecbc323f` | 212724 | `i18n/ar.json` |
-| `71b18f26657a938f3e30fe67b7c9509389975319f4d7fccdf9eca8c50317799b` | 183761 | `i18n/de.json` |
-| `878cab8f2717eac2824f3bf4016ae6d1c63153781d95f78e99ae0e02b14a2b3c` | 164711 | `i18n/en.json` |
-| `644b739fef0a7ba3331267d090065e92cfed0a80667437e57bcdc3176de3eea8` | 178852 | `i18n/es.json` |
-| `30b316084c4ee6be4923911f335f0935e43cee99af2db97e02edbbf7d7d65b7a` | 185002 | `i18n/fr.json` |
-| `893bc1c32034d976455b6b5542ef50bfd53c09244b89af8926a1c8974224d483` | 284153 | `i18n/hi.json` |
-| `d7aecacf0c54174fb564dcba70db8087082be8be39dde6ae129e089cf7755cf2` | 170087 | `i18n/id.json` |
-| `448bce66c52afaafdecb89bd17e41d1e1dd7a7739ceb0f24903c90c4eed6d8ec` | 176093 | `i18n/it.json` |
-| `317c153c3a1941b9c35406df3b7b7d6c1eb537986cb1203a251236385e275440` | 195929 | `i18n/ja.json` |
-| `d27462a0f900b6474297f6fb87361b9f48e21aa4c5cb6de17417a0b7cfc5bf77` | 182388 | `i18n/ko.json` |
-| `f6a7d0506dce7163317d9e7778d9fc9210312ab14784d7f98a9919c3d45d8df6` | 176094 | `i18n/pt-BR.json` |
+| `8252c877889c7dc0a11be6b2539b625ee93664cad76051bf9ac32535e3bacf5c` | 213845 | `i18n/ar.json` |
+| `da7302c2e694d1121d3d039d5fdf07e5743bf020ff3932dbbd467d631304eb14` | 184751 | `i18n/de.json` |
+| `3cf0b3b7ec2214bfed4967260757d5af336d19d51b7c8cf0c678d91dbd9fe4a0` | 165580 | `i18n/en.json` |
+| `a011ba7f89fa4738034f6ae4db1b387ad0f55f5bc478e4202764ef74f4d6cac6` | 179834 | `i18n/es.json` |
+| `dc1f2e220aedbaf86e23af2a5e9c5ddee1370065e814537d25292134bfc07196` | 185978 | `i18n/fr.json` |
+| `d176f1b1eab3b0669933bde07b0eff648a3076d6869c1bdf3076b505dcf06008` | 285770 | `i18n/hi.json` |
+| `1923ea9ec3ddde558ec4a909bcd4875239431c3bcbdd6f0330dc3888d065caca` | 170980 | `i18n/id.json` |
+| `2cf16f6543aeb42ed0d11a42d1e7b6782892a7316f2b15ed1d4df808eb9fb733` | 177054 | `i18n/it.json` |
+| `8e9baec8296e48457d32ff8cbaac86e816cda42662b63f61bd97afac147b7151` | 197080 | `i18n/ja.json` |
+| `bf60468cc10dbb1ef133e50deca036e269f1c6e18d389dc6a9ed39d24a22395b` | 183428 | `i18n/ko.json` |
+| `20a2ec579650a48534394d0133938a49a6913528ffa401432eaedb09391555d7` | 177069 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `7827ec78ac833b5fe7076db039ae96b3afb536e9e7c7d0b8813b0715b99e8947` | 247836 | `i18n/ru.json` |
-| `533ddb2f392f08f0cda24e8dc16ed9de7327783dcf7aa6197667d7022ef5151f` | 175837 | `i18n/tr.json` |
-| `9fcf83d3e3acc614ad9faabfdcc7c148332ae48d5559dba4efd234b6a2037f0f` | 189405 | `i18n/vi.json` |
-| `daf2b54c54cf93d6e987006118305ab36e763a9145581e3f690dfb7a5424acb5` | 157193 | `i18n/zh-CN.json` |
-| `974b0d2a058ca2ba03945ebe2fb87c7a94b8bfd2bf03e8917f7a9bf546d260ca` | 157308 | `i18n/zh-TW.json` |
+| `812d1f040987ff2482e4d1d8dfdf32e84b0d8a9dd039b44b618b4168450c8845` | 249174 | `i18n/ru.json` |
+| `6fbc409b8e2850b05331c522a462a4bfa5e032f8ec8f3beecb6ff5c17050ed0c` | 176760 | `i18n/tr.json` |
+| `f5ed9cb958cfa2e7cf178ea4dd2447777d7ba3a0d1a3313d4cf6ca0b6333a005` | 190402 | `i18n/vi.json` |
+| `099e57fbdef54eb05da453f5cdf089756508d3ca76620ecb1a2aaa4712ae62e6` | 158105 | `i18n/zh-CN.json` |
+| `ce1fda28169455b13e7b800ab88b4ee9b6b2bb51180e79c76890f17f40c0eb18` | 158211 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `8af044bf01fc308ad913ccd88f7639928cc130895ccad37986f4699e5bb2ac3f` | 83695 | `index.html` |
-| `f44c06b907ce6193a140ceb07656239eb891aa228139c387cb86f6f3ebad189b` | 405616 | `lib/app-main.js` |
+| `927a1f359ba4b756a6b99cfb46d59b3d311e8912e4388191f56fbb172f2f9a4c` | 409181 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
-| `41e947009fdf610af94dd64305121a1662aca6d0ad114ceb2a3fdd2a17dc5939` | 19883 | `lib/emergency-restore-main.js` |
+| `3d1e9ccca823465261fd69bce0583e58d4a9184e0d19806ea4499e538b3ee68e` | 19883 | `lib/emergency-restore-main.js` |
 | `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
 | `e85cb4b9927714c92e74727659262009567b75d5fc478489c749f7f97436b3d2` | 14774 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -192,10 +192,10 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `76605c41334ed1ed5b522fc19e5f40a73d63c22a5f9f54b69d09a3d5b9329827` | 7421 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
-| `67bec11bfb8ec7e49b5a88b58bf84b78ae26c28d45937644ba8775ad1d2a1b4b` | 7901 | `lib/qr.js` |
+| `4624b714ced9c3562690c6e3a57045a84401efc24c1d19811d33a013b8833fa4` | 8805 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
 | `3dc82ddd5059247f7a858cf7aeacacd11e0f86bef59808a2dbc803972cbff4cb` | 663 | `lib/security-main.js` |
-| `3f5f16373ff8eb3e5e44340675be902ad223066e34d2c70f0947c8f1943d8f55` | 216753 | `lib/vault-client.js` |
+| `f7d9d4ecaafc4c361320a55866fb1c8e3646ccc22472f3358c8085d7e930a5d7` | 219022 | `lib/vault-client.js` |
 | `31123a489d42ef1058f784392c27b17aad7d839e21e954e2704a7af1167755d8` | 125532 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
@@ -212,6 +212,6 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `52d7c914586d58b23dd1bd3e64d6d794331d721ce5f13fa00967f224f12c5424` | 7801 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `5e2402f89f9068b45ca5d4f26f01ef366973ee1f3f0ff80b9d667e32321ebfad` | 24230 | `security.html` |
-| `78c76dd0e9c19cab1f414178459a5c8e74084e110a4e95b863f102fe12249202` | 6838 | `sw.js` |
+| `43bf35c12709a0f41cd5ec5ed46fb89183696b2969c87d9ea9e0d9170ef47ceb` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
