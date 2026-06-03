@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-03T02:17:16.530Z
+**Generated**: 2026-06-03T02:33:39.023Z
 **Files**: 202
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `4e94973c0121c0da970e803b690624ec49a5bcd9457275e009b0eaa43bf9cc03` | 155120 | `app.html` |
+| `83849cf567d93b018879009eb2b1d946b296e0b8b6869b4b593b9fa5c68de78a` | 155120 | `app.html` |
 | `ba637aff5b483b8a2c74bd8168ec75afe2a78f9866612a00a08d26ba5692c2c2` | 50519 | `ar/help.html` |
 | `f766c4eb4bc4293c05af7cc7c1365db279f035cb620dfb4605508b97f36e36ce` | 93117 | `ar/index.html` |
 | `16cd76e436a743b95e8f8b82e27f5c32411170aa834af18515c9e0d830367cde` | 10228 | `arpass-emergency-restore.html` |
@@ -195,7 +195,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `8ba6f46bf81ea553ddfcfeb879419f4a2153a9c200c1eb04c4c8e305c86624d7` | 84862 | `it/index.html` |
 | `b35de0b5dca767d0306fd20b4cbf57d3cb04608df9a7ec0f118a6fd02cb4f9ff` | 43909 | `ko/help.html` |
 | `a0e8875bd67edd6cfcc444fb2dee476196bba9200acad6ec7cfd076b4b8d0d08` | 86163 | `ko/index.html` |
-| `f00aa9d80cbc5664c68c0c182a31d5852aa78d02a2ba8136e1243957f0a7d973` | 413273 | `lib/app-main.js` |
+| `c5bcbcd3cae3b32dbbb69999b19455776d8ae4e10e31be3a9c57fa08e2236cf1` | 414392 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `9a1f8d6a7d3c7cd46679fa04f2af4219fa5a3c4c5bb6f140a03eb45d04e6ebe4` | 19883 | `lib/emergency-restore-main.js` |
 | `928ee43fb3d1aa1ed8ff3df21efc3ffb0983c535277a47df681303fbfef91033` | 644 | `lib/help-main.js` |
@@ -209,7 +209,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `23b9c7faa3d5191064bd54d9dbbae95713bba72f3d76ac4d517acf08725091be` | 659 | `lib/pay-cancel-main.js` |
 | `9519cbb27cabcb782db0bbaf5c73ae04133d2871cd47289ecdb9807d7ef851fa` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `a742e878779649e6f71fde216b3870b018211091da23d7ab39e2efe206b25301` | 7421 | `lib/pricing-main.js` |
+| `af59afa293cebac772f3ffbada9fe82ce142c9bf32167126e089d256ccc43ca6` | 7477 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `10f0a55e3cbea59890d8fad01959056e80643ad31ae8fbf65b5e12c5f7152a07` | 9127 | `lib/qr.js` |
@@ -230,7 +230,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
 | `d50644fdadf579b7ad19453e151ff4a4e2e19c634fbefc0486948657ea08b0b6` | 1782 | `pay-cancel.html` |
 | `79a249c448d90e12fa11a0a545946cd18fedc649fd67b0519ad440fa3b45a80a` | 2493 | `pay-success.html` |
-| `9f938765abf8ce554b8bac4956df29781a66ebe3bf58074f59a98d48f11e4cdc` | 8645 | `pricing.html` |
+| `3fed10e778a5c2b2b1f226bb5abfa560db5a10dbf19caa8461d4ae3918310efb` | 8645 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `87cd39c444203597e81f260fb76bc5a2367068f8fbfeca74083105553db6de6f` | 42813 | `pt-BR/help.html` |
 | `f586c85ec869e12e6b90b485aeb635bccdd7a99444825ccef538ba929a5063ee` | 84821 | `pt-BR/index.html` |
@@ -239,7 +239,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `4dad7123f662b15ba61988d37632ef37488416c1004e5eb8e352c81c64718901` | 100976 | `ru/index.html` |
 | `8189db2e8a399a2c4ed5571c885c9dfb76b2b55dc87a8e3b812e7030c83939cf` | 25076 | `security.html` |
 | `5934c6aa8b2698729a13d82310771d8ec74c9a1fec9ccaef116c8e9cd747357b` | 234812 | `sitemap.xml` |
-| `1fb3a8d121254c92052f9baeec7542ed6837d82ca37ead50d43e3431a00fec1d` | 6838 | `sw.js` |
+| `6d4c1907558e3e8648743ac00f5277b0b6021baf6df031b4f9df154332bb676b` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `a48fc58a324ced1ad1d251bf25a46099f417a98a2fe4201f9d1804b5b6ccac07` | 42892 | `tr/help.html` |
