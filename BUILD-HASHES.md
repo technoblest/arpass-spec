@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-03T03:16:12.500Z
+**Generated**: 2026-06-03T03:33:00.933Z
 **Files**: 202
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `83849cf567d93b018879009eb2b1d946b296e0b8b6869b4b593b9fa5c68de78a` | 155120 | `app.html` |
+| `52acd26542cdca95b1bc29cd999fb2ad29a0dbdbdeb7b9477767a3cc8644b61c` | 155120 | `app.html` |
 | `ba637aff5b483b8a2c74bd8168ec75afe2a78f9866612a00a08d26ba5692c2c2` | 50519 | `ar/help.html` |
 | `83edb0b1058f954a313e1455cb7e4efc1e0445056a6208fb9474fb9c0f6451b1` | 93160 | `ar/index.html` |
 | `16cd76e436a743b95e8f8b82e27f5c32411170aa834af18515c9e0d830367cde` | 10228 | `arpass-emergency-restore.html` |
@@ -164,7 +164,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e8e7685b16bbcf1a456626326bd249dfceb71d3e4141d4d3c8fd3759477447e2` | 8893 | `guide/zh-TW/yubikey-guide.html` |
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `a31de5c8a9fd4d3b2c3a81f141e0c824a4bdd940799a222c081c836ab3dc031f` | 46354 | `help.html` |
+| `f56a7ecd92cb66e4118495156b2a9c1f9e1ab2393f48f68018cbe3ddf5a5c482` | 46354 | `help.html` |
 | `2be8a6ca1a9427ce195a727b93e8e1aaf507a7283b32ba08f4a79485555b0ecd` | 60331 | `hi/help.html` |
 | `0d8af26d5496626398e9eae50eb1c1c37fd2d50c54582f8e0e060450a2eff085` | 112994 | `hi/index.html` |
 | `d5066ac032d342d41347c70de985e19ca9f572b83add1cf3a66df528c92bf093` | 217447 | `i18n/ar.json` |
@@ -190,31 +190,31 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `029ae64e44fd06838ac322977299818381133872a76e63cc9bf56dd4c95571e7` | 41125 | `id/help.html` |
 | `a8686ba06e77f48386bea84b2ac7822ec53d5693c161f212ea34330ee0e5a7fa` | 83758 | `id/index.html` |
-| `4c7748926a7e15bb369107c2c9aef071ed78a4869adf3410c0f785b3e16a08e8` | 90569 | `index.html` |
+| `86d97bc62cedf5de8671b1c5308693490477940269899b74010ea38d5672d284` | 90569 | `index.html` |
 | `c704cdd06c53f5328241efbce243bd0f2bc9025dd8958bba932ad69a59b1c5d4` | 42417 | `it/help.html` |
 | `97fb861082bcb0029f112342b70b75e1246b3d61c220206703bb8caaf58bf5e2` | 84905 | `it/index.html` |
 | `b35de0b5dca767d0306fd20b4cbf57d3cb04608df9a7ec0f118a6fd02cb4f9ff` | 43909 | `ko/help.html` |
 | `d50d246d04628ead43c11c6577f8ebffe19e6a945d8cdc13a300b70fbf9ca84e` | 86206 | `ko/index.html` |
-| `c5bcbcd3cae3b32dbbb69999b19455776d8ae4e10e31be3a9c57fa08e2236cf1` | 414392 | `lib/app-main.js` |
+| `f3ed3dc07c53bdf6dc228fd192a54cd1fa42f0d9fff3c68f4d838d83d78cbec0` | 414392 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `9a1f8d6a7d3c7cd46679fa04f2af4219fa5a3c4c5bb6f140a03eb45d04e6ebe4` | 19883 | `lib/emergency-restore-main.js` |
-| `928ee43fb3d1aa1ed8ff3df21efc3ffb0983c535277a47df681303fbfef91033` | 644 | `lib/help-main.js` |
-| `912ad9c9c45493c90658960fc158f9ce4992434789ab84ea76f687966c2e4b23` | 17230 | `lib/i18n.js` |
+| `b70c5332ebcc7b662cad84db49a036c6dac78fe55223fad40d11030e7271d5fd` | 644 | `lib/help-main.js` |
+| `409d637c33f55d65cd19ed4484116289c0e711175686fa0c87fe50edf5c3d099` | 17483 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
-| `be92ab03f6a28a0bf20dc7020796cac871f1906ea9915560f62827ad366f1ef3` | 2189 | `lib/index-main.js` |
+| `615b9e06eb1a556d623cabee95cacfd779402ebbe0ed090ff50894739579d405` | 2189 | `lib/index-main.js` |
 | `d1a16bde114faddd1a81827dfee00545a02d05385074a32ed7b47394cc2fc36a` | 10097 | `lib/local-cache.js` |
 | `d744a2e529ca088f7a23cf22f1daa8592f266f468a8cf4322b084e5af1f97499` | 6655 | `lib/lp-pricing.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
-| `23b9c7faa3d5191064bd54d9dbbae95713bba72f3d76ac4d517acf08725091be` | 659 | `lib/pay-cancel-main.js` |
-| `9519cbb27cabcb782db0bbaf5c73ae04133d2871cd47289ecdb9807d7ef851fa` | 1087 | `lib/pay-success-main.js` |
+| `c7a41aa1ccd74fb814ee4cf79414e57e6c1f58281183b59d35cf7519d3d2f8b5` | 659 | `lib/pay-cancel-main.js` |
+| `fd3393f258f93d7a33ee0299327ef1f1777bcf1cd5c190098a3f27cfb6685195` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `af59afa293cebac772f3ffbada9fe82ce142c9bf32167126e089d256ccc43ca6` | 7477 | `lib/pricing-main.js` |
+| `8b969789fbb69426ee2b3bdb31c13521e24b72e011bed9cc1f0b0ab763f285ad` | 7477 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `10f0a55e3cbea59890d8fad01959056e80643ad31ae8fbf65b5e12c5f7152a07` | 9127 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
-| `f3bd4764af87af155e7b54996233026d2adbc5b8096dc4872c308bb4fe17ecbd` | 663 | `lib/security-main.js` |
+| `7f4d0f676453e68f9954be5ef1728871da5c4faa2f8a00ab34f56039f3aad399` | 663 | `lib/security-main.js` |
 | `bfaf7e76c1f784e93a89b1c9dc736fb8671727d9391ec352855f5ff4ed12de2b` | 219787 | `lib/vault-client.js` |
 | `31123a489d42ef1058f784392c27b17aad7d839e21e954e2704a7af1167755d8` | 125532 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
@@ -228,18 +228,18 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `ea91d7118a5395289170da848b7c6758b996163bfbccf312591ab65a4911b7c0` | 51907 | `lib/vendor/qrcode-generator.mjs` |
 | `b69a59d3b42af0c03e8951a872c2085b23fcf76728a9f1b21c50b595a1f43ceb` | 805 | `manifest.webmanifest` |
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
-| `d50644fdadf579b7ad19453e151ff4a4e2e19c634fbefc0486948657ea08b0b6` | 1782 | `pay-cancel.html` |
-| `79a249c448d90e12fa11a0a545946cd18fedc649fd67b0519ad440fa3b45a80a` | 2493 | `pay-success.html` |
-| `3fed10e778a5c2b2b1f226bb5abfa560db5a10dbf19caa8461d4ae3918310efb` | 8645 | `pricing.html` |
+| `8d343685065105b53e56fc0a9fc0fa8acdd3e8338e415774efe3a196547b9a45` | 1782 | `pay-cancel.html` |
+| `bedfa7b0a30c79cb9d1381e2547a0c747fa6172026cde9ea6344a3a51127028b` | 2493 | `pay-success.html` |
+| `8151b3e460e7166f1389078b3c477b5d68954b0f59d8c6aa0ace0ea191b09dc2` | 8645 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `87cd39c444203597e81f260fb76bc5a2367068f8fbfeca74083105553db6de6f` | 42813 | `pt-BR/help.html` |
 | `4f1348455b2b3e79c0ad68e7758460943840fdf43a308d9d96ba818895ae5b3f` | 84864 | `pt-BR/index.html` |
 | `0b95164f3e0a89a1885ffeea7c5556a9730d364048a397e8e5585978c74dde7d` | 328 | `robots.txt` |
 | `5518486f649aa610e590efb824cc2d509a6c89af70ba48ce0d9882baa5e813bc` | 58975 | `ru/help.html` |
 | `61cec4b824b93f4c13f116f81eead968d8eb9d34141ee400c8755ffa4a9cbd39` | 101019 | `ru/index.html` |
-| `8189db2e8a399a2c4ed5571c885c9dfb76b2b55dc87a8e3b812e7030c83939cf` | 25076 | `security.html` |
+| `57f833398642d569474dec4ba85058a6cd72e124927a16af643709bd951bf976` | 25076 | `security.html` |
 | `5934c6aa8b2698729a13d82310771d8ec74c9a1fec9ccaef116c8e9cd747357b` | 234812 | `sitemap.xml` |
-| `d829be433b0f925c10731d7d06bd39eafe9492ff0e344f42f37a48e9c3f9fd3a` | 6838 | `sw.js` |
+| `47e7bccf32fb7cef090af1c88b1e43b9d586b28d164013214888f001d74f33a0` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `a48fc58a324ced1ad1d251bf25a46099f417a98a2fe4201f9d1804b5b6ccac07` | 42892 | `tr/help.html` |
