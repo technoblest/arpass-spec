@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-02T21:59:32.804Z
+**Generated**: 2026-06-02T23:36:46.148Z
 **Files**: 200
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f8dda5a14390456597f141572462eea6ae0bd77c066211da9558794f1aac5e56` | 11510 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `98ba720f7823c8a56d1fb4ed3eeebf0e48f319e9c763acc57409d3d4e44e70ba` | 155120 | `app.html` |
+| `4e94973c0121c0da970e803b690624ec49a5bcd9457275e009b0eaa43bf9cc03` | 155120 | `app.html` |
 | `d9097ff6de63659cc571cfc74d96b05733fdf4203482eb1a50185c90a4197261` | 50519 | `ar/help.html` |
 | `02b19fe42857fbb7fcd3186f6db8f07f7177cd69a12ccbd49849a90b970eb70b` | 92139 | `ar/index.html` |
 | `16cd76e436a743b95e8f8b82e27f5c32411170aa834af18515c9e0d830367cde` | 10228 | `arpass-emergency-restore.html` |
@@ -163,7 +163,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e8e7685b16bbcf1a456626326bd249dfceb71d3e4141d4d3c8fd3759477447e2` | 8893 | `guide/zh-TW/yubikey-guide.html` |
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `99e998b500872302dad51c2ba783d0806038c15399745ae37af3ea0df7876cb9` | 46354 | `help.html` |
+| `a31de5c8a9fd4d3b2c3a81f141e0c824a4bdd940799a222c081c836ab3dc031f` | 46354 | `help.html` |
 | `3a51f70098bf8f756c4e87cce6f592b3bf1bb1f918de61a6830f4629604b1af7` | 60331 | `hi/help.html` |
 | `564cac4f597d1bfc2fdb8a41925aefc1c4d6897c59c4e58aba3bac34dccc30ce` | 111809 | `hi/index.html` |
 | `cee520e6ab6d4f002415c679c634d2dd24db7cfba847224c2f1420bc165abc08` | 217192 | `i18n/ar.json` |
@@ -189,30 +189,30 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `8d290e07dc72555f71eea5d7a62a530af14d2b489a0dbdb1c49e2338c4cee6fe` | 41125 | `id/help.html` |
 | `e0ad5188919ebf4efc8f3fa886e1793abd4e52621a263ce50f9b5b80d7299f45` | 82740 | `id/index.html` |
-| `7fe13576ab2b1be46ec464bc9e79e814d279b7aa415fefe64d4e34c411e4476a` | 89636 | `index.html` |
+| `b09b9e73f4621f69a559c8750993da1880ccf7fecf1f5b7e71fb96303717606f` | 89636 | `index.html` |
 | `ec48567949e07d918a8b48dcc7eaedcf6677549068e6bef2027a3868221970c6` | 42417 | `it/help.html` |
 | `362ba7dd8072be9b457de3be6324f1010eaa4b443026a05006527155fc5caba4` | 83871 | `it/index.html` |
 | `583e39c7920ac461a3fee812abc20802598f87636e39c8af63e64d0d75b00e77` | 43909 | `ko/help.html` |
 | `dc2c8122e2a6c5409f728b0b51150d1dd0c03252e7d4cbdf679d0df6518592fc` | 84928 | `ko/index.html` |
-| `e5a7533dcf175810afd3de5dc0ea1e977c7f0c5ac2467685cdb0553c0134117e` | 413273 | `lib/app-main.js` |
+| `f00aa9d80cbc5664c68c0c182a31d5852aa78d02a2ba8136e1243957f0a7d973` | 413273 | `lib/app-main.js` |
 | `776e3254f21a5a1ddcd6730a6a586a507317071ee69e896e8d6c313c8fe99db2` | 44749 | `lib/client-auth.js` |
 | `9a1f8d6a7d3c7cd46679fa04f2af4219fa5a3c4c5bb6f140a03eb45d04e6ebe4` | 19883 | `lib/emergency-restore-main.js` |
-| `2f0a7635eee1d6db230e8fecfcef9284fef3a99144dc6a7f5e1d11531c3cce83` | 644 | `lib/help-main.js` |
-| `e85cb4b9927714c92e74727659262009567b75d5fc478489c749f7f97436b3d2` | 14774 | `lib/i18n.js` |
+| `928ee43fb3d1aa1ed8ff3df21efc3ffb0983c535277a47df681303fbfef91033` | 644 | `lib/help-main.js` |
+| `912ad9c9c45493c90658960fc158f9ce4992434789ab84ea76f687966c2e4b23` | 17230 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
-| `f62f3cf4b0d5ac808f03681dfdd4146f4eb0cae4c7b16f99af40f1495f222048` | 2008 | `lib/index-main.js` |
+| `5424f6e36f8e26b0398ff983ee06900029950ca71bf0172703ffdd78b5fe976b` | 2008 | `lib/index-main.js` |
 | `d1a16bde114faddd1a81827dfee00545a02d05385074a32ed7b47394cc2fc36a` | 10097 | `lib/local-cache.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
-| `41491be2883c6331b6acb1790505c9875d8caabf101812531ea07df134f5f604` | 659 | `lib/pay-cancel-main.js` |
-| `fabbb5e079f6ea0fcab7a8b1cc61ad1586a32b522692eb660d122a43c4cc2211` | 1087 | `lib/pay-success-main.js` |
+| `23b9c7faa3d5191064bd54d9dbbae95713bba72f3d76ac4d517acf08725091be` | 659 | `lib/pay-cancel-main.js` |
+| `9519cbb27cabcb782db0bbaf5c73ae04133d2871cd47289ecdb9807d7ef851fa` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `76605c41334ed1ed5b522fc19e5f40a73d63c22a5f9f54b69d09a3d5b9329827` | 7421 | `lib/pricing-main.js` |
+| `a742e878779649e6f71fde216b3870b018211091da23d7ab39e2efe206b25301` | 7421 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `10f0a55e3cbea59890d8fad01959056e80643ad31ae8fbf65b5e12c5f7152a07` | 9127 | `lib/qr.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
-| `3dc82ddd5059247f7a858cf7aeacacd11e0f86bef59808a2dbc803972cbff4cb` | 663 | `lib/security-main.js` |
+| `f3bd4764af87af155e7b54996233026d2adbc5b8096dc4872c308bb4fe17ecbd` | 663 | `lib/security-main.js` |
 | `bfaf7e76c1f784e93a89b1c9dc736fb8671727d9391ec352855f5ff4ed12de2b` | 219787 | `lib/vault-client.js` |
 | `31123a489d42ef1058f784392c27b17aad7d839e21e954e2704a7af1167755d8` | 125532 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
@@ -226,18 +226,18 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `ea91d7118a5395289170da848b7c6758b996163bfbccf312591ab65a4911b7c0` | 51907 | `lib/vendor/qrcode-generator.mjs` |
 | `b69a59d3b42af0c03e8951a872c2085b23fcf76728a9f1b21c50b595a1f43ceb` | 805 | `manifest.webmanifest` |
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
-| `a497535fccd91da695b43ecfa27af9de68280dc78fc62e25e3a91c399a160f6a` | 1782 | `pay-cancel.html` |
-| `ebaa23314540ed436a9f9bffa0ad2cba8b947f066caedf43a7296fade93dc6c8` | 2493 | `pay-success.html` |
-| `54fbde8749f987ca7bd4d37f539d0a0458a37267b7a286a9b205d654fd91afaa` | 8645 | `pricing.html` |
+| `d50644fdadf579b7ad19453e151ff4a4e2e19c634fbefc0486948657ea08b0b6` | 1782 | `pay-cancel.html` |
+| `79a249c448d90e12fa11a0a545946cd18fedc649fd67b0519ad440fa3b45a80a` | 2493 | `pay-success.html` |
+| `9f938765abf8ce554b8bac4956df29781a66ebe3bf58074f59a98d48f11e4cdc` | 8645 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `b8762831e7e97b0bf69c79eb64c33082d67d6334a482753cc615d3a610ab8c14` | 42813 | `pt-BR/help.html` |
 | `0294528b913898a10d504612e8c7ffca05e6db9b0153009fbe3eab33499fd397` | 83768 | `pt-BR/index.html` |
 | `0b95164f3e0a89a1885ffeea7c5556a9730d364048a397e8e5585978c74dde7d` | 328 | `robots.txt` |
 | `2e3832c6e0ab75957c50a0cf5b6ea00ffdfa6b71e641edda15eb1440c63014af` | 58975 | `ru/help.html` |
 | `b55f7df1358cbc23cc72c9fa9909db9019b1a4f6933e8ba754c8ca576f280428` | 99919 | `ru/index.html` |
-| `d88e440aba8b0dfdeba78a03ee2a09b810c6cfb39bf2451384046adcb9c0f495` | 25076 | `security.html` |
+| `8189db2e8a399a2c4ed5571c885c9dfb76b2b55dc87a8e3b812e7030c83939cf` | 25076 | `security.html` |
 | `5934c6aa8b2698729a13d82310771d8ec74c9a1fec9ccaef116c8e9cd747357b` | 234812 | `sitemap.xml` |
-| `a3b6ac93408aa0474556fb4a3585337ae8160bf397918aa1862dc4569ae321b7` | 6838 | `sw.js` |
+| `e484c2c99400fd064c40bbacb7802521a749943954d3e101ee61e3a67c3dd258` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `5d1a3994dc32b345360911d407267b8da796fa4fb0f374e3ede7c0adf77b604b` | 42892 | `tr/help.html` |
