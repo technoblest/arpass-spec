@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-03T03:33:00.933Z
+**Generated**: 2026-06-03T03:46:08.953Z
 **Files**: 202
 
 | SHA-256 | Bytes | Path |
@@ -190,7 +190,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `7311900454c3565c8276737e129cdf2ddfde8b24b9cfbdbe986a17dc44d3f920` | 609 | `icon.svg` |
 | `029ae64e44fd06838ac322977299818381133872a76e63cc9bf56dd4c95571e7` | 41125 | `id/help.html` |
 | `a8686ba06e77f48386bea84b2ac7822ec53d5693c161f212ea34330ee0e5a7fa` | 83758 | `id/index.html` |
-| `86d97bc62cedf5de8671b1c5308693490477940269899b74010ea38d5672d284` | 90569 | `index.html` |
+| `4190989edc429ef00d854fab872384aee92eb37bbbcfc37fd4d87d2e55268efa` | 90569 | `index.html` |
 | `c704cdd06c53f5328241efbce243bd0f2bc9025dd8958bba932ad69a59b1c5d4` | 42417 | `it/help.html` |
 | `97fb861082bcb0029f112342b70b75e1246b3d61c220206703bb8caaf58bf5e2` | 84905 | `it/index.html` |
 | `b35de0b5dca767d0306fd20b4cbf57d3cb04608df9a7ec0f118a6fd02cb4f9ff` | 43909 | `ko/help.html` |
@@ -202,9 +202,9 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `409d637c33f55d65cd19ed4484116289c0e711175686fa0c87fe50edf5c3d099` | 17483 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
-| `615b9e06eb1a556d623cabee95cacfd779402ebbe0ed090ff50894739579d405` | 2189 | `lib/index-main.js` |
+| `611b0f416212e79d3d1891e42f117ddc98161be7377fbac4ec716ecb9eacc9fe` | 2189 | `lib/index-main.js` |
 | `d1a16bde114faddd1a81827dfee00545a02d05385074a32ed7b47394cc2fc36a` | 10097 | `lib/local-cache.js` |
-| `d744a2e529ca088f7a23cf22f1daa8592f266f468a8cf4322b084e5af1f97499` | 6655 | `lib/lp-pricing.js` |
+| `c1a830d7cc8169f8fc0382f48b3a28c47a8ae159646a6793a59ea6882efc8f4a` | 6669 | `lib/lp-pricing.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
 | `c7a41aa1ccd74fb814ee4cf79414e57e6c1f58281183b59d35cf7519d3d2f8b5` | 659 | `lib/pay-cancel-main.js` |
 | `fd3393f258f93d7a33ee0299327ef1f1777bcf1cd5c190098a3f27cfb6685195` | 1087 | `lib/pay-success-main.js` |
@@ -239,7 +239,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `61cec4b824b93f4c13f116f81eead968d8eb9d34141ee400c8755ffa4a9cbd39` | 101019 | `ru/index.html` |
 | `57f833398642d569474dec4ba85058a6cd72e124927a16af643709bd951bf976` | 25076 | `security.html` |
 | `5934c6aa8b2698729a13d82310771d8ec74c9a1fec9ccaef116c8e9cd747357b` | 234812 | `sitemap.xml` |
-| `47e7bccf32fb7cef090af1c88b1e43b9d586b28d164013214888f001d74f33a0` | 6838 | `sw.js` |
+| `b7fc10b3de562377da47571ef13f247fb7f437c9dcbf1df754823c76b0ab6688` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `a48fc58a324ced1ad1d251bf25a46099f417a98a2fe4201f9d1804b5b6ccac07` | 42892 | `tr/help.html` |
