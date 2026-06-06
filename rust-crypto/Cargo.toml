@@ -1,0 +1,65 @@
+[package]
+name = "arpass-crypto"
+version = "0.1.0"
+edition = "2021"
+description = "Arpass crypto core (Stage 1: primitives — Argon2id / AES-GCM / HKDF / SHA-256 / ECDH P-256)"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/technoblest/arpass"
+authors = ["Yamaki <admin@arpass.io>"]
+# Stage 1: 全 crypto primitive を Rust + WASM 化、 envelope orchestration は JS のまま。
+# Backward-compat: 同じ入力で既存 noble 実装と bit-identical 出力を生成する。
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# wasm-bindgen + JS bindings
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+
+# RustCrypto org の audited crypto primitives (= 業界標準)
+argon2 = "0.5"          # Argon2id (Phase 7.4 KDF)
+aes-gcm = "0.10"        # AES-256-GCM
+sha2 = "0.10"           # SHA-256
+hkdf = "0.12"           # HKDF
+p256 = { version = "0.13", features = ["ecdh", "ecdsa", "arithmetic"] }   # ECDH P-256 + ECDSA
+elliptic-curve = { version = "0.13", features = ["sec1"] }
+crypto-bigint = "0.5"
+
+# Opaque handle 用 (= Drop で raw bytes 自動 zeroize、 Stage 2c)
+zeroize = { version = "1.7", features = ["zeroize_derive"] }
+
+# 乱数源 (= WASM 環境では window.crypto.getRandomValues に橋渡し)
+getrandom = { version = "0.2", features = ["js"] }
+rand_core = { version = "0.6", features = ["getrandom"] }
+
+# Optional: panic を console.error に流す
+console_error_panic_hook = { version = "0.1", optional = true }
+
+[features]
+default = ["console_error_panic_hook"]
+
+# binary size 最小化 (= WASM bundle を 小さく)
+[profile.release]
+opt-level = "z"      # size 優先
+lto = true            # link-time optimization
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.release.package."*"]
+opt-level = "z"
+
+[package.metadata.wasm-pack.profile.release]
+# CI で bundle される wasm-opt (= 古め) は modern rustc の bulk memory ops
+# (= memory.copy / memory.fill) を default では拒否する。 size 最適化は
+# [profile.release] の opt-level="z" + lto=true で既に十分なので、 wasm-opt
+# 自体を skip しても WASM bundle はほぼ最小サイズになる。
+#
+# 将来 wasm-opt 経由で更に絞りたい場合は、 false の代わりに以下を使う:
+#   wasm-opt = ['-O', '--enable-bulk-memory', '--enable-mutable-globals',
+#               '--enable-reference-types']
+wasm-opt = false
+
+[dev-dependencies]
+hex = "0.4"
