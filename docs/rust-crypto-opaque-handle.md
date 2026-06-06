@@ -186,3 +186,76 @@ Stage G11 検証作業中、 user が Recovery Case B (= 機種変更後の Reco
 ## License
 
 AGPL-3.0-or-later. arpass-spec public mirror は main 反映後に同期。
+
+---
+
+## Phase 2 完成 (= H1 + H2 + H3 + H4 + H5、 2026-06-07 朝 JST)
+
+### 達成
+
+Phase 1 (= Stage G4-G11) で Personal mode primary path を Rust handle 化した後、 Phase 2 で **opaque handle pattern を完成**:
+
+| Phase | 内容 | 完成 commit |
+|---|---|---|
+| **H1** | signing key (= ECDSA P-256) を Rust SigningKey handle 経由化 | `136c10e` + `11ce392` |
+| **H2-prep** | vault-client.js の raw subtle.encrypt/decrypt 2 箇所を dispatcher 経由化 | `6f8cd76` |
+| **H2-a** | wrapKey / unwrapKey に MekKey handle 検出 path 追加 | `77f1964` |
+| **H2-b** | encryptVault / decryptVault が mekKey を MekKey handle で返却 | `a90c2b4` |
+| **H3** | `_session.mek` raw bytes 完全撲滅 (= Phase 7.3-A.10 で済確認) | (既完了) |
+| **H4** | deriveBusinessMekKeyV2 が MekKey handle 返却 (Business mode 完成) | `acaeef1` |
+| **H5** | dispatcher fallback の保持判断 | (設計判断) |
+| Final | staging → main マージ | `8408ef4` |
+
+### 全 secret material が opaque handle 化された
+
+| 鍵 | type | 経路 |
+|---|---|---|
+| outer key (envelope wrap) | `OuterKey` | Stage 2c |
+| MEK (vault body) | `MekKey` | Stage G7 + H2-b + H4 |
+| K1 (Business key) | `K1Key` | Stage G3 (populate)、 H4 (consumption) |
+| BEK (record file) | `BekKey` | Stage G4-G5 |
+| CEK (chunk) | `BekKey` | Stage G6 |
+| rMat (Recovery base) | `RMatKey` | Stage 2c Stage D2 |
+| Signing key (ECDSA) | `SigningKey` | **H1 (新規)** |
+
+### dispatcher / polymorphic 化 一覧 (= 2026-06-07 確定状態)
+
+| 関数 | 場所 | handle path | CryptoKey path |
+|---|---|---|---|
+| `aesGcmEncrypt` | vault-crypto.js | ✅ Rust | ✅ subtle.encrypt |
+| `aesGcmDecrypt` | vault-crypto.js | ✅ Rust | ✅ subtle.decrypt |
+| `aesGcmEncryptRaw` | vault-client.js (= H2-prep 新規) | ✅ | ✅ |
+| `aesGcmDecryptRaw` | vault-client.js | ✅ (= 今日午前 hotfix) | ✅ |
+| `wrapKey` | vault-crypto.js | ✅ H2-a 新規 | ✅ |
+| `unwrapKey` | vault-crypto.js | ✅ H2-a 新規 | ✅ |
+| `signRequest` | vault-crypto.js | ✅ H1 新規 | ✅ |
+| `deriveKEK` | vault-crypto.js | ✅ Stage G9 | ✅ |
+
+### 重要な regression と教訓 (= 2026-06-06 / 2026-06-07 で経験)
+
+1. **Stage G9 deriveKEK polymorphic 化で `aesGcmDecryptRaw` が取り残された** (= 社員 unlock 全滅、 hotfix `7e9205f`)
+2. **H2-prep の saveVault 置換漏れ** (= H2-b で mekKey handle 化したら即死、 hotfix `1ddee5c`)
+
+両方とも 「raw 直叩き helper が dispatcher 経由化漏れ」 が原因。 memory `[[polymorphic-dispatcher-consistency]]` に記録。
+
+### dispatcher fallback を残す方針 (= H5 設計判断)
+
+| シナリオ | fallback なし | fallback あり |
+|---|---|---|
+| 古 browser (WASM 未対応) | 全機能停止 | CryptoKey path で動作 |
+| CSP issue で WASM block | エラー | 同上 |
+| WASM artifact 破損 | エラー | 同上 |
+| network 失敗で WASM 取得不可 | エラー | 同上 |
+
+**結論**: fallback は OSS 公開後も保持。 「常に Rust handle 優先、 WASM 不可時のみ CryptoKey で互換性確保」 と説明できる。
+
+### 元の browser 版 (= CryptoKey のみ) との比較
+
+| 観点 | CryptoKey 版 | Phase 2 完成版 |
+|---|---|---|
+| JS から raw 取得 | ❌ 不可 (= extractable false) | ❌ 不可 (= API なし) |
+| JS heap snapshot | 鍵は browser 領域 | 鍵は WASM linear memory |
+| **明示 zeroize** | GC 任せ | ✅ Drop trait で確定的 |
+| **mobile native 流用** | ❌ browser 専用 | ✅ Rust crate を FFI で |
+| **OSS 監査** | 「browser を信用」 | ✅ 単一 Rust crate を fuzz / verify |
+| **side-channel 耐性** | browser 依存 | RustCrypto は constant-time 設計 |

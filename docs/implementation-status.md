@@ -1381,3 +1381,27 @@ memory `[[arpass-rust-opaque-handle]]` Stage G で記録した難所 (= mekHkdfK
 
 - **Stage G4 v1 (= dual-emit) は revert 済**: 前回 dual-emit (= CryptoKey + handle 並列) の attempt は unlock 不能 regression を起こして revert。 Stage G4 v2 (= 完全置換) で再着手し成功。 教訓: 「並列 populate より完全 置換」 が opaque handle migration の正解 path。
 - **migrate URL bug は Recovery Case B 試行で発覚**: user 報告で 「Recovery Case B 機能を試したことがなかった」 → 試行で 405 露呈。 Stage G11 検証作業 内で副次的に bug fix した形。
+
+---
+
+## Rust 化 Phase 2 完成 (= H1 + H2 + H3 + H4 + H5、 2026-06-07 朝 JST)
+
+Personal mode primary path (= Phase 1) に加え、 **全 secret material が Rust opaque handle 化** された。
+
+### 達成 highlight
+
+- **`_session.mekKey` (両 mode)** が CryptoKey から MekKey opaque handle に
+- **`_session.signingPrivateKey`** が CryptoKey から SigningKey opaque handle に
+- 全 raw subtle.encrypt/decrypt 直叩き helper を **dispatcher 経由化** (= 今日午前の社員 unlock 全滅 regression 教訓)
+- **dispatcher fallback は保持**: 古 browser / CSP issue / WASM 障害時の graceful degradation 確保
+
+詳細: [rust-crypto-opaque-handle.md §Phase 2 完成](./rust-crypto-opaque-handle.md#phase-2-完成-h1--h2--h3--h4--h5-2026-06-07-朝-jst)
+
+### 関連 commit (= main 反映済)
+
+| commit | 内容 |
+|---|---|
+| `11ce392` | H1 SigningKey opaque handle (再投入) |
+| `7e9205f` | hotfix: aesGcmDecryptRaw handle 受付 (= 社員 unlock 全滅修正) |
+| `1ddee5c` | hotfix: H2-prep の saveVault 置換漏れ |
+| `8408ef4` | Phase 2 全完成 (= H2 + H4) main マージ |
