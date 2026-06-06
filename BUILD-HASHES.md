@@ -43,17 +43,17 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-06T04:54:11.725Z
+**Generated**: 2026-06-06T08:26:11.482Z
 **Files**: 204
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `03453e1ee53652ca807da1b07587c599bedcd8d73d7008a458e3ac5062514f1d` | 12218 | `_headers` |
 | `f90724367930c1e805dde0702768b28293d9cbd899a076bdcea8456bf0d2afc4` | 321 | `.well-known/assetlinks.json` |
-| `7fb56bab7d4b1f83f3a6a931f053cf36a6a3d36010873f967f4caf178d2af381` | 160467 | `app.html` |
+| `006a4e5e2b4ae098149866fd1a2b92f26351177ff3371d6dbc99b638ff8e604c` | 160467 | `app.html` |
 | `0040923fd145a61649ecb6c59df0b81dbe75125c6d41368e194f49e9844298a6` | 53717 | `ar/help.html` |
 | `6d9b5dd81675ca0d8083ae22d4d4b6d2d0a0838ef22e3eeccc020ecaf7496805` | 93160 | `ar/index.html` |
-| `9116ddb2ac6185afc29353d3781451cf928e1e0189cb320fcd5ae8347ebaf9f4` | 10228 | `arpass-emergency-restore.html` |
+| `127fd5c375711495f0dec00d10d746643d69f74f8e85f3ea9e14a4863d8bd1a9` | 10228 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `5dc667475d2b23bc065edc6f068aaa5591d4e20e3b63349fa3538ce66bc04e26` | 48632 | `de/help.html` |
@@ -164,26 +164,26 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `e8e7685b16bbcf1a456626326bd249dfceb71d3e4141d4d3c8fd3759477447e2` | 8893 | `guide/zh-TW/yubikey-guide.html` |
 | `e9ce1291e6ebf0e8514ea9fc36d79c6c63a1c33a55407d4dcca16d80fa8b412d` | 6605 | `guide/zh-TW/yubikey-price.html` |
 | `035350732aaa18939e0edce26c3167e03fac7b01afdef5d1e08dc974cbe89e90` | 7469 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `a20a19ed295a84ab7244ac4da5d12aef8d252dabd5fc773ded4d71ced82d1080` | 50347 | `help.html` |
+| `c740b3d5c4416f38dfaf628cf9744b9669254fa290f98807886bdf8fb6b5f7e6` | 52524 | `help.html` |
 | `f382f318f70b51cb7289ec933d381197789d57708694e3be26e9e12e88312ea7` | 63391 | `hi/help.html` |
 | `b22369f7cdf81b5edd5fcc8eadfc7eedcdde70446ee92efba4b03d2b2de4f55e` | 112994 | `hi/index.html` |
-| `8d3027a071c4f6171720a48cdd7c16d89b4bf39dd1742b64bdb7cf2e4501d707` | 224114 | `i18n/ar.json` |
-| `cf6eba9b402a7fdbf1bbb3f37232252cc0d7e7a297656c937cf393415c94ed6c` | 194402 | `i18n/de.json` |
-| `555298da6b814ad897592228ffc4795ea41899674281cacb6f7002a6de5ac58b` | 174820 | `i18n/en.json` |
-| `2f5b84db20b9f96d4b18ff8809396c5b7b187db884efe132d6996b10e545d2de` | 189638 | `i18n/es.json` |
-| `f838466e1c77408d17a0d2d30ab4dcbc0eade3610c6aefca8d9fecbad619f45a` | 195987 | `i18n/fr.json` |
-| `a0c6c7d7cd7eaa9e5aefef626ff68f645debb1effaea49271e5067a0efb8d13a` | 298085 | `i18n/hi.json` |
-| `4c94ce651cda710b54fb1fca50f515db45ed6604d2b2971a01f3400c74744720` | 180562 | `i18n/id.json` |
-| `8626fcceb8b41c1869234e6d8dad6849f4d555467fd628eb92602859c43174f2` | 186900 | `i18n/it.json` |
-| `7b1ebb883ebee90255c68cae1ccfa6a9e9504239d1091adc0bc810624775cb54` | 208612 | `i18n/ja.json` |
-| `e8421c5eacee576b4bcb86ebc1f7636e05bdd8acb0fee3d7ec04cb6c6ddfc475` | 193556 | `i18n/ko.json` |
-| `e17276988678f163dbe6a0d51507b9fcbb50f8e4ce3f2befb7df226559746564` | 186968 | `i18n/pt-BR.json` |
+| `294b0642b464fdfe70b19bc2e4b23151c9f6c94f938704c6db5e763fd69dcb2f` | 226322 | `i18n/ar.json` |
+| `83815c0c81d5443b40ddd91d236307e579235bef36f51c3a141a9d1f890a58c1` | 196145 | `i18n/de.json` |
+| `4e82a9593eafd0f449195c6c43d285ea97620d58a540f2f083c59e27989bb499` | 176405 | `i18n/en.json` |
+| `353a3c1265ef9e1c900602910a536ce575de4b44e0fa682855e511fb5c7e5f75` | 191423 | `i18n/es.json` |
+| `cf6c8127ff55295287e590dc18f3a64d4dfb78acab686835ac3f82c36c8065a9` | 197853 | `i18n/fr.json` |
+| `be56830630b4dc5ec8a17e064e95e63e284329d1a70e017025a988df4af9f98b` | 301165 | `i18n/hi.json` |
+| `9d0080baf52f1e731883bdbf58ac6c021316f5fba589b326ff42e953985eaa04` | 182197 | `i18n/id.json` |
+| `ad91ab515a812de492bd552b93087e76d5f202538449c831daad4b50fec96721` | 188670 | `i18n/it.json` |
+| `1c0ab8d726e7624bf7bee79c95e6d2c92d7688dbb46bf77eabe4b902d7bd5689` | 210528 | `i18n/ja.json` |
+| `f6928473354e537fea08db8d210a5025f572df39356f6fc338f22a1947cf642e` | 195268 | `i18n/ko.json` |
+| `8b0174e7c625502182cc954bf64fd3c9fbf01c52d1e0bcb2369fd09f64b05241` | 188732 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `48be1f1526b8ee3b6123342a7dad78ac242d2772749372a034ad750d2ab3af39` | 260193 | `i18n/ru.json` |
-| `6d0cdbd18688529eaefca4a936ea6e33e93d592e9009ba9ed22e1824696be1de` | 186645 | `i18n/tr.json` |
-| `f6f2d5258eac8b7fc29d180f72a1c737c778083325f20b22f2404c2d2df46960` | 200259 | `i18n/vi.json` |
-| `8acb8f5949dda8deb53d58c8e62741b30a7af676e76f19c24e347f33c03467a2` | 167906 | `i18n/zh-CN.json` |
-| `2ce6b1e4311e7bdddda0b04a17672aefa21b861e0904f6f3c3f7c376f089dcf1` | 168016 | `i18n/zh-TW.json` |
+| `f42a1d3821c0d13bb21ca7a167277f4fd2788512817f5218c6f8e6409d7f870d` | 262751 | `i18n/ru.json` |
+| `3575031685dca28ea040493cd845a346d1c1c7645e9e10bd0df36dde5fb29138` | 188418 | `i18n/tr.json` |
+| `99223c74693f62e4db8c9fd8dfecfaf5a2393c04caa73f81ce6ce9c069699d82` | 202047 | `i18n/vi.json` |
+| `78a150089a92d1d3dde40131bc6fbb6d024b244d248a7828f6d6644c865293ab` | 169409 | `i18n/zh-CN.json` |
+| `d700682aa46e38f0cbacad438242327372783091ece29cf51ea2ebb16e9ff97b` | 169513 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
@@ -195,9 +195,9 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `8bd3ae77ea811fba1de73c97dc1f8d46cc89e8f4193ebeb68085564d5a18162d` | 84905 | `it/index.html` |
 | `facf27c6708ae0dfac20cd7616783ad7cfc0bf551a9764cf7a0c48f198f11eea` | 47387 | `ko/help.html` |
 | `c0c29c7d065c7bdfede05ad5f7289a4fa5769a2f9d9e3d16a3ead80ded45ba56` | 86206 | `ko/index.html` |
-| `8acbf9a0e82605558f860cdb9b0c01b727973b95b97f1ba80fadc18914d37a7f` | 428552 | `lib/app-main.js` |
-| `20bd67e94f47e267a8972e96e858497354ac1af14dfc8dc7e29f7291b08f93fc` | 46439 | `lib/client-auth.js` |
-| `21125d3bc5263f733dc5b64a87f2efcffda9857e4deb0f228bccba325d782c0f` | 19883 | `lib/emergency-restore-main.js` |
+| `59867562e328575588949f6e556a1c90cbc2a40bbc3ddf4bfd6883e9a114f2ab` | 428552 | `lib/app-main.js` |
+| `61e9f2e787bcd3303b4555b8acfc5fd5de1823dd5ab1c7215873eed2cc771759` | 46439 | `lib/client-auth.js` |
+| `78a89d434986a87c1c17d55c763d1af112326e1555dc08c159b7fed06f0fcb78` | 19883 | `lib/emergency-restore-main.js` |
 | `b70c5332ebcc7b662cad84db49a036c6dac78fe55223fad40d11030e7271d5fd` | 644 | `lib/help-main.js` |
 | `409d637c33f55d65cd19ed4484116289c0e711175686fa0c87fe50edf5c3d099` | 17483 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -209,7 +209,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `c7a41aa1ccd74fb814ee4cf79414e57e6c1f58281183b59d35cf7519d3d2f8b5` | 659 | `lib/pay-cancel-main.js` |
 | `fd3393f258f93d7a33ee0299327ef1f1777bcf1cd5c190098a3f27cfb6685195` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `314a47464543efaf2e129d77d29f8a72607dc44ba18b9302e2ff35538c254596` | 7477 | `lib/pricing-main.js` |
+| `ea711691bf0c393ac6d685b55805ec97e8958690d66dde53b9c8fa4c5dc58c7f` | 7477 | `lib/pricing-main.js` |
 | `5ef6de241c86bdb9ec03129add6101fa613ad2d66f5dac08a17494581093efb4` | 5923 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `89be3e9f146de5dee22b08a84fe7764f651fccd797ceb47c70d1aaee2ffd7b22` | 11808 | `lib/qr.js` |
@@ -217,8 +217,8 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `3305b85d074453a0e26da3797d6916eaf3afa970a65ca568ccbd07efa8a810bb` | 59199 | `lib/rust-crypto/arpass_crypto.js` |
 | `0b10245be4c9eb6c964dd333f23d9c2c6f0978baf37982e10182fca73e401673` | 10551 | `lib/save-debounce.js` |
 | `7f4d0f676453e68f9954be5ef1728871da5c4faa2f8a00ab34f56039f3aad399` | 663 | `lib/security-main.js` |
-| `6ec16a66eb27bc7b5e228e403d95935d8118924433111817dff011996fda82d1` | 226595 | `lib/vault-client.js` |
-| `673586134e237932285f417415bdf5d4222e3773a8b16e4bc09621853fad9488` | 138776 | `lib/vault-crypto.js` |
+| `514882198d1170b17ecd93cf81df0eff187623d251d2812bb2b1a7dd38b19b3b` | 229807 | `lib/vault-client.js` |
+| `11331c7d850bdc24994d0787adcd89ac8abb154fdc80d8866a25bb34d09d78ff` | 146188 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
 | `c518e8e7d6fd6add47849fe528790af26533102d1ac898882dc1df49a76f6678` | 1915 | `lib/vendor/LICENSE-noble` |
@@ -232,7 +232,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
 | `8d343685065105b53e56fc0a9fc0fa8acdd3e8338e415774efe3a196547b9a45` | 1782 | `pay-cancel.html` |
 | `bedfa7b0a30c79cb9d1381e2547a0c747fa6172026cde9ea6344a3a51127028b` | 2493 | `pay-success.html` |
-| `4d07307d5174bdc22021b2dd0c9938462cb0bd3c2acd6c8855c6a201833dd3ad` | 8645 | `pricing.html` |
+| `2f4a102321ad23cc2649bc249913509ccdb353a2db64f46c1fe7c0d3f8b316e9` | 8645 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `3605066e7190ba9382fcc57dfcb2c0476919d9d29ca8ffb4ea0a255edea9dac7` | 46341 | `pt-BR/help.html` |
 | `3e6e1dff9db38329eff28cffb729373061afabe07cfc4fc85e84e44f434d84ba` | 84864 | `pt-BR/index.html` |
@@ -241,7 +241,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `84f396976729bf00624cfa0543943519d520b6d0ab3257ade33b032b7d9c9c24` | 101019 | `ru/index.html` |
 | `57f833398642d569474dec4ba85058a6cd72e124927a16af643709bd951bf976` | 25076 | `security.html` |
 | `5934c6aa8b2698729a13d82310771d8ec74c9a1fec9ccaef116c8e9cd747357b` | 234812 | `sitemap.xml` |
-| `721ee18608673a408af6b1cf9dc728f1c31152757aca4bb94607cabb8c757bd0` | 6838 | `sw.js` |
+| `3e9d0811f6de4e859c0612d595cc0aa5be066fb87367fedb7a1276055056d234` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `8d2f9e3eff36c5d2cff4f96ba6fdb20cebd8bb2686a8f0bf01edde1107c0c0c3` | 46417 | `tr/help.html` |
