@@ -1311,3 +1311,73 @@ if (company?.restrictReadToAllowlist === true &&
 ### 関連事象 (= memory 化)
 
 - Mac の git working dir (= `/Users/yamaki/.../arpass/`) が古い main (= Phase 7.0w-S2) で stale だった、 sandbox `/tmp/work/arpass/` の staging branch で作業継続。 → [[arpass-mac-git-auth]] memory 通り、 Mac 側で直接 commit していないため害なし。
+
+---
+
+## Rust 化 Phase 1 完成 (= Stage G4-G11、 2026-06-06)
+
+### 背景
+
+Stage 1 (= Argon2id / HKDF / SHA-256 / ECDH の純関数 Rust 移行) と Stage 2c outer key 全 path migration 完了後、 残された目標は 「**Personal mode の全主要 crypto operation を Rust 経由にする**」 = **「raw bytes JS heap 露出ゼロ化」**。
+
+memory `[[arpass-rust-opaque-handle]]` Stage G で記録した難所 (= mekHkdfKey CryptoKey non-extractable、 K1→K2→MEK chain) を回避しつつ、 Personal mode の primary path のみ Rust 化することで pragmatic な完成を目指した。
+
+### Stage G4-G11 内容
+
+| Stage | 内容 | 影響 |
+|---|---|---|
+| **G4** | `addRecord` (= ファイル添付) の BEK 生成 + wrap を Rust handle 化 | Personal mode の record write |
+| **G5** | `fetchRecord` (= ファイル復号) も同じ Rust handle 化 | Personal mode の record read |
+| **G6** | `chunk` (= LSM-tree archival、 CEK) も Rust handle 化 | Personal mode の chunk seal/load |
+| **G7** | `encryptVault` / `decryptVault` の **body AES-GCM** を MekKey handle に | Personal mode の vault 本体 encrypt/decrypt |
+| **G8** | `encryptVault` の **wrap A/B/C** と `decryptVault` の **AB/AC/BC unwrap** を KEK handle に | Personal mode の MEK wrap/unwrap 全 3 path |
+| **G9** | **`deriveKEK` 自体を polymorphic 化** (= handle 優先、 CryptoKey fallback) | 全 14 callers (= addCredential、 changePassword、 changeRecovery_caseA/B、 業務 mode 系含む) が一括 Rust 経路に |
+| **G10** | `deriveRecoveryProtectKey` が MekKey handle を受付 (= Recovery 経路の Rust path 開通) | encryptedRecovery 経路 |
+| **G11** | `encryptRecoveryWithMek` / `decryptRecoveryWithMek` 内部で raw mek → handle 変換、 Rust 経路を発動 | encryptedRecovery の caller は無変更で透過化 |
+
+### Rust handle 経由のものまとめ (= 2026-06-06 時点)
+
+| 操作 | path |
+|---|---|
+| Argon2id (Master KDF) | ✅ Rust (Stage 1) |
+| HKDF / SHA-256 / ECDH | ✅ Rust (Stage 1/2a) |
+| Outer envelope wrap/unwrap (= 全 unlock/save) | ✅ Rust handle (Stage 2c outer key) |
+| **vault body encrypt/decrypt** | ✅ Rust handle (G7) |
+| **MEK wrap A/B/C + unwrap** | ✅ Rust handle (G8/G9) |
+| **KEK derive** | ✅ Rust handle 優先 (G9、 全 14 callers) |
+| **Recovery K_recovery 派生 + encrypt/decrypt** | ✅ Rust handle (G10/G11) |
+| BEK (record file) | ✅ Rust handle (G4/G5、 Personal only) |
+| CEK (chunk) | ✅ Rust handle (G6、 Personal only) |
+
+### 残作業 (= Phase 2 候補)
+
+| 部位 | 状態 | 投資判断 |
+|---|---|---|
+| Business mode BEK/CEK | CryptoKey path (= K1→K2→MEK chain の Rust 化 要設計) | mobile native 着手時に再検討 |
+| `_session.mek` raw bytes | encryptVault/decryptVault 内 transient (= 数命令の生存期間、 caller 経由で session に渡る前に消える設計を模索) | 完全撲滅には外部 API 変更必要 |
+| `_session.mekKey` CryptoKey | session 保持 legacy field (= 互換性のため残置) | session を MekKey handle 中心に再設計可能だが scope 巨大 |
+| signing key 派生 | `deriveSigningKey(mek)` → CryptoKey | Rust `p256_keypair_from_seed` 経路は既に存在、 wiring のみ |
+| Business mode K1 wrap chain | 全 CryptoKey | 業務 mode K1Key handle の per-version cache 設計が必要 |
+
+### backward compat
+
+- ciphertext format **完全同一** (= AES-256-GCM 同 algorithm、 同 key bytes)
+- rust-crypto 未ロード時は **CryptoKey path に自動 fallback** (= regression なし)
+- 既存 envelope を新 path で復号可能、 新 envelope を旧 path で復号可能
+- 業務 mode は (G9 の deriveKEK polymorphic 化を除き) 既存 CryptoKey path 完全維持
+
+### 関連 commit (= main 反映済)
+
+- `2c11f77` Stage G5: fetchRecord Rust handle 化
+- `aa133c9` Stage G6: chunk CEK Rust handle 化
+- `ab7a8de` Stage G7: vault body encrypt/decrypt
+- `8975455` Stage G8: KEK derive + wrap A/B/C
+- `a8be7d1` Stage G9: deriveKEK polymorphic (= 全 14 callers 一括移行)
+- `6cb2e83` Stage G10: deriveRecoveryProtectKey handle 受付
+- `4f4ccc6` Stage G11: encryptRecoveryWithMek 内部 Rust 化
+- `ea403f2` hotfix: migrateAccount URL `/api/migrate` → `/api/vault/migrate` (= pre-existing bug、 Stage G11 検証時発覚)
+
+### 関連事象
+
+- **Stage G4 v1 (= dual-emit) は revert 済**: 前回 dual-emit (= CryptoKey + handle 並列) の attempt は unlock 不能 regression を起こして revert。 Stage G4 v2 (= 完全置換) で再着手し成功。 教訓: 「並列 populate より完全 置換」 が opaque handle migration の正解 path。
+- **migrate URL bug は Recovery Case B 試行で発覚**: user 報告で 「Recovery Case B 機能を試したことがなかった」 → 試行で 405 露呈。 Stage G11 検証作業 内で副次的に bug fix した形。
