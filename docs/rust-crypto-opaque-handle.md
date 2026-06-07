@@ -290,3 +290,44 @@ Phase 2 完成宣言 (= 上節) では Business mode の `deriveBusinessMekKeyV2
 
 **F7 (= 試みて revert)**: mekHkdfKey も MekKey handle にして sub-key 派生も Rust 内 完結を狙ったが、 admin signing key の pkHash が変わってしまう副作用が発覚し staging から即 revert (`ac2a476`)。 詳細は memory `[[f7-signing-key-trap]]`。 再着手は Rust/JS bit-equivalence test を CI に組み込んだ後。
 
+
+## Phase 2-H4-full F7 完成 (= mekHkdfKey も MekKey handle 化、 2026-06-07 main 反映)
+
+### 達成
+
+H4-full では mekHkdfKey が CryptoKey HKDF base のまま残っており、 sub-key 派生 (signing key + recovery protect) で deriveBits 経由の transient raw bytes が JS heap に出現していた。 F7 で **mekHkdfKey も MekKey opaque handle 化**、 sub-key 派生も WASM 完結。
+
+### F7 retry 段階移行 (= 前回 regression 教訓)
+
+最初の F7 (1 commit に F7-A/B/C 全部) で staging に push したところ、 admin signing key の pkHash が変わって "Caller has no company" regression。 即 revert。 root cause 完全特定できず。
+
+その教訓を踏まえて **段階移行** で retry 成功:
+
+| Stage | 内容 | 反映 commit |
+|---|---|---|
+| **bit-equiv test** | Rust test: `test_mek_derive_signing_key_equivalent_to_explicit_hkdf_path` + `test_business_signing_chain_bit_equivalent` で F7 path と F6 path が bit-identical な signing pubkey を生成することを CI 担保 | `8289065` |
+| **F7-A/B dormant** | JS: deriveBusinessMekHkdfKeyV2 / deriveSigningKeyFromHkdf に MekKey handle 入力受付 path 追加。 caller は依然 CryptoKey を渡すので **発火しない** (= 0 behavior 変更) | `ab30f7e` (main) |
+| **F7-C step 1** | JS: refreshFromServerLatest の newMekHkdfKey を k2Handle 経由化。 K1 rotation path のみ発火 | `a840864` (main) |
+| **F7-C step 2** | JS: tryTransitionFromPending の realMekHkdfKey も k2Handle 経由化。 K1 pending member transition path も発火 | `8c3135b` (main) |
+
+各 step で staging に push、 5 mode (Personal / Business 社員 / Business admin / hwkey / signup transition) で検証 OK 後に main マージ。
+
+### 最終 invariant (= F7 完成後)
+
+- mekHkdfKey は MekKey opaque handle として session に保持 (= transition / refresh 経由)
+- signing key 派生は `MekKey.derive_signing_key(salt, info)` で WASM 完結 (= 48-byte seed が JS heap に出現しない)
+- Recovery protect 派生は `MekKey.hkdf_derive_mek(salt, info)` で WASM 完結
+- lockSession で mekHkdfKey も `.free()` (= MekKey handle の場合)
+
+### 教訓: 段階移行の効用
+
+- dormant 受付 (受付 path 追加だが発火しない) と actual behavior change を別 commit / 別 stage に分離
+- 1 caller ずつ実発火に切替、 各 stage で staging 検証
+- bit-equivalence test を CI に組み込んで数学的等価性を担保
+- 「1 commit で全部やる」 は temporary 速いが、 regression debug が地獄になる
+
+cf memory `[[f7-signing-key-trap]]`。
+
+### 残る課題: K1 raw window (= 数 μs)
+
+K1 raw bytes は eciesUnwrapForRecipient → K1Key handle import の数 μs window で JS heap に存在。 これを消すには Rust 側で ECIES 全工程を完結する必要 (= EmpPrivKey opaque handle + ecies_unwrap_to_k1key methodization)。 別 phase で着手。
