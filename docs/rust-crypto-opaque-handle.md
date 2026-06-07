@@ -331,3 +331,45 @@ cf memory `[[f7-signing-key-trap]]`。
 ### 残る課題: K1 raw window (= 数 μs)
 
 K1 raw bytes は eciesUnwrapForRecipient → K1Key handle import の数 μs window で JS heap に存在。 これを消すには Rust 側で ECIES 全工程を完結する必要 (= EmpPrivKey opaque handle + ecies_unwrap_to_k1key methodization)。 別 phase で着手。
+
+## Phase 2-F8 (= K1 raw window 消去への足場、 2026-06-07 main 反映)
+
+### 達成 (step 1+2+3a まで)
+
+F7 完成で mekHkdfKey も MekKey handle 化したが、 K1 raw bytes は依然 ECIES unwrap 直後の数 μs window で JS heap に出現。 F8 は **ECIES decrypt 全工程を Rust 内で完結**して、 K1 raw が JS heap に一度も出現しない設計。
+
+| Stage | 内容 | 反映 commit |
+|---|---|---|
+| **step 1 Rust** | `EmpPrivKey` opaque handle (= 32-byte ECDH scalar)、 `ecies_unwrap_to_k1key` method | `699b11f` |
+| **step 1b Rust** | `EmpPrivKey::from_pkcs8` (= PKCS8 DER parser、 JS 側 ASN.1 不要)、 p256 features に pkcs8 追加 | `7647c8a` |
+| **step 1 test** | `test_emppriv_handle_ecies_unwrap_bit_equivalent_to_standalone` で handle method と standalone 関数の出力が bit-identical なことを CI 担保 | `699b11f` |
+| **step 2 JS** | `unwrapEmpPrivAsHandleWithK2Key` + `eciesUnwrapToK1Handle` (dormant 受付 helper) | `56708b2` |
+| **step 3a JS** | session.empPrivHandle 並列 populate、 lockSession で free、 4 propagate site + refresh path | `dc075cb` |
+
+### 各 step の dormant 範囲
+
+- **step 1+2 dormant**: Rust handle + JS helpers のみ、 caller 未変更。 0 behavior 変更。
+- **step 3a dormant**: session に empPrivHandle が populate されるが、 ECIES decrypt caller は依然 CryptoKey 経由。 0 behavior 変更。
+
+### 残作業 (step 3b、 step 4)
+
+**step 3b**: tryTransitionFromPending / refreshFromServerLatest の ECIES decrypt site で empPrivHandle 経由化:
+
+```javascript
+// 既存 (= K1 raw window 存在):
+const k1Raw = await eciesUnwrapForRecipient(empPrivKey, encK1);
+const k1 = new Uint8Array(k1Raw);
+// ... importK1RawAsHandle で k1Handle populate ...
+k1.fill(0);
+
+// F8 step 3b 後 (= K1 raw window 消去):
+const newK1Handle = await eciesUnwrapToK1Handle(_session.empPrivHandle, encK1);
+// K1 raw bytes は WASM 内のみ、 JS heap に一切出現しない
+```
+
+**step 4**: HKDF 派生 (= deriveBusinessMekKeyV2) も k1Handle 経由化 (= 既に F5 で polymorphic 済、 caller が k1 raw を渡すのを止めれば完成)。
+
+### Bit-equivalence 担保
+
+新 Rust 関数追加時は必ず bit-equivalence test を追加。 既存 JS path との出力一致を CI で保証することで、 polymorphic 化での silent behavior change を防止 (= F7 retry の教訓を適用)。
+
