@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-13T06:59:00.361Z
+**Generated**: 2026-06-13T09:08:54.818Z
 **Files**: 206
 
 | SHA-256 | Bytes | Path |
@@ -51,7 +51,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `f149be8dfb35f30e5162700a1db6629443fc88e0b6dc8600ff331776254c8317` | 12435 | `_headers` |
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `e648cda9f35affc45d73ec4294c04fa6ac51b7ba129b51f3ef0442208875628f` | 721 | `.well-known/assetlinks.json` |
-| `090e31237747e9b9ee78a70337dee3cc5626867617f36baa0221694223622ed9` | 160862 | `app.html` |
+| `ef01439f203c358638978bcfdc3c8c3716080778de476d5b3dfa823401b5f093` | 160862 | `app.html` |
 | `3a341896827c94d8c0500c5a35cc5ba61ba3b33dc3db0ca1b8cadb49d63e363e` | 53707 | `ar/help.html` |
 | `f85f972d075b670725ea506b7d52600fe51fbdeec424073834f3cef05a5ea749` | 92970 | `ar/index.html` |
 | `c9cb527d2d4e1a62f7f2e83b0943532c8b3976875674f0b396ade6b20686d59d` | 10228 | `arpass-emergency-restore.html` |
@@ -197,7 +197,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `db1c99c3ad844b65309ba5ae0264575378fb9a5d18ed44ca902081bbc82c5457` | 84715 | `it/index.html` |
 | `a9c5cb2ccbcfa696de7447811224cdb5a3f8fee2389c2e627ad6b8b8c4975cf8` | 47377 | `ko/help.html` |
 | `973ffe4ad4835050c2b244685c3bb91547b00a7de271874c6423e16ef695aa31` | 86016 | `ko/index.html` |
-| `ff851a0e96460e4df0b50c32f33f5e42036b414a519ceece016be67a42cc0ab6` | 435521 | `lib/app-main.js` |
+| `bfde3f6dda33674ef1891e1c63cdda9728ac70bf65e892318892d25df1c3b296` | 437319 | `lib/app-main.js` |
 | `7f7807a9301c5cc791146ad2c2024e511e0d9aafdcb769f18717543147f002aa` | 46652 | `lib/client-auth.js` |
 | `93ae8b535e8caef3b0cdeefa31ca4ff67cdc57cff6455306e924d801acc50490` | 19883 | `lib/emergency-restore-main.js` |
 | `b70c5332ebcc7b662cad84db49a036c6dac78fe55223fad40d11030e7271d5fd` | 644 | `lib/help-main.js` |
@@ -243,7 +243,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `3c0b919238f4803fd1ac5524b5a14a4caa7b49338d61f6af9ab157d0a824c116` | 100829 | `ru/index.html` |
 | `7f67d842c84dee6a41e054a72bbcc9b9b019818e8551e1961cea7eb953598a34` | 25066 | `security.html` |
 | `13354874a4ba70f2f8ccfe0aa0ae8a4db8adf3072a868d88d5f618478f391c95` | 223292 | `sitemap.xml` |
-| `8916834324413e8e3d9ba7a3db75ff467e1516a3dc79e406a511e2ba2b02df06` | 6838 | `sw.js` |
+| `67bc89a1e92a9bb7a72cc342e7a4744d921566ea933cfaf010dd3ec90d85afd7` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `0a227300b27ba52569178247d5177f87f858ca8786be9081d372963a75e2f438` | 46407 | `tr/help.html` |
