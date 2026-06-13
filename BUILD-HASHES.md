@@ -43,14 +43,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-13T09:08:54.818Z
+**Generated**: 2026-06-13T09:17:17.980Z
 **Files**: 206
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
 | `f149be8dfb35f30e5162700a1db6629443fc88e0b6dc8600ff331776254c8317` | 12435 | `_headers` |
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
-| `e648cda9f35affc45d73ec4294c04fa6ac51b7ba129b51f3ef0442208875628f` | 721 | `.well-known/assetlinks.json` |
+| `6debf89e472f412e4abef956637a70deb96820e055e39daf9682b752cfffb5d6` | 774 | `.well-known/assetlinks.json` |
 | `ef01439f203c358638978bcfdc3c8c3716080778de476d5b3dfa823401b5f093` | 160862 | `app.html` |
 | `3a341896827c94d8c0500c5a35cc5ba61ba3b33dc3db0ca1b8cadb49d63e363e` | 53707 | `ar/help.html` |
 | `f85f972d075b670725ea506b7d52600fe51fbdeec424073834f3cef05a5ea749` | 92970 | `ar/index.html` |
