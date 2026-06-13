@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-06-13T06:23:23.189Z
+**Generated**: 2026-06-13T06:28:14.807Z
 **Files**: 206
 
 | SHA-256 | Bytes | Path |
@@ -51,7 +51,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `f149be8dfb35f30e5162700a1db6629443fc88e0b6dc8600ff331776254c8317` | 12435 | `_headers` |
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `e648cda9f35affc45d73ec4294c04fa6ac51b7ba129b51f3ef0442208875628f` | 721 | `.well-known/assetlinks.json` |
-| `5e9c239302c6408c94cab59cba3b53c31a593f67d535cf65f90b9b2bc61164f3` | 160862 | `app.html` |
+| `454d71e8c5eee9ca19addccef7d15651724944fa52db38265702b75a5f7388e6` | 160862 | `app.html` |
 | `3a341896827c94d8c0500c5a35cc5ba61ba3b33dc3db0ca1b8cadb49d63e363e` | 53707 | `ar/help.html` |
 | `f85f972d075b670725ea506b7d52600fe51fbdeec424073834f3cef05a5ea749` | 92970 | `ar/index.html` |
 | `c9cb527d2d4e1a62f7f2e83b0943532c8b3976875674f0b396ade6b20686d59d` | 10228 | `arpass-emergency-restore.html` |
@@ -197,22 +197,22 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `db1c99c3ad844b65309ba5ae0264575378fb9a5d18ed44ca902081bbc82c5457` | 84715 | `it/index.html` |
 | `a9c5cb2ccbcfa696de7447811224cdb5a3f8fee2389c2e627ad6b8b8c4975cf8` | 47377 | `ko/help.html` |
 | `973ffe4ad4835050c2b244685c3bb91547b00a7de271874c6423e16ef695aa31` | 86016 | `ko/index.html` |
-| `63f08cc8b51d0a6e3011023b80afc1008dbe0571bffa40b76e435b3b96673808` | 434502 | `lib/app-main.js` |
-| `415e01ad8c43ea9fc3c879992da28751277f1525a834970e3f937fbad2c5791c` | 46652 | `lib/client-auth.js` |
+| `79caef987a6dff27458fc789e508b8ac986e0bc27a91e603768f9ce0c8bc97cd` | 434544 | `lib/app-main.js` |
+| `67b577285792e3a8b3b39d44bade7f7a144f1b577accbc35d4bd42214e9957c2` | 46652 | `lib/client-auth.js` |
 | `93ae8b535e8caef3b0cdeefa31ca4ff67cdc57cff6455306e924d801acc50490` | 19883 | `lib/emergency-restore-main.js` |
 | `b70c5332ebcc7b662cad84db49a036c6dac78fe55223fad40d11030e7271d5fd` | 644 | `lib/help-main.js` |
 | `409d637c33f55d65cd19ed4484116289c0e711175686fa0c87fe50edf5c3d099` | 17483 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
 | `734a7784335b690cbd747f1cafc0834ded9a4cfcabc2ce4a8e2e687064c9dbba` | 2189 | `lib/index-main.js` |
-| `f376af496e51541ef61de6b9d31bfeb15650510656c7268b01574717fb8862fd` | 10097 | `lib/local-cache.js` |
+| `b0cf19dcff3d55f37e55bd3adb2e7cd621244bd6f489a8b257b7d4fc429fc4e1` | 10097 | `lib/local-cache.js` |
 | `e4fbb0a9d8de10d063ede9d774242881b75a322c51c47adbc775f9674d86e7c6` | 7126 | `lib/lp-pricing.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
 | `c7a41aa1ccd74fb814ee4cf79414e57e6c1f58281183b59d35cf7519d3d2f8b5` | 659 | `lib/pay-cancel-main.js` |
 | `fd3393f258f93d7a33ee0299327ef1f1777bcf1cd5c190098a3f27cfb6685195` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `374cd6faa55017a0415f7eef9003d7f8010dd19a698d413041d6760c6cd5f8c5` | 7477 | `lib/pricing-main.js` |
-| `608cc565add8c31a5f4027fd8bc371ef05874c318859d86ee9cbb26b39382741` | 11046 | `lib/profiles.js` |
+| `674343245098fcbe617935676cf0593c59d95c9002d4bb3fd7b808684eca10e4` | 7477 | `lib/pricing-main.js` |
+| `3b722ba7356e1f89d5891cbccaf8b4c7cf96d8d7b58506454f88329c4ae30590` | 11593 | `lib/profiles.js` |
 | `6b9d08f4238b267c159c8ce1da1e9da18abdb8892db1b70e4c95da2d98f0aafa` | 9112 | `lib/pwa-install.js` |
 | `89be3e9f146de5dee22b08a84fe7764f651fccd797ceb47c70d1aaee2ffd7b22` | 11808 | `lib/qr.js` |
 | `e5f928081ff1f842ec02f09410ba29497e531cd1d2823542c3845492fd527243` | 196231 | `lib/rust-crypto/arpass_crypto_bg.wasm` |
@@ -234,7 +234,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
 | `8d343685065105b53e56fc0a9fc0fa8acdd3e8338e415774efe3a196547b9a45` | 1782 | `pay-cancel.html` |
 | `bedfa7b0a30c79cb9d1381e2547a0c747fa6172026cde9ea6344a3a51127028b` | 2493 | `pay-success.html` |
-| `141bccc690d76a8d53e1ba474789cec826deeac54a17751dfc172f2d20acb809` | 8635 | `pricing.html` |
+| `4b020fa9f16cea48e46c93728f567aacf5d81993d7ca963b535d4be90b7e9889` | 8635 | `pricing.html` |
 | `e1ad706e32aeae6a1b4b4bc6e9127732c902f5fb207d24d8dff4fccd1944ca04` | 22993 | `privacy.html` |
 | `4baf885a934ac6e090e5574007684efd009123c9d421a35d0de7418d856368ca` | 46331 | `pt-BR/help.html` |
 | `bb2f9f7899ef7d6c5df00409b808ab48f9d09b61ab86b4477f9f75f88c2f9717` | 84674 | `pt-BR/index.html` |
@@ -243,7 +243,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `3c0b919238f4803fd1ac5524b5a14a4caa7b49338d61f6af9ab157d0a824c116` | 100829 | `ru/index.html` |
 | `7f67d842c84dee6a41e054a72bbcc9b9b019818e8551e1961cea7eb953598a34` | 25066 | `security.html` |
 | `13354874a4ba70f2f8ccfe0aa0ae8a4db8adf3072a868d88d5f618478f391c95` | 223292 | `sitemap.xml` |
-| `1cbd47e57935c1ea85a417529f5d509307ea37eeb85bbff95c7d84b81f8f1307` | 6838 | `sw.js` |
+| `599b32e89ae64466485772783fc3c7e0883fb82a163b8914b1826cdab53fcdf2` | 6838 | `sw.js` |
 | `811af38d946be27c0f5126ad73195045e6ea3b81be9da496bde4018bef5f57c0` | 17797 | `terms.html` |
 | `3f2c122c70a90acf1ff46a2e88a1874038d250f924bf5f00abd419f67f65b9dc` | 12478 | `tokushoho.html` |
 | `0a227300b27ba52569178247d5177f87f858ca8786be9081d372963a75e2f438` | 46407 | `tr/help.html` |
