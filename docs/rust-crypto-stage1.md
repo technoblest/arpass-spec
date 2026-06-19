@@ -1,3 +1,15 @@
+<!--
+====================================================================
+⚠️ AUTO-GENERATED MIRROR — DO NOT PR HERE
+
+This file is automatically synced from the private arpass repo on every
+release. Direct edits to this file will be overwritten.
+
+Source: technoblest/arpass / docs/rust-crypto-stage1.md
+Mirror generator: scripts/generate-arpass-spec-mirror.mjs
+====================================================================
+-->
+
 # Rust crypto core — Stage 1 (= primitives only)
 
 **Status**: ✅ **Stage 1 完成** (2026-06-04) — Argon2id + HKDF + SHA-256 を Rust + WASM 化、 staging で実機検証 OK。 残り: user flow 全検証 → main マージ。

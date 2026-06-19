@@ -1,7 +1,19 @@
+<!--
+====================================================================
+⚠️ AUTO-GENERATED MIRROR — DO NOT PR HERE
+
+This file is automatically synced from the private arpass repo on every
+release. Direct edits to this file will be overwritten.
+
+Source: technoblest/arpass / docs/rust-crypto-opaque-handle.md
+Mirror generator: scripts/generate-arpass-spec-mirror.mjs
+====================================================================
+-->
+
 # Rust opaque handle migration — Stage 2a / 2c / G4-G11
 
-最終更新: 2026-06-06
-ステータス: **Personal mode primary path 完了**
+最終更新: 2026-06-19
+ステータス: **全モード CryptoKey 全廃・opaque handle 一本化 完了 (2026-06-19)** — 詳細は末尾「Phase 2-最終」節
 担当: Yamaki / Technoblest
 関連: [rust-crypto-stage1.md](./rust-crypto-stage1.md) (= Argon2id / HKDF / SHA-256 / ECDH 純関数)、 [implementation-status.md](./implementation-status.md) §「Rust 化 Phase 1 完成」
 公開ミラー: [`technoblest/arpass-spec`](https://github.com/technoblest/arpass-spec) `docs/rust-crypto-opaque-handle.md`
@@ -373,3 +385,60 @@ const newK1Handle = await eciesUnwrapToK1Handle(_session.empPrivHandle, encK1);
 
 新 Rust 関数追加時は必ず bit-equivalence test を追加。 既存 JS path との出力一致を CI で保証することで、 polymorphic 化での silent behavior change を防止 (= F7 retry の教訓を適用)。
 
+
+---
+
+## Phase 2-最終 (= CryptoKey 全廃 / 鍵関連 crypto.subtle ゼロ、 2026-06-19 staging 反映)
+
+### 達成
+
+F8 step 3b / step 4 を含む全残作業を完了し、 **鍵を扱う `crypto.subtle.*` をコードレベルで完全撤去**した。 ブラウザ WebCrypto 経由の鍵操作は一切残っていない。 Rust opaque handle が唯一の鍵経路であり、 WASM 未ロード時の CryptoKey fallback も撤去した (= Rust 必須化)。
+
+検証コマンドと結果 (2026-06-19, staging `025c43c`):
+
+```
+$ grep -rn "crypto.subtle.(importKey|exportKey|deriveBits|deriveKey|wrapKey|unwrapKey|generateKey|sign|verify|encrypt|decrypt)" web/lib/*.js
+（rust-crypto グルー内のコメント2件を除き 0 件）
+$ grep -rn "crypto.subtle.digest" web/lib/*.js   → 7 件（SHA-256 のみ、 鍵ではないため保持）
+$ grep -rn "instanceof CryptoKey" web/lib/*.js    → 0 件
+```
+
+残る `crypto.subtle.digest`（SHA-256）はファイル改ざん検知のハッシュであり鍵ではないため意図的に保持。
+
+### batch 一覧 (= 各 batch がロールバック単位)
+
+| batch | 内容 |
+|---|---|
+| **batch3** | `aesGcmEncrypt` / `aesGcmDecrypt` ディスパッチャ + PRF wrap 鍵から CryptoKey 経路を撤去 (handle / Uint8Array のみ受付、 それ以外は throw) |
+| **batch4** | records の BEK / chunk CEK と添付 migrate を `BekKey` opaque handle に一本化。 `wrapKey` / `unwrapKey` / `generateBlobKey` / `encryptBlob` / `decryptBlob` / `rewrapKey` を撤去 |
+| **batch5** | `decryptVault` / `decryptVaultHwkey` の raw 経路 body 復号と rotation 本体暗号化を `MekKey` handle 化 (`crypto.subtle.importKey` 撤去)。 `forceRawMek`（mutation / 災害復旧）の raw mek 自体は handle で扱い継続 |
+| **batch6+7** | business unlock (`decryptVaultAuto`) の raw-K2 経路撤去 → K2 handle 必須化。 `saveVault` / 本体復号 / `_getMekKeyForVersion` / `_getRealMekForVersion` を handle 必須化。 → `vault-client.js` の鍵 crypto.subtle ゼロ |
+| **batch8** | `wrapEmpPrivWithK2` / `unwrapEmpPrivWithK2` / `eciesUnwrapForRecipient` と ECIES の `recipientPubkey instanceof CryptoKey` 分岐を撤去 |
+
+### 「dispatcher fallback を残す方針 (H5)」の撤回
+
+上記 §「dispatcher fallback を残す方針」では OSS 公開後も CryptoKey fallback を保持する判断だったが、 **本 Phase でこの方針を撤回**した。 理由:
+
+- 本サービスは既存ユーザ不在（後方互換不要）かつ Rust WASM は CI が常時ビルド・配信するため、 実運用で WASM 不在経路に落ちる状況が想定されない。
+- fallback コードは「死んだ防御コード」として残り、 監査面では鍵が CryptoKey にも流れうるという誤読を招く。
+- → Rust 必須化（WASM 不在時は明示 throw）の方が、 「鍵は Rust handle のみ」という不変条件を**コードで証明**できる。
+
+### F8 step 3b / step 4 の完了
+
+| 旧 残作業 | 完了状態 |
+|---|---|
+| step 3b: ECIES decrypt site の empPrivHandle 経由化 | ✅ `eciesUnwrapToK1Handle(empPrivHandle, encK1)` が唯一経路。 raw `eciesUnwrapForRecipient` は撤去 |
+| step 4: HKDF 派生 (deriveBusinessMekKeyV2) の k1Handle 経由化 | ✅ caller は K1Key handle のみ渡す。 K1 raw window 消滅 |
+
+### node 回帰テスト (= Rust WASM をロードして実行)
+
+```
+scripts/test-envelope-v7.mjs     → 56 passed   (personal / hwkey / records / outer / recovery)
+scripts/test-business-crypto.mjs → 21 passed   (business AB/AC/BC round-trip / ECIES / deriveKEK)
+```
+
+### 最終不変条件
+
+- 全鍵（MEK / K1 / K2 / BEK / CEK / outer key / rMat / emp_priv / signing key）は `MekKey` / `K1Key` / `BekKey` / `OuterKey` / `RMatKey` / `EmpPrivKey` / `SigningKey` のいずれかの opaque handle としてのみ存在。
+- raw 鍵バイト列が JS heap に出るのは `forceRawMek`（端末追加・パスワード変更・K1 rotation・災害復旧）の mutation 経路に限定され、 これも即 handle 化 + `fill(0)`。
+- ブラウザ WebCrypto による鍵操作（importKey / exportKey / deriveBits / wrapKey / sign / encrypt …）はソースコード上ゼロ。 `crypto.subtle.digest`（SHA-256）のみ保持。

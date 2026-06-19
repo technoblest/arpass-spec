@@ -1,3 +1,13 @@
+# ====================================================================
+# ⚠️ AUTO-GENERATED MIRROR — DO NOT PR HERE
+#
+# This file is automatically synced from the private arpass repo on every
+# release. Direct edits to this file will be overwritten.
+#
+# Source: technoblest/arpass / rust-crypto/Cargo.toml
+# Mirror generator: scripts/generate-arpass-spec-mirror.mjs
+# ====================================================================
+
 [package]
 name = "arpass-crypto"
 version = "0.1.0"
@@ -20,9 +30,11 @@ js-sys = "0.3"
 # RustCrypto org の audited crypto primitives (= 業界標準)
 argon2 = "0.5"          # Argon2id (Phase 7.4 KDF)
 aes-gcm = "0.10"        # AES-256-GCM
+aes = "0.8"             # AES block cipher (CTR mode 用)
+ctr = "0.9"             # AES-256-CTR (= v7 user.id outer-key Master-wrap)
 sha2 = "0.10"           # SHA-256
 hkdf = "0.12"           # HKDF
-p256 = { version = "0.13", features = ["ecdh", "ecdsa", "arithmetic"] }   # ECDH P-256 + ECDSA
+p256 = { version = "0.13", features = ["ecdh", "ecdsa", "arithmetic", "pkcs8"] }   # ECDH P-256 + ECDSA + PKCS8
 elliptic-curve = { version = "0.13", features = ["sec1"] }
 crypto-bigint = "0.5"
 

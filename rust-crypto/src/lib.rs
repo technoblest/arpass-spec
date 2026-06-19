@@ -1,3 +1,13 @@
+// ====================================================================
+// ⚠️ AUTO-GENERATED MIRROR — DO NOT PR HERE
+//
+// This file is automatically synced from the private arpass repo on every
+// release. Direct edits to this file will be overwritten.
+//
+// Source: technoblest/arpass / rust-crypto/src/lib.rs
+// Mirror generator: scripts/generate-arpass-spec-mirror.mjs
+// ====================================================================
+
 //! Arpass crypto core — Stage 1 (primitives only).
 //!
 //! This crate provides Rust + WASM implementations of the crypto primitives
@@ -125,6 +135,37 @@ pub fn hkdf_sha256(
     Ok(out)
 }
 
+/// 増分2 (KEK の WASM 内派生): 2 つの factor material を concat → HKDF-SHA256 →
+/// 32-byte KEK を `MekKey` opaque handle として返す。 KEK の raw bytes は JS heap に
+/// 一切出ない (= JS `deriveKEK` の "B window" を閉じる)。
+///
+/// bit-equivalence: 旧経路 `hkdf_sha256(concat(m1,m2), salt, info, 32)` → `new MekKey(raw)`
+/// と完全一致 (同一 HKDF-SHA256、 IKM = material1 || material2、 同一 salt/info)。
+///
+/// material1/material2 (= pMat/kMat/rMat 等) は呼出側で zeroize 推奨。
+#[wasm_bindgen]
+pub fn derive_kek_handle(
+    material1: &[u8],
+    material2: &[u8],
+    salt: &[u8],
+    info: &[u8],
+) -> Result<MekKey, JsError> {
+    let mut ikm = Vec::with_capacity(material1.len() + material2.len());
+    ikm.extend_from_slice(material1);
+    ikm.extend_from_slice(material2);
+    let derived = hkdf_sha256(&ikm, salt, info, 32);
+    ikm.zeroize();
+    let mut derived = derived?;
+    if derived.len() != 32 {
+        derived.zeroize();
+        return Err(JsError::new("derive_kek_handle: HKDF output must be 32 bytes"));
+    }
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(&derived);
+    derived.zeroize();
+    Ok(MekKey { bytes })
+}
+
 // ============================================================
 // AES-256-GCM
 // ============================================================
@@ -187,6 +228,54 @@ pub fn aes256_gcm_decrypt(
     cipher
         .decrypt(nonce, Payload { msg: ciphertext, aad })
         .map_err(|e| JsError::new(&format!("AES-GCM decrypt (= tag mismatch?): {e}")))
+}
+
+// ============================================================
+// AES-256-CTR  (envelope v7 user.id outer-key Master-wrap)
+// ============================================================
+
+use aes::Aes256;
+use ctr::cipher::{KeyIvInit, StreamCipher};
+
+type Aes256Ctr64BE = ctr::Ctr64BE<Aes256>;
+
+/// AES-256-CTR keystream apply (= encrypt と decrypt は同一操作)。
+///
+/// # Parameters
+///   key:     32 bytes
+///   counter: 16-byte initial counter block (= 下位 64 bit のみ increment)
+///   data:    arbitrary length (= v7 user.id wrap では 32B)
+///
+/// # Backward-compat (CRITICAL)
+/// WebCrypto `subtle.encrypt({name:"AES-CTR", counter, length: 64}, ...)` と
+/// bit-identical であること。 length=64 は counter block の下位 64 bit のみを
+/// increment する指定で、 RustCrypto の `Ctr64BE` がこれに一致する。
+/// 既存の v7 user.id (= Arweave 上ではなく Passkey 内に永続) を再発行なしで
+/// 復号し続けるため、 この互換性は絶対に壊さないこと。
+/// 検証ベクタは Node webcrypto (= WebCrypto 実装) で生成・照合済み。
+///
+/// # 用途
+/// vault-crypto.js `_wrapOuterForUserId`:
+///   KEK     = Argon2id(Master, salt=appNameTag.value, USERID_KDF_PARAMS)
+///   counter = SHA-256("arpass-userid-v7-ctr" || nameB || valB)[0..16]
+///   wrapped = AES-256-CTR(KEK, counter, outerKey 32B)
+#[wasm_bindgen]
+pub fn aes256_ctr_apply(
+    key: &[u8],
+    counter: &[u8],
+    data: &[u8],
+) -> Result<Vec<u8>, JsError> {
+    if key.len() != 32 {
+        return Err(JsError::new("AES-CTR: key must be 32 bytes"));
+    }
+    if counter.len() != 16 {
+        return Err(JsError::new("AES-CTR: counter must be 16 bytes"));
+    }
+    let mut cipher = Aes256Ctr64BE::new_from_slices(key, counter)
+        .map_err(|e| JsError::new(&format!("AES-CTR init: {e}")))?;
+    let mut out = data.to_vec();
+    cipher.apply_keystream(&mut out);
+    Ok(out)
 }
 
 // ============================================================
@@ -428,6 +517,33 @@ impl MekKey {
         Ok(MekKey { bytes })
     }
 
+    /// Phase 2-H4-full F3: HKDF-SHA256 で任意 length の raw bytes を派生。
+    /// K2 (= MekKey 流用) を IKM として sub-key 派生 (= signing key seed 48 byte,
+    /// recoveryProtect key 32 byte 等) に使う。
+    /// 戻り値の Vec<u8> は短命、 caller が即消費 + zeroize すること。
+    pub fn hkdf_derive_bytes(
+        &self,
+        salt: &[u8],
+        info: &[u8],
+        dk_len: u32,
+    ) -> Result<Vec<u8>, JsError> {
+        hkdf_sha256(&self.bytes, salt, info, dk_len)
+    }
+
+    /// Phase 2-H4-full F3: K2 から HKDF で 48-byte seed 派生 → SigningKey handle 返却。
+    /// JS の `deriveSigningKeyFromHkdf` を 1 関数に統合、 seed が JS heap に出現しない。
+    /// Business mode の signing identity 派生 (= K2-based) 用。
+    pub fn derive_signing_key(
+        &self,
+        salt: &[u8],
+        info: &[u8],
+    ) -> Result<SigningKey, JsError> {
+        let mut seed = hkdf_sha256(&self.bytes, salt, info, 48)?;
+        let sk = SigningKey::new(&seed);
+        seed.zeroize();
+        sk
+    }
+
     /// この MEK で別 MEK を wrap する (= AES-GCM encrypt、 結果は ciphertext+tag)。
     pub fn wrap_mek(&self, other: &MekKey, iv: &[u8]) -> Result<Vec<u8>, JsError> {
         aes256_gcm_encrypt(&self.bytes, iv, &other.bytes, &[])
@@ -507,6 +623,36 @@ impl K1Key {
         let mut d = derived;
         d.zeroize();
         Ok(MekKey { bytes })
+    }
+
+    /// Phase 2-H4-full F1: Business V2 MEK 派生。
+    ///   IKM = K2.bytes (= MekKey 流用、 32 byte AES-GCM kdf base 互換)
+    ///   salt = self.bytes (= K1)
+    ///   info = caller 指定 (= "mek-business-v2" 相当)
+    /// K1 raw bytes は WASM 内のみ、 K2 raw bytes も MekKey handle 内のみ。
+    pub fn derive_business_mek_v2(
+        &self,
+        k2: &MekKey,
+        info: &[u8],
+    ) -> Result<MekKey, JsError> {
+        let derived = hkdf_sha256(&k2.bytes, &self.bytes, info, 32)?;
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&derived);
+        let mut d = derived;
+        d.zeroize();
+        Ok(MekKey { bytes })
+    }
+
+    /// Phase 2-H4-full F1: Business V2 mekHkdfKey 同等の派生。
+    /// 同じ IKM/salt/info で別 length を出すなら caller が dkLen 指定可能。
+    /// HKDF base CryptoKey の代替として、 raw bytes を期待する caller がある場合に使う。
+    pub fn derive_business_mek_v2_bytes(
+        &self,
+        k2: &MekKey,
+        info: &[u8],
+        len: u32,
+    ) -> Result<Vec<u8>, JsError> {
+        hkdf_sha256(&k2.bytes, &self.bytes, info, len)
     }
 }
 
@@ -855,6 +1001,69 @@ impl SigningKey {
     pub fn private_key_raw(&self) -> Vec<u8> {
         self.inner.to_vec()
     }
+
+    /// Phase 2-H4-full F2: ECIES decrypt の結果を K1Key opaque handle として返す。
+    /// JS 側で eciesDecrypt → K1 raw → new K1Key (= 並列 populate) の 3 段階を
+    /// 1 つの Rust 関数に統合。 K1 raw bytes は WASM 内のみで生存、 JS heap 露出ゼロ。
+    ///
+    /// # 引数
+    ///   ephemeral_pub: 65 byte uncompressed SEC1 (= sender 側 ephemeral 公開鍵)
+    ///   iv: AES-GCM IV
+    ///   ciphertext: AES-GCM 暗号文 (= K1 32B + tag 16B)
+    ///   hkdf_salt: ECIES KEK 派生用 salt (= JS 側 ECIES_HKDF_SALT = "arpass-ecies-v1")
+    ///   hkdf_info: ECIES KEK 派生用 info (= JS 側 ECIES_HKDF_INFO = "kek")
+    ///
+    /// # 中間値の取り扱い
+    ///   shared_x / kek / pt は短命の Vec<u8>、 explicit zeroize で確定的破棄。
+    pub fn ecies_unwrap_to_k1key(
+        &self,
+        ephemeral_pub: &[u8],
+        iv: &[u8],
+        ciphertext: &[u8],
+        hkdf_salt: &[u8],
+        hkdf_info: &[u8],
+    ) -> Result<K1Key, JsError> {
+        // 1. ECDH(self.private, ephemeral_pub) → sharedX (32 byte)
+        let secret = SecretKey::from_slice(&*self.inner)
+            .map_err(|e| JsError::new(&format!("ecies_unwrap_to_k1key: invalid private: {e}")))?;
+        let peer = PublicKey::from_sec1_bytes(ephemeral_pub)
+            .map_err(|e| JsError::new(&format!("ecies_unwrap_to_k1key: invalid peer pub: {e}")))?;
+        let shared = diffie_hellman(secret.to_nonzero_scalar(), peer.as_affine());
+        let mut shared_x: Vec<u8> = shared.raw_secret_bytes().to_vec();
+
+        // 2. HKDF(sharedX, hkdf_salt, hkdf_info, 32) → kek
+        let mut kek = match hkdf_sha256(&shared_x, hkdf_salt, hkdf_info, 32) {
+            Ok(k) => k,
+            Err(e) => {
+                shared_x.zeroize();
+                return Err(e);
+            }
+        };
+        shared_x.zeroize();
+
+        // 3. AES-GCM-256 decrypt(kek, iv, ciphertext) → K1 raw 32B
+        let mut pt = match aes256_gcm_decrypt(&kek, iv, ciphertext, &[]) {
+            Ok(p) => p,
+            Err(e) => {
+                kek.zeroize();
+                return Err(e);
+            }
+        };
+        kek.zeroize();
+
+        if pt.len() != 32 {
+            pt.zeroize();
+            return Err(JsError::new("ecies_unwrap_to_k1key: plaintext must be 32 bytes"));
+        }
+
+        // 4. Construct K1Key handle (= raw bytes stay in WASM)
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(&pt);
+        pt.zeroize();
+        Ok(K1Key { bytes })
+    }
+
+
 }
 
 impl Drop for SigningKey {
@@ -868,12 +1077,155 @@ impl Drop for SigningKey {
 }
 
 // ============================================================
+// EmpPrivKey opaque handle (= Phase 2-F8、 K1 raw window 消去)
+// ============================================================
+//
+// 用途: Business V2 で member の ECDH 秘密鍵 (= w_emp 復号後の 32-byte scalar)
+// を opaque handle として保持。 これで `ecies_unwrap_to_k1key` を method 化、
+// 既存 standalone 関数 `ecies_unwrap_to_k1key_with_emp_priv` の wrapper として
+// raw scalar が JS heap に出現しない経路を提供する。
+//
+// 設計:
+// - 32-byte private scalar を Box<[u8;32]> で hold
+// - Drop で zeroize
+// - new(raw: &[u8]) constructor + ecies_unwrap_to_k1key method
+// - 既存 standalone 関数とは内部的に同じ ECIES 実装を共有 (bit-equiv)
+
+#[wasm_bindgen]
+pub struct EmpPrivKey {
+    inner: Box<[u8; 32]>,
+}
+
+#[wasm_bindgen]
+impl EmpPrivKey {
+    /// 32-byte raw P-256 private scalar から EmpPrivKey opaque handle を構築。
+    /// JS heap 側で短時間 raw を持っているが、 import 後は handle 内に閉じ込められる。
+    #[wasm_bindgen(constructor)]
+    pub fn new(raw: &[u8]) -> Result<EmpPrivKey, JsError> {
+        if raw.len() != 32 {
+            return Err(JsError::new("EmpPrivKey::new: emp_priv must be 32 bytes"));
+        }
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(raw);
+        // Validate by attempting to construct SecretKey (= reject zero / invalid).
+        SecretKey::from_slice(&bytes)
+            .map_err(|e| JsError::new(&format!("EmpPrivKey::new: invalid scalar: {e}")))?;
+        Ok(EmpPrivKey { inner: Box::new(bytes) })
+    }
+
+    /// PKCS#8 DER 形式の private key bytes から EmpPrivKey opaque handle を構築。
+    /// JS 側で `subtle.decrypt(w_emp)` 直後の pkcs8 raw bytes をそのまま渡せる。
+    /// 内部で SecretKey::from_pkcs8_der で parse、 32-byte scalar を抽出して保持。
+    pub fn from_pkcs8(pkcs8_der: &[u8]) -> Result<EmpPrivKey, JsError> {
+        use p256::pkcs8::DecodePrivateKey;
+        let secret = SecretKey::from_pkcs8_der(pkcs8_der)
+            .map_err(|e| JsError::new(&format!("EmpPrivKey::from_pkcs8: parse failed: {e}")))?;
+        let scalar_bytes = secret.to_bytes();
+        let mut bytes = [0u8; 32];
+        bytes.copy_from_slice(scalar_bytes.as_slice());
+        Ok(EmpPrivKey { inner: Box::new(bytes) })
+    }
+
+    /// ECIES unwrap: ephemeral_pub + iv + ciphertext を受けて、 K1Key opaque handle を返す。
+    /// 内部は standalone `ecies_unwrap_to_k1key_with_emp_priv` と同じ実装 = bit-equiv 担保。
+    pub fn ecies_unwrap_to_k1key(
+        &self,
+        ephemeral_pub: &[u8],
+        iv: &[u8],
+        ciphertext: &[u8],
+        hkdf_salt: &[u8],
+        hkdf_info: &[u8],
+    ) -> Result<K1Key, JsError> {
+        ecies_unwrap_to_k1key_with_emp_priv(
+            &self.inner[..],
+            ephemeral_pub,
+            iv,
+            ciphertext,
+            hkdf_salt,
+            hkdf_info,
+        )
+    }
+}
+
+impl Drop for EmpPrivKey {
+    fn drop(&mut self) {
+        self.inner.zeroize();
+    }
+}
+
+
+/// Phase 2-H4-full F6: standalone ECIES unwrap to K1Key opaque handle.
+/// emp_priv_raw を取って ECIES decrypt + K1Key 構築を 1 関数で。
+/// K1 raw bytes は WASM 内のみ、 emp_priv は caller (= JS) で raw 保持中だが
+/// K1 の hiding が主目的。
+#[wasm_bindgen]
+pub fn ecies_unwrap_to_k1key_with_emp_priv(
+    emp_priv_raw: &[u8],
+    ephemeral_pub: &[u8],
+    iv: &[u8],
+    ciphertext: &[u8],
+    hkdf_salt: &[u8],
+    hkdf_info: &[u8],
+) -> Result<K1Key, JsError> {
+    use zeroize::Zeroize;
+    if emp_priv_raw.len() != 32 {
+        return Err(JsError::new("ecies_unwrap_to_k1key_with_emp_priv: emp_priv must be 32 bytes"));
+    }
+    let secret = SecretKey::from_slice(emp_priv_raw)
+        .map_err(|e| JsError::new(&format!("ecies_unwrap: invalid emp_priv: {e}")))?;
+    let peer = PublicKey::from_sec1_bytes(ephemeral_pub)
+        .map_err(|e| JsError::new(&format!("ecies_unwrap: invalid ephemeral pub: {e}")))?;
+    let shared = diffie_hellman(secret.to_nonzero_scalar(), peer.as_affine());
+    let mut shared_x: Vec<u8> = shared.raw_secret_bytes().to_vec();
+    let mut kek = match hkdf_sha256(&shared_x, hkdf_salt, hkdf_info, 32) {
+        Ok(k) => k,
+        Err(e) => { shared_x.zeroize(); return Err(e); }
+    };
+    shared_x.zeroize();
+    let mut pt = match aes256_gcm_decrypt(&kek, iv, ciphertext, &[]) {
+        Ok(p) => p,
+        Err(e) => { kek.zeroize(); return Err(e); }
+    };
+    kek.zeroize();
+    if pt.len() != 32 {
+        pt.zeroize();
+        return Err(JsError::new("ecies_unwrap_to_k1key: plaintext must be 32 bytes"));
+    }
+    let mut bytes = [0u8; 32];
+    bytes.copy_from_slice(&pt);
+    pt.zeroize();
+    Ok(K1Key { bytes })
+}
+
+// ============================================================
 // Tests (= cargo test、 native build のみ、 WASM では実行しない)
 // ============================================================
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_derive_kek_handle_equals_hkdf_concat() {
+        // 増分2 bit-equivalence: derive_kek_handle(m1,m2,salt,info)
+        //   == hkdf_sha256(m1||m2, salt, info, 32)。 旧 deriveKEK 経路と完全一致を保証。
+        let m1 = [0x11u8; 32];
+        let m2 = [0x22u8; 32];
+        let salt = b"arpass-kek-pr-v1";
+        let info = b"kek-pr";
+        let kek = derive_kek_handle(&m1, &m2, salt, info).unwrap();
+        let mut ikm = Vec::new();
+        ikm.extend_from_slice(&m1);
+        ikm.extend_from_slice(&m2);
+        let expected = hkdf_sha256(&ikm, salt, info, 32).unwrap();
+        assert_eq!(&kek.bytes[..], &expected[..], "KEK handle bytes must equal HKDF(concat)");
+        // concat 順序の sanity: m2||m1 とは一致しないこと
+        let mut rev = Vec::new();
+        rev.extend_from_slice(&m2);
+        rev.extend_from_slice(&m1);
+        let rev_hkdf = hkdf_sha256(&rev, salt, info, 32).unwrap();
+        assert_ne!(&kek.bytes[..], &rev_hkdf[..], "concat 順序が material1||material2 であること");
+    }
 
     #[test]
     fn test_sha256_known_vector() {
@@ -1263,4 +1615,241 @@ mod tests {
         assert_eq!(sk.public_key_raw(), &legacy[32..97]);
     }
 
+    // ========================================================
+    // F7 retry: MekKey.derive_signing_key の bit-equivalence
+    // ========================================================
+    //
+    // Phase 2-H4-full F7-B で polymorphic な `deriveSigningKeyFromHkdf` 経路は
+    // MekKey 入力時に `MekKey.derive_signing_key(salt, info)` を呼ぶ。 これが
+    // 既存 JS path (= deriveBits(HKDF, salt, info, 384) → p256_keypair_from_seed)
+    // と bit-identical な scalar + pubkey を生成しないと admin signing identity が
+    // 変わって "Caller has no company" になる。
+    //
+    // 等価性チェーン:
+    //   F7-B path     : MekKey(mek_bytes).derive_signing_key(salt, info)
+    //                 = SigningKey::new(hkdf_sha256(mek_bytes, salt, info, 48))
+    //   JS legacy path: deriveBits(HKDF{salt, info}, baseKey=mek_bytes, 384)
+    //                 → seed [48B]
+    //                 = hkdf_sha256(mek_bytes, salt, info, 48) (WebCrypto HKDF 仕様)
+    //                → p256_keypair_from_seed(seed)
+    //
+    // SigningKey::new == p256_keypair_from_seed は前 test で担保済。
+    // 残るは F7-B path と「明示的に hkdf_sha256 + SigningKey::new」 の bit-equivalence。
+    //
+    // この test が通過することで、 F7-B の polymorphic 経路が JS path と 同 pubkey
+    // を生成することが保証される (= "Caller has no company" 再発防止)。
+
+    #[test]
+    fn test_mek_derive_signing_key_equivalent_to_explicit_hkdf_path() {
+        // 同じ MEK bytes + salt + info で、 derive_signing_key 経由と explicit な
+        // hkdf_sha256 + SigningKey::new 経由が bit-identical な scalar/pubkey を生成。
+        let mek_bytes = [0xa5u8; 32];
+        let salt = b"signing-key-salt-test";
+        let info = b"signing-key-info-test";
+
+        let mek = MekKey::new(&mek_bytes).unwrap();
+        let sk_from_mek = mek.derive_signing_key(salt, info).unwrap();
+
+        // explicit path (= JS deriveBits + p256_keypair_from_seed 相当)
+        let seed = hkdf_sha256(&mek_bytes, salt, info, 48).unwrap();
+        let sk_explicit = SigningKey::new(&seed).unwrap();
+        let legacy = p256_keypair_from_seed(&seed).unwrap();
+
+        assert_eq!(
+            sk_from_mek.private_key_raw(),
+            sk_explicit.private_key_raw(),
+            "MekKey.derive_signing_key の private scalar が explicit path と bit-identical"
+        );
+        assert_eq!(
+            sk_from_mek.public_key_raw(),
+            sk_explicit.public_key_raw(),
+            "MekKey.derive_signing_key の public key が explicit path と bit-identical"
+        );
+        // legacy noble path (= p256_keypair_from_seed) とも一致
+        assert_eq!(sk_from_mek.private_key_raw(), &legacy[0..32]);
+        assert_eq!(sk_from_mek.public_key_raw(), &legacy[32..97]);
+    }
+
+    #[test]
+    fn test_emppriv_handle_ecies_unwrap_bit_equivalent_to_standalone() {
+        // Phase 2-F8: EmpPrivKey.ecies_unwrap_to_k1key が standalone 関数と
+        // bit-identical な K1 を出すことを確認 (= F8 polymorphic 化の前提)。
+        //
+        // setup: 送信側 ephemeral keypair で K1 を ECIES wrap、 受信側で unwrap
+        let emp_priv = [0x99u8; 32];
+
+        // 受信側 public key (= emp_priv に対応する)
+        let secret = SecretKey::from_slice(&emp_priv).unwrap();
+        let recipient_pub = secret.public_key();
+        let recipient_pub_sec1 = recipient_pub.to_encoded_point(false);
+        let recipient_pub_bytes = recipient_pub_sec1.as_bytes();
+
+        // 送信側: ephemeral keypair + ECDH + HKDF + AES-GCM encrypt K1
+        let eph_kp = p256_keypair_generate().unwrap();
+        let eph_priv = &eph_kp[0..32];
+        let eph_pub_sec1 = &eph_kp[32..97];
+
+        let shared = p256_ecdh(eph_priv, recipient_pub_bytes).unwrap();
+        let hkdf_salt = b"arpass-ecies-v1";
+        let hkdf_info = b"kek";
+        let kek = hkdf_sha256(&shared, hkdf_salt, hkdf_info, 32).unwrap();
+
+        let iv = [0x42u8; 12];
+        let k1_plain = [0xaau8; 32];
+        let ct = aes256_gcm_encrypt(&kek, &iv, &k1_plain, &[]).unwrap();
+
+        // 受信側 standalone 関数
+        let k1_standalone = ecies_unwrap_to_k1key_with_emp_priv(
+            &emp_priv, eph_pub_sec1, &iv, &ct, hkdf_salt, hkdf_info,
+        ).unwrap();
+
+        // 受信側 EmpPrivKey handle method
+        let emp_handle = EmpPrivKey::new(&emp_priv).unwrap();
+        let k1_handle = emp_handle.ecies_unwrap_to_k1key(
+            eph_pub_sec1, &iv, &ct, hkdf_salt, hkdf_info,
+        ).unwrap();
+
+        // 両者が同じ K1 (= AES-GCM 出力が同じ) を生成することを確認
+        let test_iv = [0x55u8; 12];
+        let test_pt = b"K1 equivalence check";
+        let ct_standalone = k1_standalone.derive_business_mek_v2_bytes(
+            &MekKey::new(&[0x77u8; 32]).unwrap(), b"info", 32,
+        ).unwrap();
+        let ct_handle = k1_handle.derive_business_mek_v2_bytes(
+            &MekKey::new(&[0x77u8; 32]).unwrap(), b"info", 32,
+        ).unwrap();
+        let _ = (test_iv, test_pt);
+        assert_eq!(ct_standalone, ct_handle, "EmpPrivKey handle と standalone は bit-identical な K1 を生成");
+        // 平文との突合 (= 元 K1 と一致するはず)。
+        // derive_business_mek_v2_bytes の HKDF 方向は IKM=K2 / salt=K1
+        // (= production: vault-client.js の deriveBits {salt: oldK1} + k2HkdfKey base
+        //    と同一)。 F8 step 1 当初のこの式は ikm/salt が逆で常に fail していた
+        // (= F8 ブランチが CI trigger 外だったため未発覚)。
+        assert_eq!(
+            hkdf_sha256(&[0x77u8; 32], &k1_plain, b"info", 32).unwrap(),
+            ct_standalone,
+            "復号した K1 が元 K1 と一致 (= IKM=K2 / salt=K1 の HKDF 経由で比較)"
+        );
+    }
+
+    #[test]
+    fn test_business_signing_chain_bit_equivalent() {
+        // Business mode の admin signing chain:
+        //   K2 (raw 32B) → mekHkdfKey (= HKDF(IKM=K2, salt=K1, info="-v2", 32B))
+        //                 → signing seed (= HKDF(IKM=mekHkdfKey, salt=signing_salt, info=signing_info, 48B))
+        //                 → P-256 scalar (mod n)
+        //
+        // F6 path (CryptoKey): deriveBits + importKey + deriveBits + p256_keypair_from_seed
+        // F7-A+B path (handle): K1.derive_business_mek_v2(K2) + MekKey.derive_signing_key
+        //
+        // 両者が bit-identical な pubkey を生成しないと、 admin pkHash が変わって
+        // "Caller has no company" 再発。
+        let k1_bytes = [0x11u8; 32];
+        let k2_bytes = [0x22u8; 32];
+        let mek_business_info = b"derive-business-mek-v2";
+        let signing_salt = b"arpass-signing-key-v1";
+        let signing_info = b"signing-key";
+
+        // F7 path (= K1Key + MekKey の chain)
+        let k1 = K1Key::new(&k1_bytes).unwrap();
+        let k2 = MekKey::new(&k2_bytes).unwrap();
+        let mek_hkdf = k1.derive_business_mek_v2(&k2, mek_business_info).unwrap();
+        let sk_f7 = mek_hkdf.derive_signing_key(signing_salt, signing_info).unwrap();
+
+        // F6 path (= 明示的に hkdf_sha256 を 2 段 + p256_keypair_from_seed)
+        let mek_raw = hkdf_sha256(&k2_bytes, &k1_bytes, mek_business_info, 32).unwrap();
+        let seed = hkdf_sha256(&mek_raw, signing_salt, signing_info, 48).unwrap();
+        let legacy = p256_keypair_from_seed(&seed).unwrap();
+
+        assert_eq!(
+            sk_f7.private_key_raw(),
+            &legacy[0..32],
+            "Business chain: F7 path の private scalar が F6 path と bit-identical"
+        );
+        assert_eq!(
+            sk_f7.public_key_raw(),
+            &legacy[32..97],
+            "Business chain: F7 path の public key が F6 path と bit-identical (= admin pkHash 不変)"
+        );
+    }
+
+
+    // ── AES-256-CTR: WebCrypto (Node webcrypto, length=64) 照合済みベクタ ──
+
+    #[test]
+    fn test_aes_ctr_webcrypto_vector() {
+        let key: Vec<u8> = (0u8..32).collect();
+        let counter: Vec<u8> = (0u8..16).map(|i| 0xa0 + i).collect();
+        let pt: Vec<u8> = (0u8..32).map(|i| 0xf0 - i).collect();
+        let ct = aes256_ctr_apply(&key, &counter, &pt).unwrap();
+        assert_eq!(
+            hex::encode(&ct),
+            "2c70ef109a5396e4e7ac0e60efe80e01010e35cca09a4ff1345d2e5fb3e3014e",
+            "AES-CTR length=64: WebCrypto と bit-identical"
+        );
+        // 対合性: もう一度かけると元に戻る
+        let back = aes256_ctr_apply(&key, &counter, &ct).unwrap();
+        assert_eq!(back, pt, "AES-CTR involution");
+    }
+
+    #[test]
+    fn test_aes_ctr_64bit_counter_wrap() {
+        // 下位 64 bit ffffffffffffffff → wrap しても上位 64 bit 不変
+        // (= WebCrypto length:64 と同一挙動、 Node webcrypto で照合済み)
+        let key: Vec<u8> = (0u8..32).collect();
+        let mut counter: Vec<u8> = (0u8..16).map(|i| 0xa0 + i).collect();
+        for b in counter[8..].iter_mut() { *b = 0xff; }
+        let pt: Vec<u8> = (0u8..32).map(|i| 0xf0 - i).collect();
+        let ct = aes256_ctr_apply(&key, &counter, &pt).unwrap();
+        assert_eq!(
+            hex::encode(&ct),
+            "0f832bde9cacd7dc0cbc829cbcbc15913ea3a598412f9ca6560ff07b136adf91",
+            "AES-CTR 64-bit counter wrap が Ctr64BE と一致"
+        );
+    }
+
+    #[test]
+    fn wrap_mek_for_prf_handle_equals_raw() {
+        // JS wrapMekForPrf の handle 経路と raw 経路がバイト一致 (Stage 2 raw-MEK elimination)。
+        //   handle: MekKey(prf).hkdf_derive_mek(salt,info).wrap_mek(MekKey(mek), iv)
+        //   raw:    aes256_gcm_encrypt(hkdf_sha256(prf,salt,info,32), iv, mek)
+        let prf = [0x11u8; 32];
+        let mek = [0x42u8; 32];
+        let iv = [1u8; 12];
+        let salt = b"arpass-mek-wrap-v7";
+        let info = b"mek-wrap";
+        let prf_h = MekKey::new(&prf).unwrap();
+        let wrap_key = prf_h.hkdf_derive_mek(salt, info).unwrap();
+        let ct_handle = wrap_key.wrap_mek(&MekKey::new(&mek).unwrap(), &iv).unwrap();
+        let raw_key = hkdf_sha256(&prf, salt, info, 32).unwrap();
+        let ct_raw = aes256_gcm_encrypt(&raw_key, &iv, &mek, &[]).unwrap();
+        assert_eq!(ct_handle, ct_raw, "wrapMekForPrf handle == raw");
+    }
+
+    #[test]
+    fn unwrap_mek_for_prf_handle_equals_raw() {
+        // decryptVaultHwkey の handle-unwrap: wrapKey.unwrap_mek(ct, iv) が
+        //   raw 経路 (unwrapMekForPrf) と同じ MEK を復元することを担保。
+        let prf = [0x11u8; 32];
+        let mek = [0x42u8; 32];
+        let wrap_iv = [1u8; 12];
+        let salt = b"arpass-mek-wrap-v7";
+        let info = b"mek-wrap";
+        // k[] entry を raw 経路で wrap
+        let wrap_key_raw = hkdf_sha256(&prf, salt, info, 32).unwrap();
+        let wrapped_ct = aes256_gcm_encrypt(&wrap_key_raw, &wrap_iv, &mek, &[]).unwrap();
+        // handle 経路で unwrap → MEK handle
+        let mek_handle = MekKey::new(&prf)
+            .unwrap()
+            .hkdf_derive_mek(salt, info)
+            .unwrap()
+            .unwrap_mek(&wrapped_ct, &wrap_iv)
+            .unwrap();
+        // 復元 handle == 元 MEK の証明: 元 MEK で暗号化した body を handle で復号できる
+        let body_iv = [2u8; 12];
+        let plaintext = b"hello arpass vault";
+        let body_ct = aes256_gcm_encrypt(&mek, &body_iv, plaintext, &[]).unwrap();
+        let decrypted = mek_handle.aes_gcm_decrypt(&body_iv, &body_ct, &[]).unwrap();
+        assert_eq!(decrypted, plaintext, "unwrap_mek した handle == 元 MEK");
+    }
 }

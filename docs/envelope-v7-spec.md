@@ -1,3 +1,15 @@
+<!--
+====================================================================
+⚠️ AUTO-GENERATED MIRROR — DO NOT PR HERE
+
+This file is automatically synced from the private arpass repo on every
+release. Direct edits to this file will be overwritten.
+
+Source: technoblest/arpass / docs/envelope-v7-spec.md
+Mirror generator: scripts/generate-arpass-spec-mirror.mjs
+====================================================================
+-->
+
 # Arpass envelope v7 — 詳細仕様（YubiKey 対応 / outer 鍵を Passkey が運ぶ）
 
 最終更新: 2026-05-25（増分2 実装確定版に改訂）
