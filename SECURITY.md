@@ -44,12 +44,11 @@ For issues that require encrypted communication or that don't fit a GitHub advis
 - **Encrypted email**: see [PGP key](#pgp-key)
 - **Subject prefix**: `[Arpass Security]`
 
-### Channel C — Bug Bounty (HackerOne)
+### Channel C — Paid bug bounty (not yet operational)
 
-A formal Bug Bounty program is published on HackerOne for in-scope reports with monetary rewards:
+We are considering launching a paid Bug Bounty program on HackerOne once the business is established. **The program is not operational today, and we are not able to pay monetary rewards at this time.** Please do not submit reports in the expectation of payment under the current wording — earlier versions of this page implied an active reward program, which was premature and has been corrected.
 
-- **Program URL**: https://hackerone.com/arpass *(planned, will be updated when live)*
-- **Reward range**: see program page (typical: USD 100 – 5,000 depending on severity)
+Vulnerability reports remain very welcome through Channels A and B above. We credit contributors in the Acknowledgments of our [`security.txt`](https://arpass.io/.well-known/security.txt) and on our security page. If and when we do launch a paid program, we intend to consider previously accepted findings for retroactive recognition, but this is a statement of intent, not a commitment.
 
 ---
 
