@@ -105,3 +105,19 @@ resident credential). This tool recovers **all** of them in one run: it writes
 prints a **SUMMARY** at the end showing how many password entries and files each
 vault has. Your real vault is the one with entries. (If you truly want to remove
 a vault from a key, delete its credential from the YubiKey itself.)
+
+## Security notes
+
+- **Passwords are masked on screen by default.** Use `--show-passwords` to print them,
+  or read the written `vault_N.json`.
+- **Output is plaintext.** `vault_N.json` and recovered files contain your passwords /
+  documents in the clear. They are written with `0600` permissions. Do **not** run this
+  in a cloud-synced or backed-up folder (Dropbox, iCloud Drive, OneDrive, ...), and
+  **delete** the files when you are done.
+- **This tool sends your secrets nowhere.** It only issues read requests (GraphQL tag
+  lookups + blob GETs) to the public Arweave gateways. The YubiKey PIN is read via
+  `getpass` and never stored or printed.
+- **Get this tool only from the official source** — `github.com/technoblest/arpass-spec`
+  (owner: technoblest). A recovery tool handles your most sensitive secrets; running a
+  tampered copy would expose them. Verify the repository owner, and prefer a specific
+  commit you have reviewed.

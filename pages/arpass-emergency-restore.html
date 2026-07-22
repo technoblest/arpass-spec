@@ -101,6 +101,8 @@
   .file-row .fmeta { flex: 1; min-width: 180px; }
   .file-row .fname { font-weight: 600; }
   .file-row .fsub { font-size: 12px; color: #64748b; }
+  .security-warn { background: #FEF3C7; border: 1px solid #F59E0B; border-left: 4px solid #F59E0B; border-radius: 8px; padding: 12px 14px; margin: 12px 0; font-size: 14px; line-height: 1.6; }
+  .security-warn strong { color: #92400E; }
 </style>
 </head>
 <body>
@@ -109,6 +111,12 @@
     <h1 data-ja="Arpass Vault 自力復旧" data-en="Arpass Vault Self-Restore">Arpass Vault 自力復旧</h1>
     <button id="lang-toggle" class="lang-btn" type="button">日本語 / EN</button>
   </header>
+
+  <div class="security-warn">
+    <strong data-ja="⚠️ 入力前に確認してください" data-en="⚠️ Check before you type">⚠️ 入力前に確認してください</strong><br>
+    <span data-ja="マスターパスワード / リカバリーを入力する前に、 ブラウザのアドレスバーが arpass.io または technoblest.github.io/arpass-spec であることを必ず確認してください。 他のサイトには絶対に入力しないでください。 最高機密の vault は、 この配信版ではなく CLI (tools/recover-yubikey.py) か、 リポジトリを clone してローカルで開くことを推奨します（コードをご自身で確認・管理できます）。"
+          data-en="Before typing your Master password / Recovery, make sure the browser address bar shows arpass.io or technoblest.github.io/arpass-spec. Never enter them on any other site. For the most sensitive vaults, prefer the CLI (tools/recover-yubikey.py) or clone the repo and run it locally, so you control the exact code."></span>
+  </div>
 
   <div class="banner">
     <strong data-ja="このツールについて"
@@ -188,6 +196,8 @@
       <button id="export-json-btn" class="btn-outline" type="button"
               data-ja="JSON でエクスポート" data-en="Export as JSON">JSON でエクスポート</button>
     </div>
+    <p class="hint" data-ja="⚠️ エクスポートした CSV / JSON はパスワードの平文です。 クラウド同期フォルダに置かず、 使い終わったら削除してください。"
+       data-en="Warning: exported CSV / JSON contains your passwords in cleartext. Do not keep it in a cloud-synced folder; delete it when you are done."></p>
   </div>
 
   <!-- files (records) -->

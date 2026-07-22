@@ -329,7 +329,7 @@ def sanitize_filename(name: str) -> str:
 # ---------------------------------------------------------------------------
 # Vault pretty-print
 # ---------------------------------------------------------------------------
-def print_entries(vault: dict) -> int:
+def print_entries(vault: dict, show_pw: bool = False) -> int:
     entries = vault.get("entries") or []
     print("\n================ PASSWORD ENTRIES (%d) ================" % len(entries))
     for i, e in enumerate(entries, 1):
@@ -338,8 +338,12 @@ def print_entries(vault: dict) -> int:
         print("\n[%d]" % i)
         for label, key in (("Site", "site"), ("User", "user"), ("Password", "pw"),
                            ("URL", "url"), ("Notes", "notes")):
-            if e.get(key):
-                print("    %-9s %s" % (label + ":", e.get(key)))
+            val = e.get(key)
+            if not val:
+                continue
+            if key == "pw" and not show_pw:
+                val = "(hidden - see vault_N.json, or run with --show-passwords)"
+            print("    %-9s %s" % (label + ":", val))
     print("\n======================================================")
     return len(entries)
 
@@ -378,6 +382,10 @@ def recover_files(vault: dict, mek: bytes, out_dir: str) -> int:
                 n += 1
             with open(path, "wb") as fh:
                 fh.write(plain)
+            try:
+                os.chmod(path, 0o600)
+            except OSError:
+                pass
             print("    Saved file: %s (%d bytes)" % (path, len(plain)))
             saved += 1
     return saved
@@ -422,10 +430,14 @@ def recover_one_vault(prf_output, user_handle, out_dir, args, idx):
         raise RuntimeError("could not unwrap MEK (this credential does not match the envelope)")
     padded_body = aes_gcm_decrypt(mek, b64u_decode(envelope["i"]), b64u_decode(envelope["c"]))
     vault = json.loads(unpad(padded_body).decode("utf-8"))
-    n = print_entries(vault)
+    n = print_entries(vault, getattr(args, "show_passwords", False))
     vpath = os.path.join(out_dir, "vault_%d.json" % idx)
     with open(vpath, "w", encoding="utf-8") as fh:
         json.dump(vault, fh, ensure_ascii=False, indent=2)
+    try:
+        os.chmod(vpath, 0o600)
+    except OSError:
+        pass
     print("      Saved %s" % vpath)
     files = 0
     if not args.no_files:
@@ -444,6 +456,8 @@ def main() -> int:
                     help="userVerification level (default: preferred, mirrors the browser).")
     ap.add_argument("--out", default=".", help="Output directory (default: current directory).")
     ap.add_argument("--no-files", action="store_true", help="Skip recovering file attachments.")
+    ap.add_argument("--show-passwords", action="store_true",
+                    help="Print passwords in cleartext to the console (default: masked).")
     args = ap.parse_args()
 
     out_dir = os.path.abspath(args.out)
@@ -477,7 +491,15 @@ def main() -> int:
         else:
             print("  vault_%d.json : %d entries, %d file(s)" % (idx, n, files))
     print("========================================")
-    print("\nDone. Your real vault is the one with entries. Files are plaintext - keep them safe.")
+    print("\n================ SECURITY NOTICE ================")
+    print("  The vault_N.json files and recovered attachments are PLAINTEXT")
+    print("  (passwords/files in the clear). Handle with care:")
+    print("    - Do NOT run this in a cloud-synced/backed-up folder (Dropbox, iCloud, etc.).")
+    print("    - Delete these files when you are done (they were written with 0600 perms).")
+    print("    - Passwords are masked on screen; use --show-passwords to reveal, or open vault_N.json.")
+    print("  This tool only reads from public Arweave gateways; it sends your secrets nowhere.")
+    print("=================================================")
+    print("\nDone. Your real vault is the one with entries.")
     return 0
 
 
