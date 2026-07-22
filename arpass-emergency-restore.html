@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex" />
+<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+<title>Arpass — Emergency Vault Restore / 緊急 vault 復旧</title>
+<style>
+  :root {
+    --navy: #0F172A;
+    --accent: #5B21B6;
+    --accent-hover: #7C3AED;
+    --paper: #FAFBFC;
+    --line: #E2E8F0;
+    --text: #0F172A;
+    --muted: #64748B;
+    --danger: #DC2626;
+    --ok: #047857;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans",
+                 "Noto Sans JP", sans-serif;
+    background: var(--paper);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 24px 18px 64px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font-size: 22px; margin: 0; }
+  h2 { font-size: 16px; margin: 0 0 8px; }
+  .lang-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 6px;
+    padding: 6px 12px; cursor: pointer; font-size: 13px;
+  }
+  .card {
+    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    padding: 16px 18px; margin-top: 16px;
+  }
+  .step-num {
+    display: inline-block; width: 22px; height: 22px; line-height: 22px;
+    text-align: center; border-radius: 50%; background: var(--accent);
+    color: #fff; font-size: 13px; font-weight: 700; margin-right: 8px;
+  }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+  input[type="text"], input[type="password"] {
+    width: 100%; padding: 9px 11px; font-size: 14px;
+    border: 1px solid var(--line); border-radius: 6px; font-family: inherit;
+  }
+  input[type="file"] { font-size: 13px; margin-top: 4px; }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .btn-primary {
+    background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 11px 22px; font-size: 15px; font-weight: 600; cursor: pointer;
+    margin-top: 14px;
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: .55; cursor: not-allowed; }
+  .btn-outline {
+    background: #fff; color: var(--accent); border: 1px solid var(--accent);
+    border-radius: 8px; padding: 8px 16px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .status {
+    margin-top: 10px; padding: 8px 11px; border-radius: 6px; font-size: 13px;
+    word-break: break-word;
+  }
+  .status.info { background: #EFF6FF; border-left: 3px solid #2563EB; }
+  .status.ok   { background: #ECFDF5; border-left: 3px solid var(--ok); }
+  .status.err  { background: #FEF2F2; border-left: 3px solid var(--danger); color: var(--danger); }
+  .hidden { display: none; }
+  .muted { color: var(--muted); }
+  .banner {
+    background: #FEF2F2; border: 1px solid #FCA5A5; border-radius: 8px;
+    padding: 12px 14px; margin-top: 14px; font-size: 13px;
+  }
+  .banner strong { color: var(--danger); }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+  .vault-table {
+    width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 13px;
+  }
+  .vault-table th, .vault-table td {
+    border: 1px solid var(--line); padding: 6px 8px; text-align: left;
+    vertical-align: top; word-break: break-word;
+  }
+  .vault-table th { background: #F8FAFC; }
+  .vault-table code { font-size: 12px; }
+  .export-row { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  .sec-note {
+    font-size: 12px; color: var(--muted); margin-top: 22px;
+    border-top: 1px solid var(--line); padding-top: 14px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 data-ja="🆘 Arpass 緊急 vault 復旧" data-en="🆘 Arpass Emergency Vault Restore">🆘 Arpass 緊急 vault 復旧</h1>
+    <button id="lang-toggle" class="lang-btn" type="button">日本語 / EN</button>
+  </header>
+
+  <div class="banner">
+    <strong data-ja="このツールについて"
+            data-en="About this tool">このツールについて</strong><br>
+    <span data-ja="Arpass のサービスが完全に停止した後、 server を介さずに会社 (Business mode) の vault を復号するための緊急ツールです。 通常は app.html から普通に unlock してください。 このツールは廃業後の救済専用です。"
+          data-en="An emergency tool to decrypt a company (Business mode) vault without the Arpass server, after the service has permanently shut down. During normal operation, just unlock from app.html. This tool is solely for post-shutdown recovery."></span>
+  </div>
+
+  <!-- STEP 1: factors -->
+  <div class="card">
+    <h2><span class="step-num">1</span><span
+        data-ja="あなたの認証 factor を入力"
+        data-en="Enter your unlock factors">あなたの認証 factor を入力</span></h2>
+    <p class="hint" data-ja="マスターパスワードとリカバリーキー (2-of-3 のうち 2 つ) を入力します。 これらはあなた個人のもので、 K1 とは別物です。"
+       data-en="Enter your Master password and Recovery key (2 of your 3 factors). These are yours alone and are separate from K1."></p>
+    <label data-ja="マスターパスワード" data-en="Master password">マスターパスワード</label>
+    <input type="password" id="master-password" autocomplete="off"
+           data-ja-ph="あなたのマスターパスワード" data-en-ph="Your master password" />
+    <label data-ja="リカバリーキー" data-en="Recovery key">リカバリーキー</label>
+    <input type="text" id="recovery-key" autocomplete="off" spellcheck="false"
+           data-ja-ph="RS1-XXXX-XXXX-… 形式のリカバリーキー"
+           data-en-ph="Recovery key (RS1-XXXX-XXXX-… format)" />
+  </div>
+
+  <!-- STEP 2: K1 file -->
+  <div class="card">
+    <h2><span class="step-num">2</span><span
+        data-ja="会社共通鍵 (K1) ファイルを読み込む"
+        data-en="Load the company key (K1) file">会社共通鍵 (K1) ファイルを読み込む</span></h2>
+    <p class="hint" data-ja="管理者が「緊急 export」で出力した JSON ファイル (arpass-business-k1-….json) を選択してください。"
+       data-en="Select the JSON file (arpass-business-k1-….json) your admin produced via Emergency Export."></p>
+    <input type="file" id="k1-file" accept="application/json,.json" />
+    <div id="k1-status" class="status hidden"></div>
+  </div>
+
+  <!-- STEP 3: envelope (auto from Arweave; manual fallback) -->
+  <div class="card">
+    <h2><span class="step-num">3</span><span
+        data-ja="暗号化 vault の取得"
+        data-en="Locate your encrypted vault">暗号化 vault の取得</span></h2>
+    <p class="hint" data-ja="「復号する」を押すと、 リカバリーキーから公開 Arweave 上のあなたの vault を自動検索 + 取得します (server 不要)。 自動取得が失敗する場合は、 下のフォールバックで envelope ファイルを手動アップロードできます。"
+       data-en="When you press Decrypt, the tool finds and fetches your vault directly from the public Arweave network using your Recovery key (no server needed). If auto-fetch fails, use the fallback below to upload an envelope file manually."></p>
+    <details>
+      <summary data-ja="フォールバック: envelope ファイルを手動アップロード"
+               data-en="Fallback: upload an envelope file manually">フォールバック: envelope ファイルを手動アップロード</summary>
+      <p class="hint" data-ja="Arweave からダウンロードした vault データファイル、 または復号済みの内側 envelope JSON を選択してください。"
+         data-en="Select a vault data file downloaded from Arweave, or an already outer-decrypted inner envelope JSON."></p>
+      <input type="file" id="envelope-file" accept="application/json,.json,application/octet-stream,*/*" />
+      <div id="envelope-status" class="status hidden"></div>
+    </details>
+  </div>
+
+  <!-- decrypt -->
+  <div class="card">
+    <h2><span class="step-num">4</span><span
+        data-ja="復号" data-en="Decrypt">復号</span></h2>
+    <button id="decrypt-btn" class="btn-primary" type="button"
+            data-ja="復号する (Master + Recovery)" data-en="Decrypt (Master + Recovery)">復号する (Master + Recovery)</button>
+    <button id="decrypt-btn-passkey" class="btn-outline" type="button"
+            data-ja="Recovery が無い → Passkey で復旧 (Master + Passkey)"
+            data-en="No Recovery key? Restore with Passkey (Master + Passkey)"
+            style="margin-top:8px;">Recovery が無い → Passkey で復旧 (Master + Passkey)</button>
+    <p class="hint" data-ja="Personal vault は Master + (Recovery または Passkey) の 2 つで復旧できます。K1 ファイルは Business vault のみ必要です。"
+       data-en="A Personal vault can be restored with Master + (Recovery or Passkey). The K1 file is only for Business vaults."></p>
+    <div id="decrypt-status" class="status hidden"></div>
+  </div>
+
+  <!-- result -->
+  <div class="card hidden" id="result-section">
+    <h2><span data-ja="復号された vault (読み取り専用)"
+              data-en="Decrypted vault (read-only)">復号された vault (読み取り専用)</span>
+        — <span id="vault-count">0</span> <span data-ja="件" data-en="entries">件</span></h2>
+    <div id="vault-list"></div>
+    <div class="export-row">
+      <button id="export-csv-btn" class="btn-outline" type="button"
+              data-ja="CSV でエクスポート" data-en="Export as CSV">CSV でエクスポート</button>
+      <button id="export-json-btn" class="btn-outline" type="button"
+              data-ja="JSON でエクスポート" data-en="Export as JSON">JSON でエクスポート</button>
+    </div>
+  </div>
+
+  <p class="sec-note"
+     data-ja="セキュリティ: real_MEK = HKDF(K1 ‖ K2)。 K1 は会社共通鍵、 K2 はあなた固有の鍵で、 あなた自身の 2-of-3 factor から導出されます。 K1 ファイル単体ではどの vault も復号できません — 攻撃者が K1 を入手しても、 各社員の Master / Passkey / Recovery のうち 2 つが別途必要です。 このツールは server / Arpass API を一切呼びません。"
+     data-en="Security: real_MEK = HKDF(K1 ‖ K2). K1 is the company-common key; K2 is yours alone, derived from your own 2-of-3 factors. The K1 file ALONE cannot decrypt any vault — an attacker holding K1 still needs 2 of each employee's own 3 factors (Master / Passkey / Recovery). This tool never calls the Arpass server or any /api endpoint."></p>
+</div>
+
+<script type="module" src="/lib/emergency-restore-main.js?v=19ee81e0"></script>
+</body>
+</html>
