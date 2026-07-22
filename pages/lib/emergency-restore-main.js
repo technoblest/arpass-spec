@@ -34,7 +34,7 @@ import {
   b64uDecode,
   unwrapBek,
   decryptFileWithBek,
-} from "./emergency-recover-purejs.js?v=f5603e48";
+} from "./emergency-recover-purejs.js?v=18bd9639";
 // business K1 / WebAuthn 経路のみ本体 (Rust WASM) を利用。
 import {
   decodeUserIdV7,
