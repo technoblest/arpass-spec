@@ -97,6 +97,21 @@ http://localhost:8080/arpass-emergency-restore.html
 
 アカウント登録も、Arpass への接続も、Rust のビルドも不要です。
 
+## YubiKey 専用 Vault の復旧（ネイティブ CLI）
+
+**YubiKey 専用モード（Master も Recovery Secret も無い）**の Vault は、ブラウザ緊急ツールでは復旧できません。WebAuthn の資格情報は origin（arpass.io）に拘束され、別ドメインからは呼べないためです。
+
+これ用に、**YubiKey に CTAP2 で直接アクセスするネイティブ CLI** を用意しています（`tools/recover-yubikey.py`）。CTAP2 プロトコルは rpId をパラメータで受け取るため、ブラウザの origin 判定を介さず同じ PRF を取り出せます＝arpass.io 消滅後も YubiKey で復旧可能。
+
+```bash
+cd tools
+pip install -r requirements.txt
+python3 recover-yubikey.py
+# YubiKey を挿し、点滅したらタッチ
+```
+
+公開 Arweave からあなたの Vault を直接取得・復号し、パスワード一覧の表示・`vault.json` 出力・添付ファイル保存まで行います（Arpass サーバ非経由）。詳細は `tools/README-yubikey-recovery.md`。
+
 ## 暗号方式の要約 (検証用)
 
 (詳細は arpass-spec/docs/crypto-2of3.md / arpass-spec/docs/envelope-v7-spec.md)
