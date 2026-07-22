@@ -22,6 +22,7 @@
 //   server fetch; the K2-wrap unwrap (w.a/b/c) still requires real factors.
 // ============================================================================
 
+// 個人 (Master + Recovery / Passkey) の復号は pure-JS (WebCrypto + noble、WASM 非依存)。
 import {
   deriveRMat,
   deriveAllAppNameTags,
@@ -29,10 +30,15 @@ import {
   deriveOuterKeyBytes,
   unwrapEnvelopeOuter,
   decryptVault,
-  decodeUserIdV7,
-  credentialIdToHash,
   b64uEncode,
   b64uDecode,
+  unwrapBek,
+  decryptFileWithBek,
+} from "./emergency-recover-purejs.js";
+// business K1 / WebAuthn 経路のみ本体 (Rust WASM) を利用。
+import {
+  decodeUserIdV7,
+  credentialIdToHash,
   unwrapBekWithMekHandle,
   decryptWithBekHandle,
 } from "./vault-crypto.js?v=6bb1e228";
@@ -108,7 +114,8 @@ const state = {
   k1Export: null,        // parsed { k1Version, k1Current, k1History, companyId }
   envelope: null,        // decrypted-outer inner business envelope
   decryptedVault: null,  // plaintext vault object
-  mekKey: null,          // MekKey handle (records BEK unwrap 用)
+  mek: null,             // 個人経路: raw MEK 32B (pure-JS records BEK unwrap 用)
+  mekKey: null,          // business経路: MekKey handle (WASM records BEK unwrap 用)
   entries: null,
 };
 
@@ -370,14 +377,23 @@ function renderFiles(vault) {
 
 async function downloadRecordFile(att, name, btn) {
   const enc = att.encryption || {};
-  if (!state.mekKey || !enc.wrappedBEK || !enc.wrapIv || !enc.dataIv || !att.txId) {
+  if ((!state.mek && !state.mekKey) || !enc.wrappedBEK || !enc.wrapIv || !enc.dataIv || !att.txId) {
     btn.textContent = t("file_fail"); return;
   }
   const orig = btn.textContent; btn.disabled = true; btn.textContent = t("file_decrypting");
   try {
     const ct = await fetchBlobFromArweave(att.txId);
-    const bek = await unwrapBekWithMekHandle(state.mekKey, b64uDecode(enc.wrappedBEK), b64uDecode(enc.wrapIv));
-    const bytes = await decryptWithBekHandle(bek, b64uDecode(enc.dataIv), ct);
+    const wb = b64uDecode(enc.wrappedBEK), wiv = b64uDecode(enc.wrapIv), div = b64uDecode(enc.dataIv);
+    let bytes;
+    if (state.mek) {
+      // pure-JS: MEK(raw) → BEK(raw) → file
+      const bek = await unwrapBek(state.mek, wb, wiv);
+      bytes = await decryptFileWithBek(bek, div, ct);
+    } else {
+      // business (WASM handle) 経路
+      const bekH = await unwrapBekWithMekHandle(state.mekKey, wb, wiv);
+      bytes = await decryptWithBekHandle(bekH, div, ct);
+    }
     download(name, bytes, att.mimeType || "application/octet-stream");
     btn.textContent = "\u2713";
     setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
