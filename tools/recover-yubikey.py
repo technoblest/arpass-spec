@@ -127,22 +127,30 @@ def _http_get_bytes(url: str) -> bytes:
 
 
 def graphql_newest_txid(tag_name: str, tag_value: str) -> str:
-    """Find the newest Arweave tx carrying tag {name: value}. PUBLIC data only."""
+    """Newest tx for tag {name:value}, merging BOTH public GraphQL indexes and
+    taking the max block height (arweave.net can lag behind Turbo)."""
     query = (
         'query { transactions(tags:[{name:"%s", values:["%s"]}], '
-        'sort:HEIGHT_DESC, first:5){edges{node{id}}} }' % (tag_name, tag_value)
+        'sort:HEIGHT_DESC, first:25){edges{node{id block{height}}}} }' % (tag_name, tag_value)
     )
+    found = {}
     last_err = None
     for endpoint in GRAPHQL_ENDPOINTS:
         try:
             data = _http_post_json(endpoint, {"query": query})
             edges = (data.get("data") or {}).get("transactions", {}).get("edges", [])
-            if edges:
-                return edges[0]["node"]["id"]
-            last_err = RuntimeError("no matching transaction on %s" % endpoint)
-        except (urllib.error.URLError, urllib.error.HTTPError, ValueError, KeyError) as e:
+            for e in edges:
+                node = e.get("node", {})
+                txid = node.get("id")
+                h = (node.get("block") or {}).get("height")
+                if txid and (txid not in found or h is not None):
+                    found[txid] = h
+        except Exception as e:  # noqa: BLE001
             last_err = e
-    raise RuntimeError("GraphQL tag lookup failed (name=%s): %s" % (tag_name, last_err))
+    if not found:
+        raise RuntimeError("GraphQL tag lookup failed (name=%s): %s" % (tag_name, last_err))
+    ordered = sorted(found.items(), key=lambda kv: (kv[1] is not None, kv[1] or -1), reverse=True)
+    return ordered[0][0]
 
 
 def fetch_blob(txid: str) -> bytes:
@@ -193,14 +201,27 @@ def _get_attr(obj, *names):
     return None
 
 
-def ctap2_get_prf(uv: str):
-    """CTAP2 get-assertion on rpId=arpass.io, empty allowList (resident cred),
-    requesting the WebAuthn PRF output. Returns (prfOutput, credentialId, userHandle).
+def _to_bytes(x):
+    """Coerce fido2 return values (bytes, or websafe-base64url str) to bytes."""
+    import base64
+    if x is None:
+        return b""
+    if isinstance(x, (bytes, bytearray, memoryview)):
+        return bytes(x)
+    if isinstance(x, str):
+        t = x.replace("-", "+").replace("_", "/")
+        t += "=" * (-len(t) % 4)
+        try:
+            return base64.b64decode(t)
+        except Exception:
+            return x.encode("utf-8")
+    return bytes(x)
 
-    The high-level `prf` extension performs the WebAuthn-PRF -> hmac-secret salt
-    mapping internally: hmac_salt = SHA256(b"WebAuthn PRF\\x00" + PRF_SALT). We
-    therefore pass the RAW PRF_SALT as prf.eval.first, exactly like the browser.
-    """
+
+def ctap2_get_prf(uv: str):
+    """Return PRF + credentialId + userHandle for EVERY resident arpass.io
+    credential on the connected YubiKey, as a list of tuples. One YubiKey can be
+    enrolled in multiple vaults; we recover them all."""
     from fido2.hid import CtapHidDevice
     from fido2.client import UserInteraction
 
@@ -233,11 +254,10 @@ def ctap2_get_prf(uv: str):
         except Exception as e:  # noqa: BLE001
             last_err = e
             continue
-
         options = {
             "rpId": RP_ID,
-            "challenge": os.urandom(32),   # unused (we only want the PRF, no server verify)
-            "allowCredentials": [],        # empty => discoverable/resident credential
+            "challenge": os.urandom(32),
+            "allowCredentials": [],
             "userVerification": uv,
             "extensions": {"prf": {"eval": {"first": PRF_SALT}}},
         }
@@ -246,53 +266,33 @@ def ctap2_get_prf(uv: str):
         except Exception as e:  # noqa: BLE001
             last_err = e
             continue
-
-        # Decrypt PRF outputs (get_response performs hmac-secret decryption).
-        response = selection.get_response(0)
-
-        # --- prfOutput ---
-        prf_out = None
-        ext = _get_attr(response, "extension_results", "client_extension_results")
-        if ext is not None:
+        assertions = selection.get_assertions()
+        creds = []
+        for i in range(len(assertions)):
             try:
-                prf_out = ext["prf"]["results"]["first"]
-            except (TypeError, KeyError):
-                prf = _get_attr(ext, "prf")
-                results = _get_attr(prf, "results") if prf is not None else None
-                prf_out = _get_attr(results, "first") if results is not None else None
-        if prf_out is None:
-            raise RuntimeError(
-                "YubiKey returned no PRF output. This vault requires a key enrolled "
-                "with the arpass.io PRF/hmac-secret credential."
-            )
-        prf_out = bytes(prf_out)
-
-        # --- credentialId + userHandle: prefer the raw CTAP2 assertion ---
-        credential_id = None
-        user_handle = None
-        try:
-            raw = selection.get_assertions()[0]
+                response = selection.get_response(i)
+            except Exception:
+                response = None
+            prf_out = None
+            ext = _get_attr(response, "extension_results", "client_extension_results") if response is not None else None
+            if ext is not None:
+                try:
+                    prf_out = ext["prf"]["results"]["first"]
+                except (TypeError, KeyError):
+                    prf = _get_attr(ext, "prf")
+                    results = _get_attr(prf, "results") if prf is not None else None
+                    prf_out = _get_attr(results, "first") if results is not None else None
+            raw = assertions[i]
             cred = _get_attr(raw, "credential")
             user = _get_attr(raw, "user")
-            if cred is not None:
-                credential_id = _get_attr(cred, "id")
-            if user is not None:
-                user_handle = _get_attr(user, "id")
-        except Exception:  # noqa: BLE001
-            pass
-        if credential_id is None:
-            credential_id = _get_attr(response, "credential_id")
-        if user_handle is None:
-            user_handle = _get_attr(response, "user_handle")
-
-        if user_handle is None:
-            raise RuntimeError(
-                "Authenticator did not return a userHandle. The vault's keyslot "
-                "pointer lives in the resident credential's user.id; without it "
-                "recovery cannot proceed (is this the right YubiKey?)."
-            )
-        return prf_out, (bytes(credential_id) if credential_id else b""), bytes(user_handle)
-
+            cid = _get_attr(cred, "id") if cred is not None else None
+            uh = _get_attr(user, "id") if user is not None else None
+            if prf_out is None or uh is None:
+                continue
+            creds.append((_to_bytes(prf_out), _to_bytes(cid) if cid else b"", _to_bytes(uh)))
+        if creds:
+            return creds
+        last_err = RuntimeError("no PRF/userHandle from any resident credential on this key")
     raise RuntimeError("CTAP2 get-assertion failed on all connected keys: %s" % last_err)
 
 
@@ -386,6 +386,57 @@ def recover_files(vault: dict, mek: bytes, out_dir: str) -> int:
 # ---------------------------------------------------------------------------
 # Main flow
 # ---------------------------------------------------------------------------
+def recover_one_vault(prf_output, user_handle, out_dir, args, idx):
+    """Recover a single hwkey vault from one credential's PRF + userHandle.
+    Writes vault_<idx>.json (+ files_<idx>/). Returns (entry_count, file_count)."""
+    keyslot_tag = decode_user_handle(user_handle)
+    ks_txid = graphql_newest_txid(keyslot_tag["name"], keyslot_tag["value"])
+    ks_blob = fetch_blob(ks_txid)
+    keyslot_key = hkdf_sha256(prf_output, HKDF_KEYSLOT_SALT, HKDF_KEYSLOT_INFO, 32)
+    padded = aes_gcm_decrypt(keyslot_key, ks_blob[:AES_IV_LEN], ks_blob[AES_IV_LEN:])
+    payload = json.loads(unpad(padded).decode("utf-8"))
+    app_name_tag = payload["t"]
+    outer_key = b64u_decode(payload["o"])
+    if len(outer_key) != 32:
+        raise RuntimeError("keyslot outer key is not 32 bytes")
+    env_txid = graphql_newest_txid(app_name_tag["name"], app_name_tag["value"])
+    env_blob = fetch_blob(env_txid)
+    env_plain = aes_gcm_decrypt(outer_key, env_blob[:AES_IV_LEN], env_blob[AES_IV_LEN:])
+    envelope = json.loads(env_plain.decode("utf-8"))
+    if envelope.get("v") != VAULT_FORMAT_V5 or envelope.get("m") != "hwkey":
+        raise RuntimeError("not an hwkey v5 envelope (v=%r m=%r)" % (envelope.get("v"), envelope.get("m")))
+    wrap_key = hkdf_sha256(prf_output[:32], HKDF_MEKWRAP_SALT, HKDF_MEKWRAP_INFO, 32)
+    mek = None
+    for e in (envelope.get("k") or []):
+        wrapped = b64u_decode(e.get("w", ""))
+        if len(wrapped) != WRAPPED_MEK_LEN:
+            continue
+        try:
+            m = aes_gcm_decrypt(wrap_key, wrapped[:AES_IV_LEN], wrapped[AES_IV_LEN:])
+            if len(m) == 32:
+                mek = m
+                break
+        except Exception:
+            pass
+    if mek is None:
+        raise RuntimeError("could not unwrap MEK (this credential does not match the envelope)")
+    padded_body = aes_gcm_decrypt(mek, b64u_decode(envelope["i"]), b64u_decode(envelope["c"]))
+    vault = json.loads(unpad(padded_body).decode("utf-8"))
+    n = print_entries(vault)
+    vpath = os.path.join(out_dir, "vault_%d.json" % idx)
+    with open(vpath, "w", encoding="utf-8") as fh:
+        json.dump(vault, fh, ensure_ascii=False, indent=2)
+    print("      Saved %s" % vpath)
+    files = 0
+    if not args.no_files:
+        recs = (((vault.get("records") or {}).get("active")) or [])
+        if recs:
+            sub = os.path.join(out_dir, "files_%d" % idx)
+            os.makedirs(sub, exist_ok=True)
+            files = recover_files(vault, mek, sub)
+    return n, files
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="Recover an Arpass hwkey (YubiKey-only) vault from public Arweave via CTAP2.")
@@ -403,90 +454,30 @@ def main() -> int:
     print("  Arweave (pub) : %s" % ", ".join(ARWEAVE_GATEWAYS))
     print("  Output dir    : %s" % out_dir)
 
-    # Step 1: CTAP2 get-assertion -> PRF, credentialId, userHandle
-    print("\n[1/8] Requesting WebAuthn PRF from your YubiKey via CTAP2...")
-    prf_output, credential_id, user_handle = ctap2_get_prf(args.uv)
-    print("      Got PRF output (%d bytes), userHandle (%d bytes)." % (len(prf_output), len(user_handle)))
+    # Step 1: CTAP2 get-assertion -> ALL resident credentials on this YubiKey
+    print("\n[1] Requesting WebAuthn PRF from your YubiKey via CTAP2...")
+    creds = ctap2_get_prf(args.uv)
+    print("      This YubiKey is enrolled in %d vault(s). Recovering each..." % len(creds))
 
-    # Step 2: userHandle -> keyslotTag
-    print("[2/8] Decoding userHandle -> keyslot locator tag...")
-    keyslot_tag = decode_user_handle(user_handle)
-
-    # Step 3: find keyslot tx on Arweave, fetch blob
-    print("[3/8] Locating keyslot transaction on Arweave...")
-    ks_txid = graphql_newest_txid(keyslot_tag["name"], keyslot_tag["value"])
-    print("      Found keyslot tx: %s" % ks_txid)
-    ks_blob = fetch_blob(ks_txid)
-
-    # Step 4: decode keyslot
-    print("[4/8] Decrypting keyslot with YubiKey PRF...")
-    keyslot_key = hkdf_sha256(prf_output, HKDF_KEYSLOT_SALT, HKDF_KEYSLOT_INFO, 32)
-    try:
-        padded = aes_gcm_decrypt(keyslot_key, ks_blob[:AES_IV_LEN], ks_blob[AES_IV_LEN:])
-    except Exception:
-        raise SystemExit("ERROR: keyslot decryption failed (wrong YubiKey, or corrupt blob).")
-    payload = json.loads(unpad(padded).decode("utf-8"))
-    app_name_tag = payload["t"]
-    outer_key = b64u_decode(payload["o"])
-    if len(outer_key) != 32:
-        raise SystemExit("ERROR: keyslot outer key is not 32 bytes.")
-
-    # Step 5: find vault envelope by appNameTag
-    print("[5/8] Locating vault envelope on Arweave...")
-    env_txid = graphql_newest_txid(app_name_tag["name"], app_name_tag["value"])
-    print("      Found envelope tx: %s" % env_txid)
-    env_blob = fetch_blob(env_txid)
-
-    # Step 6: outer-decrypt the envelope
-    print("[6/8] Outer-decrypting the vault envelope...")
-    try:
-        env_plain = aes_gcm_decrypt(outer_key, env_blob[:AES_IV_LEN], env_blob[AES_IV_LEN:])
-    except Exception:
-        raise SystemExit("ERROR: envelope outer decryption failed (corrupt blob).")
-    envelope = json.loads(env_plain.decode("utf-8"))
-    if envelope.get("v") != VAULT_FORMAT_V5 or envelope.get("m") != "hwkey":
-        raise SystemExit("ERROR: not an hwkey v5 envelope (v=%r m=%r)."
-                         % (envelope.get("v"), envelope.get("m")))
-
-    # Step 7: unwrap MEK (try each k[] entry, first success wins)
-    print("[7/8] Unwrapping the master encryption key with your YubiKey...")
-    wrap_key = hkdf_sha256(prf_output[:32], HKDF_MEKWRAP_SALT, HKDF_MEKWRAP_INFO, 32)
-    mek = None
-    for e in (envelope.get("k") or []):
-        wrapped = b64u_decode(e.get("w", ""))
-        if len(wrapped) != WRAPPED_MEK_LEN:
-            continue
+    summary = []
+    for idx, (prf_output, credential_id, user_handle) in enumerate(creds):
+        print("\n----- Vault %d / %d -----" % (idx + 1, len(creds)))
         try:
-            mek = aes_gcm_decrypt(wrap_key, wrapped[:AES_IV_LEN], wrapped[AES_IV_LEN:])
-            if len(mek) == 32:
-                break
-            mek = None
-        except Exception:
-            mek = None
-    if mek is None:
-        raise SystemExit("ERROR: could not unwrap MEK (wrong YubiKey?)")
+            n, files = recover_one_vault(prf_output, user_handle, out_dir, args, idx)
+            print("      -> %d password entries, %d file(s)." % (n, files))
+            summary.append((idx, n, files, None))
+        except Exception as exc:  # noqa: BLE001
+            print("      -> skipped: %s" % exc)
+            summary.append((idx, 0, 0, str(exc)))
 
-    # Step 8: decrypt body
-    print("[8/8] Decrypting vault body...")
-    padded_body = aes_gcm_decrypt(mek, b64u_decode(envelope["i"]), b64u_decode(envelope["c"]))
-    vault = json.loads(unpad(padded_body).decode("utf-8"))
-
-    n = print_entries(vault)
-    print("\nDecrypted %d entries." % n)
-
-    # Write vault.json (full decrypted vault) to output dir
-    vault_path = os.path.join(out_dir, "vault.json")
-    with open(vault_path, "w", encoding="utf-8") as fh:
-        json.dump(vault, fh, ensure_ascii=False, indent=2)
-    print("Saved vault.json -> %s" % vault_path)
-
-    # Files / attachments
-    if not args.no_files:
-        print("\nRecovering file attachments (if any)...")
-        saved = recover_files(vault, mek, out_dir)
-        print("Recovered %d file(s)." % saved)
-
-    print("\nDone. Keep vault.json and any recovered files safe; they are plaintext.")
+    print("\n================ SUMMARY ================")
+    for idx, n, files, err in summary:
+        if err:
+            print("  vault_%d : (failed: %s)" % (idx, err))
+        else:
+            print("  vault_%d.json : %d entries, %d file(s)" % (idx, n, files))
+    print("========================================")
+    print("\nDone. Your real vault is the one with entries. Files are plaintext - keep them safe.")
     return 0
 
 

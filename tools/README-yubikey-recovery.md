@@ -95,3 +95,13 @@ The cryptography implemented here is bit-compatible with the Arpass web app and
 the public spec repository **`github.com/technoblest/arpass-spec`**
 (`rust-crypto/src/lib.rs` and `lib/vault-crypto.js`). You can audit those
 sources to confirm the constants, HKDF salts/info strings, and envelope format.
+
+
+## Multiple vaults on one key
+
+A single YubiKey can be enrolled in **several** Arpass vaults (each is a separate
+resident credential). This tool recovers **all** of them in one run: it writes
+`vault_0.json`, `vault_1.json`, ... (and `files_N/` for any attachments) and
+prints a **SUMMARY** at the end showing how many password entries and files each
+vault has. Your real vault is the one with entries. (If you truly want to remove
+a vault from a key, delete its credential from the YubiKey itself.)
