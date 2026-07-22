@@ -93,6 +93,14 @@
     font-size: 12px; color: var(--muted); margin-top: 22px;
     border-top: 1px solid var(--line); padding-top: 14px;
   }
+
+  .vault-table code { word-break: break-all; }
+  .copy-btn, .btn-mini { font-size: 12px; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; }
+  .copy-btn:hover, .btn-mini:hover { background: #f1f5f9; }
+  .file-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef2f7; flex-wrap: wrap; }
+  .file-row .fmeta { flex: 1; min-width: 180px; }
+  .file-row .fname { font-weight: 600; }
+  .file-row .fsub { font-size: 12px; color: #64748b; }
 </style>
 </head>
 <body>
@@ -180,6 +188,15 @@
       <button id="export-json-btn" class="btn-outline" type="button"
               data-ja="JSON でエクスポート" data-en="Export as JSON">JSON でエクスポート</button>
     </div>
+  </div>
+
+  <!-- files (records) -->
+  <div class="card hidden" id="files-section">
+    <h2><span data-ja="ファイル (電子書類)" data-en="Files (documents)">ファイル (電子書類)</span>
+        — <span id="files-count">0</span> <span data-ja="件" data-en="files">件</span></h2>
+    <p class="hint" data-ja="各ファイルは別途暗号化されて Arweave に保存されています。 下のボタンで復号してダウンロードできます。"
+       data-en="Each file is encrypted separately and stored on Arweave. Use the buttons below to decrypt and download."></p>
+    <div id="files-list"></div>
   </div>
 
   <p class="sec-note"

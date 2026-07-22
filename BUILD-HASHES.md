@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-07-22T04:27:05.672Z
+**Generated**: 2026-07-22T08:58:41.744Z
 **Files**: 234
 
 | SHA-256 | Bytes | Path |
@@ -56,7 +56,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `504c7d9670728fbb09a402c16c2fbb203b1381d2fa70509ea998139f7333d887` | 6514 | `ar/download.html` |
 | `d518a6ecbab145441ed711918f8eeb6af41215f22f57ec30b7e05ffc2012e35e` | 53794 | `ar/help.html` |
 | `eb25462a1eb3beabee1a48e51a93a0844ecc9e834c796e7cbbc4d6a1ff1212ba` | 91991 | `ar/index.html` |
-| `a997dd4d3b89b7ccb35fa5d85ad943ac547446a5e3d07b78ca945728c30e2985` | 11534 | `arpass-emergency-restore.html` |
+| `c5e2874ec9050a6ef56a7cafcccfe20d97af21f5b2a6a49ced30ddd5e1a24eae` | 11480 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `3d96eabe5e26209f3b9f20a0d9c05960515a0b345c12985285bbd73ea53e23d8` | 6161 | `de/download.html` |
