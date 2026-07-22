@@ -377,33 +377,18 @@ function renderFiles(vault) {
 
 async function downloadRecordFile(att, name, btn) {
   const enc = att.encryption || {};
-  try {
-    console.log("[file guard] mek=", !!state.mek, "mekKey=", !!state.mekKey,
-      "wrappedBEK=", !!enc.wrappedBEK, "wrapIv=", !!enc.wrapIv, "dataIv=", !!enc.dataIv,
-      "txId=", att.txId, "attKeys=", Object.keys(att || {}), "encKeys=", Object.keys(enc || {}));
-  } catch (_) {}
   if ((!state.mek && !state.mekKey) || !enc.wrappedBEK || !enc.wrapIv || !enc.dataIv || !att.txId) {
     btn.textContent = t("file_fail"); return;
   }
   const orig = btn.textContent; btn.disabled = true; btn.textContent = t("file_decrypting");
   try {
-    console.log("[file dbg] txId=", att.txId, "mode=", state.mek ? "pureJS" : "wasm",
-      "wbLen=", enc.wrappedBEK ? b64uDecode(enc.wrappedBEK).length : null,
-      "wivLen=", enc.wrapIv ? b64uDecode(enc.wrapIv).length : null,
-      "divLen=", enc.dataIv ? b64uDecode(enc.dataIv).length : null,
-      "mekLen=", state.mek ? state.mek.length : null);
-    let ct;
-    try { ct = await fetchBlobFromArweave(att.txId); console.log("[file dbg] fetched ctLen=", ct.length); }
-    catch (fe) { console.log("[file dbg] FETCH failed:", fe?.message || fe); throw fe; }
+    const ct = await fetchBlobFromArweave(att.txId);
     const wb = b64uDecode(enc.wrappedBEK), wiv = b64uDecode(enc.wrapIv), div = b64uDecode(enc.dataIv);
     let bytes;
     if (state.mek) {
       // pure-JS: MEK(raw) → BEK(raw) → file
-      let bek;
-      try { bek = await unwrapBek(state.mek, wb, wiv); console.log("[file dbg] BEK unwrap OK len=", bek.length); }
-      catch (be) { console.log("[file dbg] BEK unwrap FAILED:", be?.name || be?.message); throw be; }
-      try { bytes = await decryptFileWithBek(bek, div, ct); console.log("[file dbg] file decrypt OK len=", bytes.length); }
-      catch (de) { console.log("[file dbg] FILE decrypt FAILED:", de?.name || de?.message); throw de; }
+      const bek = await unwrapBek(state.mek, wb, wiv);
+      bytes = await decryptFileWithBek(bek, div, ct);
     } else {
       // business (WASM handle) 経路
       const bekH = await unwrapBekWithMekHandle(state.mekKey, wb, wiv);
@@ -527,6 +512,7 @@ async function runDecrypt() {
 
     // ---- render read-only + offer export ----
     state.decryptedVault = result.vault;
+    state.mek = result.mek ?? null;
     state.mekKey = result.mekKey ?? null;
     setStatus(statusEl, t("decrypt_ok"), "ok");
     renderVault(result.vault);
@@ -610,6 +596,7 @@ async function runDecryptPasskey() {
       return;
     }
     state.decryptedVault = result.vault;
+    state.mek = result.mek ?? null;
     state.mekKey = result.mekKey ?? null;
     setStatus(statusEl, t("decrypt_ok"), "ok");
     renderVault(result.vault);
