@@ -34,7 +34,7 @@ import {
   b64uDecode,
   unwrapBek,
   decryptFileWithBek,
-} from "./emergency-recover-purejs.js?v=18bd9639";
+} from "./emergency-recover-purejs.js?v=f5603e48";
 // business K1 / WebAuthn 経路のみ本体 (Rust WASM) を利用。
 import {
   decodeUserIdV7,
@@ -382,13 +382,23 @@ async function downloadRecordFile(att, name, btn) {
   }
   const orig = btn.textContent; btn.disabled = true; btn.textContent = t("file_decrypting");
   try {
-    const ct = await fetchBlobFromArweave(att.txId);
+    console.log("[file dbg] txId=", att.txId, "mode=", state.mek ? "pureJS" : "wasm",
+      "wbLen=", enc.wrappedBEK ? b64uDecode(enc.wrappedBEK).length : null,
+      "wivLen=", enc.wrapIv ? b64uDecode(enc.wrapIv).length : null,
+      "divLen=", enc.dataIv ? b64uDecode(enc.dataIv).length : null,
+      "mekLen=", state.mek ? state.mek.length : null);
+    let ct;
+    try { ct = await fetchBlobFromArweave(att.txId); console.log("[file dbg] fetched ctLen=", ct.length); }
+    catch (fe) { console.log("[file dbg] FETCH failed:", fe?.message || fe); throw fe; }
     const wb = b64uDecode(enc.wrappedBEK), wiv = b64uDecode(enc.wrapIv), div = b64uDecode(enc.dataIv);
     let bytes;
     if (state.mek) {
       // pure-JS: MEK(raw) → BEK(raw) → file
-      const bek = await unwrapBek(state.mek, wb, wiv);
-      bytes = await decryptFileWithBek(bek, div, ct);
+      let bek;
+      try { bek = await unwrapBek(state.mek, wb, wiv); console.log("[file dbg] BEK unwrap OK len=", bek.length); }
+      catch (be) { console.log("[file dbg] BEK unwrap FAILED:", be?.name || be?.message); throw be; }
+      try { bytes = await decryptFileWithBek(bek, div, ct); console.log("[file dbg] file decrypt OK len=", bytes.length); }
+      catch (de) { console.log("[file dbg] FILE decrypt FAILED:", de?.name || de?.message); throw de; }
     } else {
       // business (WASM handle) 経路
       const bekH = await unwrapBekWithMekHandle(state.mekKey, wb, wiv);
