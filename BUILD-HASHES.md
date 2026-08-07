@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-07-22T23:30:57.012Z
+**Generated**: 2026-08-05T07:55:33.063Z
 **Files**: 235
 
 | SHA-256 | Bytes | Path |
@@ -52,7 +52,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `f4d4d1f2b3fbde5d15db91d9544b95778f4aac8e184d5cfa011c0696b8290790` | 166072 | `app.html` |
+| `a768cd9b9f2d8b7b364cddb7afd570469aec557ed2ba653040e512b91fbcb7b0` | 166078 | `app.html` |
 | `504c7d9670728fbb09a402c16c2fbb203b1381d2fa70509ea998139f7333d887` | 6514 | `ar/download.html` |
 | `d518a6ecbab145441ed711918f8eeb6af41215f22f57ec30b7e05ffc2012e35e` | 53794 | `ar/help.html` |
 | `eb25462a1eb3beabee1a48e51a93a0844ecc9e834c796e7cbbc4d6a1ff1212ba` | 91991 | `ar/index.html` |
@@ -68,7 +68,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `b2d8cf92b9f6a125c6eca8d22e104f37497dde0d6f499dcc57601467e523473d` | 4913 | `demo/login-ja.html` |
 | `834a15c9174f05580ccfbda2469d7b10a3f38b2f404f0850d7353decd44f21ef` | 4585 | `demo/nav-en.html` |
 | `7d3292a72c04fb53aedc19ba77d17f41d75d17ad528914672eff29e38af0e590` | 4877 | `demo/nav-ja.html` |
-| `ec4cbffaa8597bcde83132189d1fd05de570f09f0cf409b7af3d11ae02c3d7f6` | 6189 | `download.html` |
+| `b6f3901c0a4a6638d51445b98add4d9c9d7bc9aeb204655830a042aa851172f2` | 6195 | `download.html` |
 | `98f6058bf008cd61d03b00af3fd348932f3ad0bc87d1fc882da7ca788a22cdd9` | 1320982 | `download/arpass-for-safari-mac.dmg` |
 | `e3fedc2ab36d297dfa3a7d58a997e4e962f8b607ffdc0e4772ffe4d1403ac43c` | 260 | `download/README.txt` |
 | `543c9f915f048d03ea8e1ced8fd7e5b8163b5989691ac862ea090da671f40b55` | 5850 | `en/download.html` |
@@ -184,23 +184,23 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `ea714c1b70545bfbbba3a64c16a6471e655d96ecb03b5e9f0d3ec0b755de2d5c` | 7441 | `hi/download.html` |
 | `12113f1f011a899345893b67e9daf42d173d0d8e1151f777e6a90eb5991b3c61` | 63526 | `hi/help.html` |
 | `e531e643004f68a739426aa7c677e265dca60f84b20e75d19ed9e7c75fc3d9ad` | 111421 | `hi/index.html` |
-| `60e5640584dad87ff7c33e9e447f8e7318ef28e5cbb574ab5f46aa9926433d71` | 237368 | `i18n/ar.json` |
-| `26208611b61a4ee148ce3c95029113b2be4513d4e4917882ce0023108cac4cc5` | 205738 | `i18n/de.json` |
-| `f3391edd40ceb87c9cd019462006f480a818e40d72ffaa873a8683ed563520c2` | 185943 | `i18n/en.json` |
-| `3581c17be2eaf08c01889cac5ae28a091a7ab6a07e1384b464ee2372688fef06` | 200221 | `i18n/es.json` |
-| `2ca138388067858d5c56cc60537818d8be51efafac2dc68f388ecd82cd292b15` | 207847 | `i18n/fr.json` |
-| `e2643e07a1ce0e262a05b889eb04a0c4c64f6d950bff544d02c90c02b626936a` | 315959 | `i18n/hi.json` |
-| `fb52a22d802a1abbfe25e7341a7c3c31f93e8b5430bb9e558b7e06ddcee84aa0` | 190861 | `i18n/id.json` |
-| `a7636776533d76268cd39b1a45e42bc90405fe3b648f7614091273690ddf5dce` | 197813 | `i18n/it.json` |
-| `892b5e0bcb6d80b92656c4de1095aa34d05eb69e94f194203f8c855ba8db2dcd` | 222413 | `i18n/ja.json` |
-| `96089c2643882749f19787eda793f5d1ac8705b01e0841db9877db1e1a35b890` | 205058 | `i18n/ko.json` |
-| `48c8e60aeb5f23f325a8afcdb9699618a8e785e52b901a7f42552eba828a9390` | 197621 | `i18n/pt-BR.json` |
+| `a59590cfa58a1384f1b848ef7f7ccd91e0201e2ed5f95aff303808eb14c2bc5d` | 237455 | `i18n/ar.json` |
+| `9f5d08970786c473f91243a5836c835d12fc16d827721f7eb1dfa4583eb9de07` | 205822 | `i18n/de.json` |
+| `134e71a81ddbb5e2571bb757d37b0eed9467ce37a8dace887c4c8128a0b22554` | 186013 | `i18n/en.json` |
+| `03bcd29c4d631f662923af4f069a92b9fcab5fa683dc8db3566f5c3338a5eb78` | 200298 | `i18n/es.json` |
+| `a6947a1064623e097e5a42b8a82a60f2e3693c565acfbbb0bdedcf1a5f13e996` | 207933 | `i18n/fr.json` |
+| `3e3c44a74c290e03fbb84fdccd48a8c3d4617ce4885c139eb7e7d2ea57bbf241` | 316097 | `i18n/hi.json` |
+| `ce13ae70ebdb708472b0dfb5b292c323f7da64dc62784b824c2c423a10f5165e` | 190931 | `i18n/id.json` |
+| `73604026b909baa934342af56a5f873185a1d8eeea7edf511f055ff2f89d8614` | 197881 | `i18n/it.json` |
+| `3150418e94bea4cbf3319921922bad7d0fa88cecfeaafb8e943f7034eedb77c1` | 222526 | `i18n/ja.json` |
+| `bbb9dbb7e2bbc5ecd7dd998103ef5d26c099021ea9320a8f73151b9ca5bbcf7e` | 205140 | `i18n/ko.json` |
+| `6a5586d9177ea3ecd4485bacc253baaf1abb9798e75db339f91e673168fd1550` | 197696 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `4d5c12dd5019a56204201e7f8a942cdd3a4f40e0ce3f9659d7895be33bcf3666` | 275923 | `i18n/ru.json` |
-| `8918deffb2233ca04d4989638ea14e4fc0bda4af87a2d55c5ad8f1f302f8a979` | 197643 | `i18n/tr.json` |
-| `d6c6b3a40903a48be23ce08fe9e42c69d2e9e307adffac1de0980dc62b4ac30b` | 212249 | `i18n/vi.json` |
-| `b3f7ac47ba0a72c0bea9a2b5d7e31d8dd41c63406664e070262ea7cc21d256b7` | 178065 | `i18n/zh-CN.json` |
-| `c7a3b4b13fc0740ee319f4cb78b613a1b2cd781cfff802b6708506bf38b3dd1d` | 178219 | `i18n/zh-TW.json` |
+| `8df524622d64703c09da22eab6ee9f7ef46694e748bf775309e6eb71b110524e` | 276033 | `i18n/ru.json` |
+| `58628b3dfc39a6857849974d55555765989998d5c0fa59b50eb52c8ff7395bbf` | 197723 | `i18n/tr.json` |
+| `fa2389de3a7ce6f995351bbd474342d28b855f656a70fb2591d1402d4df686d7` | 212356 | `i18n/vi.json` |
+| `a8de2f1d03d36e69cc13bf302561afa72be831317adc12a267e0e1d76c251ca3` | 178145 | `i18n/zh-CN.json` |
+| `c6d30e3db87868ed827d8e9de5b9c7f8a0a9aec72ff9095a88e26ce8ff9e1e25` | 178299 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
@@ -209,7 +209,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `4efeda6a8daa15104580586baba156f96cd6da5aab329459715780e34ae36485` | 44745 | `id/help.html` |
 | `77071122bb291a01aa45d7c60b0d345779b17aa515fbf23a8c4e0011486c87a9` | 82959 | `id/index.html` |
 | `cb2fcd992f534f15f835528b34b839706369e7c0ce855af1d21c9077ac22ecea` | 13617 | `img/lock-icon-gold.png` |
-| `37790a4a281686ecccd256bc3390477e5cdc73c0a780552f446cf752c4dc8a30` | 90369 | `index.html` |
+| `a1dd788a082b737d27e73ac54a2872bcca7214fcd1be599583a418ed379b146c` | 93121 | `index.html` |
 | `b51f99ffad185191793750b44dfc0f6a86654c88bb3e05b291d537aaec253c86` | 5996 | `it/download.html` |
 | `f5c55a93b7c85e09e8436cb621104bfb1b764449821648e7a4e90ba53b0e8273` | 46036 | `it/help.html` |
 | `7fae2ac1d05697ba79059af8bad796adc8bd3b7dc39d2b5127f083edc8831c3e` | 84001 | `it/index.html` |
@@ -257,8 +257,8 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
 | `792b1b19d01c3488f46c7f209056db6dc8563229aeb29d57e50d078856195a40` | 1782 | `pay-cancel.html` |
 | `3dc198b27999a309285697053bd4560b6654ff4af9cd781f8e88c18b31639bbc` | 2493 | `pay-success.html` |
-| `9760766eef34772b9b74400f01603db469a9c2840cba1997382e5418b2fe0d3c` | 8635 | `pricing.html` |
-| `0caad175b0833db22d2ec6046954d2d1e4db883637c68a4af9848048f7d7ae65` | 26325 | `privacy.html` |
+| `36d0e7a09a041572041c107c685ce77836431805f1dbfa7c06b2c333c506f604` | 8641 | `pricing.html` |
+| `bfd9e5f9b732c805c6ff8eeac392bfb2bbb5339051be4fcb1f536e099b78c77f` | 26331 | `privacy.html` |
 | `353f0eba70152871459bc9a8d2cce92d351990049153790b213b82c863dd1403` | 5984 | `pt-BR/download.html` |
 | `365fa336be34f4db62a4fa693bd66a99cd940c7a4311c496b7babb7dc2d351ef` | 46339 | `pt-BR/help.html` |
 | `1eaac709a447224e3fba56f462b16df03802fe8e6d1743ccb8bd72ea91860cd2` | 83954 | `pt-BR/index.html` |
@@ -266,11 +266,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9a4b34826624c833eb103cf9e4006366f06a737cc75cf0ae66c6e7a4c9fe2627` | 6678 | `ru/download.html` |
 | `16ff4cedfbed3237d0b00c3cfe215ff5b63b5ff6eab87439f6d47783cd9b5de0` | 61884 | `ru/help.html` |
 | `aaa919d4fc8258f89d3eac83a211086cdb96944f4c23aa4eaf4cd05b78066da1` | 99964 | `ru/index.html` |
-| `11850e18aafdead19184ba8688a095d601b5712265930979b72d86206e67b916` | 25057 | `security.html` |
+| `fe2d9197f0bb959d438ff8d64d711011f3754850d0039d4ffbdd12fc35068df7` | 25063 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
 | `f818b40ae2d435af516ceccf4e09f222a1829692306b0345ce62ae3d21f3824b` | 7427 | `sw.js` |
-| `5454dd0d445d7518a5650139248d6935c9c49e17539386dcdf33a463b1e95c37` | 19025 | `terms.html` |
-| `39423e97d9d05639f8ea4f0458bbe60b520a0f3586ff0bbaea0b9f46beb2e62e` | 12918 | `tokushoho.html` |
+| `eeb09aef800156ca9e4fafc4ed132ffe3212fb5383f1d187fcc48ff6505504a3` | 19031 | `terms.html` |
+| `dcb3422d85bdd64e920090eb522aa2eec385fbc0e443e3ba17439152af7dded4` | 12924 | `tokushoho.html` |
 | `5604f1b6545c08e416ee87669af796003ce242e9abad3953427b177d917ac65f` | 6113 | `tr/download.html` |
 | `d059896e8abac422d82757ed81e37c2c549e317ad7045651e3f94acba4b1175c` | 46480 | `tr/help.html` |
 | `5a2a9784bf4db7fb96985f07288be62b46abd71c87b12b4ce1114d5984423836` | 84064 | `tr/index.html` |
