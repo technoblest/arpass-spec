@@ -538,7 +538,7 @@ grep -rn '"App-Name"\|'''App-Name'''' web/lib/client-auth.js | grep -v 'comment\
 - [x] **回帰防止 grep test** (`scripts/lint-security.sh` + `.github/workflows/regression-grep.yml`) — v4.1 invariant の自動検査
 - [x] **HTTP セキュリティヘッダ A+** (`web/_headers`) — SSL Labs / Mozilla Observatory / SecurityHeaders.com で A+ を狙う構成
 - [x] **`SECURITY.md`** — 報告窓口、SLA、スコープ、Safe harbor、PGP 鍵を明記
-- [ ] **HackerOne Bug Bounty プログラム** — 無料プランで開始 (重大バグ発見時のみ報奨金 \$100-5,000、典型予算 ~\$5k/年)
+- [ ] **有償 Bug Bounty プログラム (HackerOne 等)** — 未起動。開始時期・報奨金額は未定で、現時点で金銭的報酬は支払っていない (現行方針は `SECURITY.md` の Channel C を参照)
 - [ ] **`arpass-spec` リポジトリで暗号コード公開** (既に AGPL-3.0 で公開済 — `https://github.com/technoblest/arpass-spec`)
 - [ ] **ランディングに評価バッジ表示** — SSL Labs A+, Mozilla Observatory A+, Snyk 0 vulnerabilities, GitHub Actions 緑
 - [ ] **Snyk free tier 連携** (オプション) — npm 依存関係の高度なスキャン
