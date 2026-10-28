@@ -22,7 +22,9 @@
 //   server fetch; the K2-wrap unwrap (w.a/b/c) still requires real factors.
 // ============================================================================
 
-// 個人 (Master + Recovery / Passkey) の復号は pure-JS (WebCrypto + noble、WASM 非依存)。
+// 個人 (Master + Recovery / Passkey) と business (K1 export) の復号、 添付・2段階認証の鍵は
+// pure-JS (WebCrypto + noble、WASM 非依存)。 2026-10-28: business も WASM から移した
+// (WASM 経路は MEK を返さないので添付を復号できず、 TOTP の秘密キーも取り出せない)。
 import {
   deriveRMat,
   deriveAllAppNameTags,
@@ -30,23 +32,25 @@ import {
   deriveOuterKeyBytes,
   unwrapEnvelopeOuter,
   decryptVault,
+  decryptVaultBusiness,
+  deriveBusinessRealMek,
   b64uEncode,
   b64uDecode,
   unwrapBek,
   decryptFileWithBek,
-} from "./emergency-recover-purejs.js?v=f5603e48";
-// business K1 / WebAuthn 経路のみ本体 (Rust WASM) を利用。
+  unwrapTotpSecret,
+  totpOtpauthUri,
+} from "./emergency-recover-purejs.js?v=d44eb2a8";
+// WebAuthn (Passkey の user.id 読み取り・PRF) 経路のみ本体を利用。
 import {
   decodeUserIdV7,
   credentialIdToHash,
-  unwrapBekWithMekHandle,
-  decryptWithBekHandle,
-} from "./vault-crypto.js?v=6f4f3ce1";
+} from "./vault-crypto.js?v=623689e7";
 
 import {
-  decryptBusinessVaultWithK1,
   authenticateWithPasskey,
-} from "./vault-client.js?v=c162c514";
+} from "./vault-client.js?v=5a4b47ee";
+import { generateOtpauthQrSvg } from "./qr.js?v=ad52de48";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----
 const STRINGS = {
@@ -69,6 +73,13 @@ const STRINGS = {
     file_decrypting: "復号中…",
     file_fail: "失敗",
     files_none: "(この vault にファイルはありません)",
+    th_totp: "2段階認証",
+    totp_show: "秘密キーを表示",
+    totp_hide: "隠す",
+    totp_copy: "URI をコピー",
+    totp_fail: "取り出せませんでした: ",
+    totp_hint: "認証アプリ (Google 認証システム・Microsoft Authenticator・1Password など) でこの QR を読むか、 URI を貼り付けて移してください。 この QR と URI は 2 段階認証の秘密キーそのものです。 人に見せず、 移したら「隠す」を押してください。",
+    totp_export_none: "2段階認証が登録されたエントリはありません。",
   },
   en: {
     step1_err_factors: "Enter both your Master password and Recovery key.",
@@ -89,6 +100,13 @@ const STRINGS = {
     file_decrypting: "Decrypting…",
     file_fail: "Failed",
     files_none: "(This vault has no files.)",
+    th_totp: "2FA",
+    totp_show: "Show secret",
+    totp_hide: "Hide",
+    totp_copy: "Copy URI",
+    totp_fail: "Could not extract: ",
+    totp_hint: "Scan this QR code with an authenticator app (Google Authenticator, Microsoft Authenticator, 1Password, etc.) or paste the URI. This QR code and URI ARE your two-factor secret. Do not show them to anyone, and press Hide once you have moved it.",
+    totp_export_none: "No entries have a two-factor code registered.",
   },
 };
 function detectLang() {
@@ -114,10 +132,39 @@ const state = {
   k1Export: null,        // parsed { k1Version, k1Current, k1History, companyId }
   envelope: null,        // decrypted-outer inner business envelope
   decryptedVault: null,  // plaintext vault object
-  mek: null,             // 個人経路: raw MEK 32B (pure-JS records BEK unwrap 用)
-  mekKey: null,          // business経路: MekKey handle (WASM records BEK unwrap 用)
+  mek: null,             // 本体を開いた MEK (business は real_MEK) raw 32B。 添付 BEK / TOTP の unwrap 用
+  k2: null,              // business のみ: K2 raw 32B (古い K1 版で包まれた鍵の real_MEK を派生し直す用)
+  bodyK1Version: null,   // business のみ: 本体を開いた K1 の version
   entries: null,
 };
+
+// 前回の復号で持っていた鍵を消す (別の vault を続けて開くとき)。
+function clearKeys() {
+  for (const k of ["mek", "k2"]) {
+    try { state[k]?.fill(0); } catch (_) {}
+    state[k] = null;
+  }
+  state.bodyK1Version = null;
+}
+
+// business の添付・2段階認証は、 包んだ時点の K1 版 (k1Version) の real_MEK で包まれている。
+//   本体を開いた版と違えば、 K1 export のその版と K2 から real_MEK を派生し直す
+//   (personal / 同じ版なら state.mek)。 返り値が state.mek でなければ caller が fill(0) する。
+function mekForVersion(k1Version) {
+  if (!state.k2 || k1Version == null || k1Version === state.bodyK1Version) return state.mek;
+  const cands = allK1Candidates(state.k1Export, k1Version);
+  try {
+    const c = cands.find((x) => x.version === k1Version);
+    if (!c) {
+      const err = new Error(t("decrypt_no_k1ver") + k1Version + ").");
+      err.code = "k1_version_missing";
+      throw err;
+    }
+    return deriveBusinessRealMek(state.k2, c.bytes);
+  } finally {
+    for (const c of cands) { try { c.bytes.fill(0); } catch (_) {} }
+  }
+}
 
 // ============================================================================
 // Server-independent Arweave fetch.
@@ -321,11 +368,13 @@ function renderVault(vault) {
         <td><code>${escapeHtml(e.pw || e.password || "")}</code> <button class="copy-btn" type="button" data-copy="${i}">📋</button></td>
         <td>${escapeHtml(e.url || "")}</td>
         <td>${escapeHtml(e.notes || "")}</td>
-      </tr>`).join("");
+        <td>${hasTotp(e) ? `<button class="btn-mini totp-btn" type="button" data-totp="${i}">${escapeHtml(t("totp_show"))}</button>` : ""}</td>
+      </tr>${hasTotp(e) ? `
+      <tr class="totp-row hidden" id="totp-row-${i}"><td colspan="6"><div class="totp-panel"></div></td></tr>` : ""}`).join("");
     listEl.innerHTML = `
       <table class="vault-table">
         <thead><tr>
-          <th>Site</th><th>User</th><th>Password</th><th>URL</th><th>Notes</th>
+          <th>Site</th><th>User</th><th>Password</th><th>URL</th><th>Notes</th><th>${escapeHtml(t("th_totp"))}</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
@@ -339,13 +388,86 @@ function renderVault(vault) {
       try { await navigator.clipboard.writeText(pw); btn.textContent = "✓"; setTimeout(() => { btn.textContent = "📋"; }, 1200); } catch (_) {}
     });
   });
+  listEl.querySelectorAll("button.totp-btn").forEach((btn) => {
+    btn.addEventListener("click", () => toggleTotp(Number(btn.getAttribute("data-totp")), btn));
+  });
+  const exportTotpBtn = $("export-totp-btn");
+  if (exportTotpBtn) exportTotpBtn.classList.toggle("hidden", !entries.some(hasTotp));
   show($("result-section"));
 }
 
 // ============================================================================
+// 2段階認証 (TOTP) — docs/totp-spec.md §2-5: 秘密キーを取り出せるのはこのツールだけ。
+//   他の認証アプリへ移せるよう otpauth:// URI と QR で出す。 「隠す」で DOM から消す。
+// ============================================================================
+function hasTotp(e) {
+  return !!(e?.id && e?.totp?.wrapped?.iv && e?.totp?.wrapped?.ct);
+}
+
+async function totpUriForEntry(e) {
+  const mek = mekForVersion(e.totp.k1Version ?? null);
+  let secret = null;
+  try {
+    secret = await unwrapTotpSecret(mek, e.id, e.totp.wrapped);
+    return totpOtpauthUri(e, secret);
+  } finally {
+    try { secret?.fill(0); } catch (_) {}
+    if (mek !== state.mek) { try { mek?.fill(0); } catch (_) {} }
+  }
+}
+
+async function toggleTotp(i, btn) {
+  const row = $("totp-row-" + i);
+  const panel = row?.querySelector(".totp-panel");
+  if (!row || !panel) return;
+  if (!row.classList.contains("hidden")) {
+    panel.innerHTML = "";
+    hide(row);
+    btn.textContent = t("totp_show");
+    return;
+  }
+  const e = state.entries[i];
+  btn.disabled = true;
+  try {
+    const uri = await totpUriForEntry(e);
+    const who = [e.totp.issuer || e.site, e.totp.account || e.user].filter(Boolean).join(" / ");
+    panel.innerHTML =
+      `<div class="totp-who">${escapeHtml(who)}</div>`
+      + `<div class="totp-qr">${generateOtpauthQrSvg(uri)}</div>`
+      + `<code class="totp-uri">${escapeHtml(uri)}</code> `
+      + `<button class="btn-mini" type="button">${escapeHtml(t("totp_copy"))}</button>`
+      + `<p class="hint">${escapeHtml(t("totp_hint"))}</p>`;
+    panel.querySelector("button")?.addEventListener("click", async (ev) => {
+      try { await navigator.clipboard.writeText(uri); ev.target.textContent = "✓"; setTimeout(() => { ev.target.textContent = t("totp_copy"); }, 1200); } catch (_) {}
+    });
+    show(row);
+    btn.textContent = t("totp_hide");
+  } catch (err) {
+    console.error("[emergency-restore] totp extract failed:", err);
+    panel.innerHTML = `<p class="status err">${escapeHtml(t("totp_fail") + (err?.message || String(err)))}</p>`;
+    show(row);
+    btn.textContent = t("totp_hide");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// 2段階認証をまとめて書き出す: otpauth:// URI を 1 行 1 件のテキストで (認証アプリの一括取り込み用)
+async function exportTotp() {
+  const entries = (state.entries || []).filter(hasTotp);
+  if (entries.length === 0) { setStatus($("decrypt-status"), t("totp_export_none"), "info"); return; }
+  const lines = [];
+  for (const e of entries) {
+    try { lines.push(await totpUriForEntry(e)); }
+    catch (err) { console.error("[emergency-restore] totp export skipped:", e.site, err); }
+  }
+  download(`arpass-2fa-otpauth-${Date.now()}.txt`, lines.join("\n") + "\n", "text/plain");
+}
+
+// ============================================================================
 // Files (Records) — 各添付を BEK で復号してダウンロード。
-//   record file は envelope とは別の Arweave tx (BEK 暗号化)。 mekKey で BEK を
-//   unwrap → 直 Arweave 取得 → decryptWithBekHandle → download。 server 不要。
+//   record file は envelope とは別の Arweave tx (BEK 暗号化)。 MEK (business は包んだ
+//   時点の K1 版の real_MEK) で BEK を unwrap → 直 Arweave 取得 → 復号 → download。 server 不要。
 // ============================================================================
 function renderFiles(vault) {
   const active = Array.isArray(vault?.records?.active) ? vault.records.active : [];
@@ -377,29 +499,27 @@ function renderFiles(vault) {
 
 async function downloadRecordFile(att, name, btn) {
   const enc = att.encryption || {};
-  if ((!state.mek && !state.mekKey) || !enc.wrappedBEK || !enc.wrapIv || !enc.dataIv || !att.txId) {
+  if (!state.mek || !enc.wrappedBEK || !enc.wrapIv || !enc.dataIv || !att.txId) {
     btn.textContent = t("file_fail"); return;
   }
   const orig = btn.textContent; btn.disabled = true; btn.textContent = t("file_decrypting");
+  let mek = null;
   try {
     const ct = await fetchBlobFromArweave(att.txId);
     const wb = b64uDecode(enc.wrappedBEK), wiv = b64uDecode(enc.wrapIv), div = b64uDecode(enc.dataIv);
-    let bytes;
-    if (state.mek) {
-      // pure-JS: MEK(raw) → BEK(raw) → file
-      const bek = await unwrapBek(state.mek, wb, wiv);
-      bytes = await decryptFileWithBek(bek, div, ct);
-    } else {
-      // business (WASM handle) 経路
-      const bekH = await unwrapBekWithMekHandle(state.mekKey, wb, wiv);
-      bytes = await decryptWithBekHandle(bekH, div, ct);
-    }
+    // pure-JS: MEK (business は包んだ時点の K1 版の real_MEK) → BEK(raw) → file
+    mek = mekForVersion(enc.k1Version ?? null);
+    const bek = await unwrapBek(mek, wb, wiv);
+    const bytes = await decryptFileWithBek(bek, div, ct);
+    bek.fill(0);
     download(name, bytes, att.mimeType || "application/octet-stream");
     btn.textContent = "\u2713";
     setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1500);
   } catch (e) {
     console.error("[emergency-restore] file decrypt failed:", e);
     btn.textContent = t("file_fail"); btn.disabled = false;
+  } finally {
+    if (mek && mek !== state.mek) { try { mek.fill(0); } catch (_) {} }
   }
 }
 
@@ -492,18 +612,12 @@ async function runDecrypt() {
         setStatus(statusEl, t("step2_err_load") + "(no valid 32B K1 in file)", "err");
         return;
       }
-      let lastErr = null;
-      for (const cand of k1cands) {
-        try {
-          result = await decryptBusinessVaultWithK1(envelope, factors, cand.bytes);
-          break;  // 復号成功
-        } catch (e) {
-          lastErr = e;
-        } finally {
-          try { cand.bytes.fill(0); } catch {}
-        }
+      try {
+        // pure-JS: K2 を factor でほどき、 候補の K1 ごとに real_MEK = HKDF(K2, K1) で本体を試す
+        result = await decryptVaultBusiness(envelope, factors, k1cands);
+      } finally {
+        for (const cand of k1cands) { try { cand.bytes.fill(0); } catch {} }
       }
-      if (!result) throw lastErr || new Error("decrypt failed (all K1 candidates exhausted)");
     } else {
       // ---- Personal mode (2-of-3、 K1 不要): Master + Recovery で AC 復号 ----
       setStatus(statusEl, t("decrypting"), "info");
@@ -511,9 +625,11 @@ async function runDecrypt() {
     }
 
     // ---- render read-only + offer export ----
+    clearKeys();
     state.decryptedVault = result.vault;
     state.mek = result.mek ?? null;
-    state.mekKey = result.mekKey ?? null;
+    state.k2 = result.k2 ?? null;
+    state.bodyK1Version = result.k1Version ?? null;
     setStatus(statusEl, t("decrypt_ok"), "ok");
     renderVault(result.vault);
     renderFiles(result.vault);
@@ -595,9 +711,9 @@ async function runDecryptPasskey() {
       setStatus(statusEl, t("decrypt_fail") + "(候補 " + candidates.length + " 版すべて開けませんでした)", "err");
       return;
     }
+    clearKeys();
     state.decryptedVault = result.vault;
     state.mek = result.mek ?? null;
-    state.mekKey = result.mekKey ?? null;
     setStatus(statusEl, t("decrypt_ok"), "ok");
     renderVault(result.vault);
     renderFiles(result.vault);
@@ -714,6 +830,7 @@ function init() {
   $("decrypt-btn-passkey")?.addEventListener("click", runDecryptPasskey);
   $("export-json-btn")?.addEventListener("click", exportJSON);
   $("export-csv-btn")?.addEventListener("click", exportCSV);
+  $("export-totp-btn")?.addEventListener("click", exportTotp);
 
   // Passkey / YubiKey (WebAuthn) は RP ID = arpass.io に origin 拘束される。
   //   ミラー(github.io 等)や localhost からは arpass.io の資格情報を呼べないので、

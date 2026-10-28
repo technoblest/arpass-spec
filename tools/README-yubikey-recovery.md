@@ -73,8 +73,12 @@ Options:
 - Writes **`vault.json`** — the full decrypted vault — to the output directory.
 - Recovers and saves any **file attachments** stored in your vault, using each
   attachment's original filename (sanitized).
+- If any entry has a **two-factor (TOTP) code**, writes **`totp_N.txt`**: one
+  `otpauth://totp/...` URI per line for authenticator apps to import. The Arpass
+  app never shows a stored 2FA secret again; this file is how you move them
+  elsewhere. Skip it with `--no-totp`.
 
-The tool never prints raw cryptographic keys. `vault.json` and any recovered
+The tool never prints raw cryptographic keys. `vault.json`, `totp_N.txt` and any recovered
 files are **plaintext** — store them somewhere safe and delete them when done.
 
 ## How it works (summary)

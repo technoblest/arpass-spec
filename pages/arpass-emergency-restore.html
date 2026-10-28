@@ -97,6 +97,10 @@
   .vault-table code { word-break: break-all; }
   .copy-btn, .btn-mini { font-size: 12px; padding: 3px 8px; border: 1px solid #cbd5e1; border-radius: 6px; background: #fff; cursor: pointer; }
   .copy-btn:hover, .btn-mini:hover { background: #f1f5f9; }
+  .totp-panel { padding: 6px 0; }
+  .totp-who { font-weight: 600; margin-bottom: 6px; }
+  .totp-qr svg { width: 200px; height: 200px; display: block; margin-bottom: 8px; background: #fff; }
+  .totp-uri { word-break: break-all; }
   .file-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #eef2f7; flex-wrap: wrap; }
   .file-row .fmeta { flex: 1; min-width: 180px; }
   .file-row .fname { font-weight: 600; }
@@ -195,9 +199,11 @@
               data-ja="CSV でエクスポート" data-en="Export as CSV">CSV でエクスポート</button>
       <button id="export-json-btn" class="btn-outline" type="button"
               data-ja="JSON でエクスポート" data-en="Export as JSON">JSON でエクスポート</button>
+      <button id="export-totp-btn" class="btn-outline hidden" type="button"
+              data-ja="2段階認証を書き出す (otpauth)" data-en="Export 2FA (otpauth)">2段階認証を書き出す (otpauth)</button>
     </div>
-    <p class="hint" data-ja="⚠️ エクスポートした CSV / JSON はパスワードの平文です。 クラウド同期フォルダに置かず、 使い終わったら削除してください。"
-       data-en="Warning: exported CSV / JSON contains your passwords in cleartext. Do not keep it in a cloud-synced folder; delete it when you are done."></p>
+    <p class="hint" data-ja="⚠️ エクスポートした CSV / JSON はパスワードの平文です。 2段階認証の書き出し (otpauth:// URI を 1 行 1 件) は秘密キーの平文です。 クラウド同期フォルダに置かず、 認証アプリへ移したら削除してください。"
+       data-en="Warning: exported CSV / JSON contains your passwords in cleartext, and the 2FA export (one otpauth:// URI per line) contains your two-factor secrets in cleartext. Do not keep them in a cloud-synced folder; delete them once imported into your authenticator app."></p>
   </div>
 
   <!-- files (records) -->
@@ -214,6 +220,6 @@
      data-en="Security: real_MEK = HKDF(K1 ‖ K2). K1 is the company-common key; K2 is yours alone, derived from your own 2-of-3 factors. The K1 file ALONE cannot decrypt any vault — an attacker holding K1 still needs 2 of each employee's own 3 factors (Master / Passkey / Recovery). This tool never calls the Arpass server or any /api endpoint."></p>
 </div>
 
-<script type="module" src="lib/emergency-restore-main.js?v=468a4805"></script>
+<script type="module" src="lib/emergency-restore-main.js?v=eff86adb"></script>
 </body>
 </html>

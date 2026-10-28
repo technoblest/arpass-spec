@@ -82,6 +82,11 @@ memory-hard).
   (with `0600` permissions).
 - Recovers and saves any **file attachments** stored in your vault, using each
   attachment's original filename (sanitized).
+- If any entry has a **two-factor (TOTP) code**, writes **`totp.txt`**: one
+  `otpauth://totp/...` URI per line, which authenticator apps (Google
+  Authenticator, Microsoft Authenticator, 1Password, Aegis, 2FAS, ...) can
+  import. The Arpass app never shows a stored 2FA secret again; this file (and
+  the web emergency tool) is how you move them elsewhere. Skip it with `--no-totp`.
 
 The tool never prints raw cryptographic keys or your secrets.
 

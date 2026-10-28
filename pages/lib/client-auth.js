@@ -18,7 +18,7 @@ import {
   wrapEnvelopeOuter,
   b64uEncode,
   b64uDecode,
-} from "./vault-crypto.js?v=6f4f3ce1";
+} from "./vault-crypto.js?v=623689e7";
 
 import {
   getEnvelopeCache,

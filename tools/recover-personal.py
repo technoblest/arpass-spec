@@ -325,6 +325,91 @@ def recover_files(vault: dict, mek: bytes, out_dir: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Two-factor (TOTP) secrets — docs/totp-spec.md §3.1 / §3.2, bit-compatible with
+# rust-crypto/src/totp.rs and web/lib/emergency-recover-purejs.js. The web app
+# never shows a stored secret again; the recovery tools are the only way out, so
+# you can move each secret to another authenticator app as an otpauth:// URI.
+# ---------------------------------------------------------------------------
+TOTP_WRAP_SALT = b"arpass/totp/v1"
+TOTP_WRAP_INFO = b"totp-wrap"
+TOTP_AAD_PREFIX = b"arpass/totp/v1|"
+
+
+def unwrap_totp_secret(mek: bytes, entry_id: str, wrapped: dict) -> bytes:
+    # totpWrapKey = HKDF-SHA256(MEK, salt="arpass/totp/v1", info="totp-wrap");
+    # AES-256-GCM with aad = "arpass/totp/v1|" + entry id.
+    key = hkdf_sha256(mek, TOTP_WRAP_SALT, TOTP_WRAP_INFO, 32)
+    return AESGCM(key).decrypt(b64u_decode(wrapped["iv"]), b64u_decode(wrapped["ct"]),
+                               TOTP_AAD_PREFIX + entry_id.encode("utf-8"))
+
+
+def totp_otpauth_uri(entry: dict, secret: bytes) -> str:
+    # Same URI as the web emergency tool (safe set = JS encodeURIComponent).
+    from urllib.parse import quote
+
+    def enc(s):
+        return quote(s, safe="!*'()")
+    t = entry.get("totp") or {}
+    issuer = str(t.get("issuer") or entry.get("site") or "").strip()
+    account = str(t.get("account") or entry.get("user") or "").strip() or issuer or "Arpass"
+    label = (enc(issuer) + ":" + enc(account)) if issuer else enc(account)
+    q = ["secret=" + base64.b32encode(secret).decode("ascii").rstrip("=")]
+    if issuer:
+        q.append("issuer=" + enc(issuer))
+    q += ["algorithm=%s" % (t.get("algorithm") or "SHA1"),
+          "digits=%s" % (t.get("digits") or 6),
+          "period=%s" % (t.get("period") or 30)]
+    return "otpauth://totp/" + label + "?" + "&".join(q)
+
+
+def export_totp(vault: dict, mek: bytes, path: str) -> int:
+    """Write one otpauth:// URI per line for every entry with a 2FA secret."""
+    lines = []
+    for e in (vault.get("entries") or []):
+        if not isinstance(e, dict):
+            continue
+        w = (e.get("totp") or {}).get("wrapped") or {}
+        if not (e.get("id") and w.get("iv") and w.get("ct")):
+            continue
+        try:
+            lines.append(totp_otpauth_uri(e, unwrap_totp_secret(mek, e["id"], w)))
+        except Exception as exc:  # noqa: BLE001
+            print("    ! failed to extract the 2FA secret for %s: %s" % (e.get("site") or e.get("id"), exc))
+    if not lines:
+        return 0
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines) + "\n")
+    try:
+        os.chmod(path, 0o600)
+    except OSError:
+        pass
+    print("      Saved %s (%d two-factor secret(s), one otpauth:// URI per line)" % (path, len(lines)))
+    return len(lines)
+
+
+def _totp_selftest() -> None:
+    # Known answer shared with rust-crypto/src/totp.rs (WRAP_KAT_HEX):
+    # mek = 0x42 * 32, iv = 0x24 * 12, entry "e_abc", secret = RFC 6238 SHA1 seed.
+    wrapped = {"iv": b64u_encode(b"\x24" * 12),
+               "ct": b64u_encode(bytes.fromhex(
+                   "4535f82fa68394fd295ea832c094728cc64e202bdcf7fc200acd4b1f3499ec7ea248b039"))}
+    secret = unwrap_totp_secret(b"\x42" * 32, "e_abc", wrapped)
+    assert secret == b"12345678901234567890", "totp unwrap KAT"
+    try:
+        unwrap_totp_secret(b"\x42" * 32, "e_other", wrapped)
+        raise AssertionError("totp unwrap must fail for another entry id (AAD)")
+    except AssertionError:
+        raise
+    except Exception:
+        pass
+    entry = {"id": "e_abc", "site": "GitHub", "user": "alice",
+             "totp": {"issuer": "GitHub", "account": "alice@example.com"}}
+    assert totp_otpauth_uri(entry, secret) == (
+        "otpauth://totp/GitHub:alice%40example.com?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+        "&issuer=GitHub&algorithm=SHA1&digits=6&period=30"), "otpauth uri"
+
+
+# ---------------------------------------------------------------------------
 # Locate the vault envelope across all tiers on the public Arweave network
 # ---------------------------------------------------------------------------
 def find_envelope(rmat: bytes, outer_key: bytes):
@@ -378,6 +463,8 @@ def main() -> int:
         description="Recover an Arpass personal (Master + Recovery) vault from public Arweave.")
     ap.add_argument("--out", default=".", help="Output directory (default: current directory).")
     ap.add_argument("--no-files", action="store_true", help="Skip recovering file attachments.")
+    ap.add_argument("--no-totp", action="store_true",
+                    help="Do not write totp.txt (two-factor secrets as otpauth:// URIs).")
     ap.add_argument("--show-passwords", action="store_true",
                     help="Print passwords in cleartext to the console (default: masked).")
     args = ap.parse_args()
@@ -478,12 +565,17 @@ def main() -> int:
             files = recover_files(vault, mek, out_dir)
             print("      Recovered %d file(s)." % files)
 
+    if not args.no_totp:
+        export_totp(vault, mek, os.path.join(out_dir, "totp.txt"))
+
     print("\n================ SECURITY NOTICE ================")
     print("  vault.json and any recovered attachments are PLAINTEXT")
     print("  (passwords/files in the clear). Handle with care:")
     print("    - Do NOT run this in a cloud-synced/backed-up folder (Dropbox, iCloud, etc.).")
     print("    - Delete these files when you are done (they were written with 0600 perms).")
     print("    - Passwords are masked on screen; use --show-passwords to reveal, or open vault.json.")
+    print("    - totp.txt (if written) holds your two-factor secrets as otpauth:// URIs.")
+    print("      Import them into an authenticator app, then delete the file.")
     print("  This tool only reads from public Arweave gateways; it sends your secrets nowhere.")
     print("  Your Master password and Recovery secret never leave this machine.")
     print("=================================================")
@@ -528,6 +620,7 @@ def _selftest() -> int:
     assert len(b64u_decode(tag["name"])) == APPTAG_NAME_LEN, "app tag name len"
     assert len(b64u_decode(tag["value"])) == APPTAG_VALUE_LEN, "app tag value len"
     assert derive_app_name_tag(r, None)["name"] != tag["name"], "tier suffix changes tag"
+    _totp_selftest()
     print("selftest OK")
     return 0
 
