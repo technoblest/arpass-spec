@@ -46,7 +46,7 @@ import {
 import {
   decryptBusinessVaultWithK1,
   authenticateWithPasskey,
-} from "./vault-client.js?v=adb3cd17";
+} from "./vault-client.js?v=d38b7689";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----
 const STRINGS = {

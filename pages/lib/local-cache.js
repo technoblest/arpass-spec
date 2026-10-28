@@ -22,7 +22,7 @@
 //   client-auth.js) は無修正。そのため意図的に async API にしてある。
 // ============================================================================
 
-import { activeEnvCacheKey, activeRecCacheKeyPrefix } from "./profiles.js?v=69cb395d";
+import { activeEnvCacheKey, activeRecCacheKeyPrefix } from "./profiles.js?v=7762257b";
 
 // Phase 7.1-W: localStorage key を profile-aware に。
 //   旧: const STORAGE_KEY = "arpass.envCache"
