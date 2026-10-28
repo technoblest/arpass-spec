@@ -13,7 +13,7 @@ Mirror generator: scripts/generate-arpass-spec-mirror.mjs
 # TOTP（2段階認証コード）— 保存形式と実装仕様
 
 最終更新: 2026-10-28
-ステータス: **Phase 1〜3 を実装（staging、TOTP の画面は staging のみ有効）。残りは本番公開（§9）**
+ステータス: **本番公開（2026-10-28）。Phase 1〜3 と本番公開まで完了**
 担当: Yamaki / Technoblest
 関連: [rust-crypto-opaque-handle.md](./rust-crypto-opaque-handle.md)（鍵の opaque handle 方式）、
 [web-stage2-raw-mek-elimination-plan.md](./web-stage2-raw-mek-elimination-plan.md)（生 MEK の JS heap 露出撲滅）、
@@ -189,12 +189,11 @@ ct  = AES-256-GCM(totpWrapKey, iv, aad, secretBytes)
 | Phase 2a | Rust（`rust-crypto/src/totp.rs`: `TotpKey` / `MekKey::wrap_totp` / `unwrap_totp` / `code`）、`vault-crypto.js` / `vault-client.js` 末尾の TOTP ヘルパ、保存（`entry.totp`）、登録済み表示と取り外し、詳細画面のコード表示（残り秒数・コピー）。**staging でのみ有効** | staging で実装 |
 | Phase 2b | 鍵ローテーション対応（Personal の Recovery 再発行 Case B、Business の K1 ローテーション）、一覧へのコード表示（残り秒数・コピー） | staging で実装（2026-10-28） |
 | Phase 3 | 緊急復旧ツール（otpauth URI / QR、一括書き出し。business も pure-JS で復号）・`tools/recover-personal.py` / `recover-yubikey.py`（`totp.txt`）、lint の検査 (28)〜(31)、ヘルプ（16 言語、`isTotpUiEnabled` のときだけ表示）、公開仕様ミラーへの本書と `totp.rs` の追加 | staging で実装（2026-10-28） |
-| 本番公開 | `isTotpUiEnabled()` を本番でも true にする、`app.totp.staging_notice` の表示をやめる、ヘルプの節を常時表示にする | 未（八巻さんの確認と承認のあと） |
+| 本番公開 | `isTotpUiEnabled()` を本番でも true にする、`app.totp.staging_notice` の表示をやめる（文言も削除）、ヘルプの節を常時表示にする | 完了（2026-10-28、八巻さんの指示） |
 
-TOTP の画面（登録欄・詳細画面のコード）は `isTotpUiEnabled()`（`web/lib/totp.js`）が true のときだけ表示・保存する。
-true になるのは staging（`staging.arpass.io` / `*.arpass-staging.pages.dev`）、localhost、
-または `localStorage["arpass.feature.totp"] === "1"` のとき。本番では、この localStorage を明示的に
-設定しない限り表示されない。
+TOTP の画面（登録欄・詳細画面と一覧のコード）とヘルプの節は `isTotpUiEnabled()`（`web/lib/totp.js`）が true のときだけ
+表示・保存する。2026-10-28 の本番公開で常に true になった（それまでは staging / localhost / `localStorage["arpass.feature.totp"]`
+のときだけ）。止めるときはこの関数で false を返す。
 
 > **Business の K1 ローテーション後:** 古い K1 がサーバから削除されるまでは読める。移行バナーの一括包み直し
 > （`migrateAllRecordsToCurrentK1`）で TOTP も現行 K1 に移る（2026-10-28）。
