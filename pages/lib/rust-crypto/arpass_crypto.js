@@ -524,6 +524,36 @@ export class MekKey {
         }
     }
     /**
+     * 同じ鍵の別 handle を返す (= raw export なし)。 session が mekKey / mekHkdfKey を
+     * 別々に free する設計のため、 1 つの MEK から 2 つの handle が要る箇所で使う。
+     * @returns {MekKey}
+     */
+    duplicate() {
+        const ret = wasm.mekkey_duplicate(this.__wbg_ptr);
+        return MekKey.__wrap(ret);
+    }
+    /**
+     * Stage 2 raw-MEK elimination: 新規 MEK (/ K2) を WASM 内で生成する。
+     * JS の crypto.getRandomValues → new MekKey(raw) と違い、 生成した鍵を返す
+     * Uint8Array が JS 側に存在しない (= signup / Recovery Case B で生 MEK を作らない)。
+     * @returns {MekKey}
+     */
+    static generate() {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.mekkey_generate(retptr);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return MekKey.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Phase 2-H4-full F3: HKDF-SHA256 で任意 length の raw bytes を派生。
      * K2 (= MekKey 流用) を IKM として sub-key 派生 (= signing key seed 48 byte,
      * recoveryProtect key 32 byte 等) に使う。
@@ -680,6 +710,34 @@ export class MekKey {
         }
     }
     /**
+     * `wrap_totp` の逆。エントリ ID（AAD）や鍵が違えば Err。
+     * @param {Uint8Array} ct
+     * @param {Uint8Array} iv
+     * @param {string} entry_id
+     * @returns {TotpKey}
+     */
+    unwrap_totp(ct, iv, entry_id) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArray8ToWasm0(ct, wasm.__wbindgen_export3);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passArray8ToWasm0(iv, wasm.__wbindgen_export3);
+            const len1 = WASM_VECTOR_LEN;
+            const ptr2 = passStringToWasm0(entry_id, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+            const len2 = WASM_VECTOR_LEN;
+            wasm.mekkey_unwrap_totp(retptr, this.__wbg_ptr, ptr0, len0, ptr1, len1, ptr2, len2);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return TotpKey.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * MEK で BekKey を wrap (= file BEK を envelope.records[].wrap で保管)。
      * @param {BekKey} bek
      * @param {Uint8Array} iv
@@ -756,6 +814,36 @@ export class MekKey {
             var v2 = getArrayU8FromWasm0(r0, r1).slice();
             wasm.__wbindgen_export2(r0, r1 * 1, 1);
             return v2;
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
+     * この MEK から派生した TOTP 専用鍵で `totp` を包む。戻り値は ciphertext + tag。
+     * @param {TotpKey} totp
+     * @param {string} entry_id
+     * @param {Uint8Array} iv
+     * @returns {Uint8Array}
+     */
+    wrap_totp(totp, entry_id, iv) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            _assertClass(totp, TotpKey);
+            const ptr0 = passStringToWasm0(entry_id, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+            const len0 = WASM_VECTOR_LEN;
+            const ptr1 = passArray8ToWasm0(iv, wasm.__wbindgen_export3);
+            const len1 = WASM_VECTOR_LEN;
+            wasm.mekkey_wrap_totp(retptr, this.__wbg_ptr, totp.__wbg_ptr, ptr0, len0, ptr1, len1);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+            if (r3) {
+                throw takeObject(r2);
+            }
+            var v3 = getArrayU8FromWasm0(r0, r1).slice();
+            wasm.__wbindgen_export2(r0, r1 * 1, 1);
+            return v3;
         } finally {
             wasm.__wbindgen_add_to_stack_pointer(16);
         }
@@ -1164,6 +1252,85 @@ export class SigningKey {
     }
 }
 if (Symbol.dispose) SigningKey.prototype[Symbol.dispose] = SigningKey.prototype.free;
+
+/**
+ * TOTP 秘密キーの opaque handle。`Drop` で zeroize。
+ */
+export class TotpKey {
+    static __wrap(ptr) {
+        const obj = Object.create(TotpKey.prototype);
+        obj.__wbg_ptr = ptr;
+        TotpKeyFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        TotpKeyFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_totpkey_free(ptr, 0);
+    }
+    /**
+     * RFC 6238 のコード（`digits` 桁にゼロ埋めした文字列）。`unix_secs` は秒（JS の `Date.now() / 1000`）。
+     * @param {number} unix_secs
+     * @param {number} period
+     * @param {number} digits
+     * @param {string} algorithm
+     * @returns {string}
+     */
+    code(unix_secs, period, digits, algorithm) {
+        let deferred3_0;
+        let deferred3_1;
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passStringToWasm0(algorithm, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.totpkey_code(retptr, this.__wbg_ptr, unix_secs, period, digits, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            var r3 = getDataViewMemory0().getInt32(retptr + 4 * 3, true);
+            var ptr2 = r0;
+            var len2 = r1;
+            if (r3) {
+                ptr2 = 0; len2 = 0;
+                throw takeObject(r2);
+            }
+            deferred3_0 = ptr2;
+            deferred3_1 = len2;
+            return getStringFromWasm0(ptr2, len2);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+            wasm.__wbindgen_export2(deferred3_0, deferred3_1, 1);
+        }
+    }
+    /**
+     * 登録時: Base32（`A-Z2-7`、小文字可、空白・`-`・末尾の `=` は無視）をデコードして handle 化。
+     * @param {string} s
+     * @returns {TotpKey}
+     */
+    static from_base32(s) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passStringToWasm0(s, wasm.__wbindgen_export3, wasm.__wbindgen_export4);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.totpkey_from_base32(retptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return TotpKey.__wrap(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+}
+if (Symbol.dispose) TotpKey.prototype[Symbol.dispose] = TotpKey.prototype.free;
 
 export function _init() {
     wasm._init();
@@ -1653,31 +1820,31 @@ export function sha256_hash(input) {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg_Error_fdd633d4bb5dd76a: function(arg0, arg1) {
+        __wbg_Error_30c8987f7c2ed4e2: function(arg0, arg1) {
             const ret = Error(getStringFromWasm0(arg0, arg1));
             return addHeapObject(ret);
         },
-        __wbg___wbindgen_is_function_acc5528be2b923f2: function(arg0) {
+        __wbg___wbindgen_is_function_1f9d30630b8b1d3d: function(arg0) {
             const ret = typeof(getObject(arg0)) === 'function';
             return ret;
         },
-        __wbg___wbindgen_is_object_0beba4a1980d3eea: function(arg0) {
+        __wbg___wbindgen_is_object_3c45d4f2dde4e749: function(arg0) {
             const val = getObject(arg0);
             const ret = typeof(val) === 'object' && val !== null;
             return ret;
         },
-        __wbg___wbindgen_is_string_1fca8072260dd261: function(arg0) {
+        __wbg___wbindgen_is_string_90b56bc79aad6f6c: function(arg0) {
             const ret = typeof(getObject(arg0)) === 'string';
             return ret;
         },
-        __wbg___wbindgen_is_undefined_721f8decd50c87a3: function(arg0) {
+        __wbg___wbindgen_is_undefined_8865fb403f8fe9d8: function(arg0) {
             const ret = getObject(arg0) === undefined;
             return ret;
         },
-        __wbg___wbindgen_throw_ea4887a5f8f9a9db: function(arg0, arg1) {
+        __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_call_5575218572ead796: function() { return handleError(function (arg0, arg1, arg2) {
+        __wbg_call_187d372bd5fdd4aa: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = getObject(arg0).call(getObject(arg1), getObject(arg2));
             return addHeapObject(ret);
         }, arguments); },
@@ -1685,7 +1852,7 @@ function __wbg_get_imports() {
             const ret = getObject(arg0).crypto;
             return addHeapObject(ret);
         },
-        __wbg_error_a6fa202b58aa1cd3: function(arg0, arg1) {
+        __wbg_error_757e9472f8410341: function(arg0, arg1) {
             let deferred0_0;
             let deferred0_1;
             try {
@@ -1699,7 +1866,7 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             getObject(arg0).getRandomValues(getObject(arg1));
         }, arguments); },
-        __wbg_length_589238bdcf171f0e: function(arg0) {
+        __wbg_length_7f3c00c40364105e: function(arg0) {
             const ret = getObject(arg0).length;
             return ret;
         },
@@ -1711,7 +1878,7 @@ function __wbg_get_imports() {
             const ret = new Error();
             return addHeapObject(ret);
         },
-        __wbg_new_with_length_9b650f44b5c44a4e: function(arg0) {
+        __wbg_new_with_length_3da0ad195f6f63ba: function(arg0) {
             const ret = new Uint8Array(arg0 >>> 0);
             return addHeapObject(ret);
         },
@@ -1723,7 +1890,7 @@ function __wbg_get_imports() {
             const ret = getObject(arg0).process;
             return addHeapObject(ret);
         },
-        __wbg_prototypesetcall_d721637c7ca66eb8: function(arg0, arg1, arg2) {
+        __wbg_prototypesetcall_bc27214492979395: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), getObject(arg2));
         },
         __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
@@ -1740,23 +1907,23 @@ function __wbg_get_imports() {
             getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
             getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
-        __wbg_static_accessor_GLOBAL_THIS_2fee5048bcca5938: function() {
-            const ret = typeof globalThis === 'undefined' ? null : globalThis;
-            return isLikeNone(ret) ? 0 : addHeapObject(ret);
-        },
-        __wbg_static_accessor_GLOBAL_ce44e66a4935da8c: function() {
+        __wbg_static_accessor_GLOBAL_266715b9d96ba635: function() {
             const ret = typeof global === 'undefined' ? null : global;
             return isLikeNone(ret) ? 0 : addHeapObject(ret);
         },
-        __wbg_static_accessor_SELF_44f6e0cb5e67cdad: function() {
+        __wbg_static_accessor_GLOBAL_THIS_10fb7dc1ae063179: function() {
+            const ret = typeof globalThis === 'undefined' ? null : globalThis;
+            return isLikeNone(ret) ? 0 : addHeapObject(ret);
+        },
+        __wbg_static_accessor_SELF_0b583911f537483a: function() {
             const ret = typeof self === 'undefined' ? null : self;
             return isLikeNone(ret) ? 0 : addHeapObject(ret);
         },
-        __wbg_static_accessor_WINDOW_168f178805d978fe: function() {
+        __wbg_static_accessor_WINDOW_d7f903d1508cbdc4: function() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addHeapObject(ret);
         },
-        __wbg_subarray_b0e8ac4ed313fea8: function(arg0, arg1, arg2) {
+        __wbg_subarray_002b94d5e13d1411: function(arg0, arg1, arg2) {
             const ret = getObject(arg0).subarray(arg1 >>> 0, arg2 >>> 0);
             return addHeapObject(ret);
         },
@@ -1764,12 +1931,12 @@ function __wbg_get_imports() {
             const ret = getObject(arg0).versions;
             return addHeapObject(ret);
         },
-        __wbindgen_cast_0000000000000001: function(arg0, arg1) {
+        __wbindgen_generic_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
             const ret = getArrayU8FromWasm0(arg0, arg1);
             return addHeapObject(ret);
         },
-        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
+        __wbindgen_generic_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return addHeapObject(ret);
@@ -1809,6 +1976,9 @@ const RMatKeyFinalization = (typeof FinalizationRegistry === 'undefined')
 const SigningKeyFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_signingkey_free(ptr, 1));
+const TotpKeyFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_totpkey_free(ptr, 1));
 
 function addHeapObject(obj) {
     if (heap_next === heap.length) heap.push(heap.length + 1);
@@ -1967,11 +2137,15 @@ function __wbg_finalize_init(instance, module) {
 
 async function __wbg_load(module, imports) {
     if (typeof Response === 'function' && module instanceof Response) {
+        if (!module.ok) {
+            throw new Error(`failed to fetch Wasm: ${module.status} ${module.statusText} fetching '${module.url}'`);
+        }
+
         if (typeof WebAssembly.instantiateStreaming === 'function') {
             try {
                 return await WebAssembly.instantiateStreaming(module, imports);
             } catch (e) {
-                const validResponse = module.ok && expectedResponseType(module.type);
+                const validResponse = expectedResponseType(module.type);
 
                 if (validResponse && module.headers.get('Content-Type') !== 'application/wasm') {
                     console.warn("`WebAssembly.instantiateStreaming` failed because your server does not serve Wasm with `application/wasm` MIME type. Falling back to `WebAssembly.instantiate` which is slower. Original error:\n", e);

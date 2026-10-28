@@ -464,6 +464,27 @@ pub fn random_bytes(length: u32) -> Result<Vec<u8>, JsError> {
 
 use zeroize::Zeroize;
 
+// TOTP（2段階認証コード）: TotpKey handle と MekKey::wrap_totp / unwrap_totp。docs/totp-spec.md
+pub mod totp;
+
+/// getrandom の js backend (= ブラウザ) は乱数を一旦 256 byte の JS 側 scratch
+/// Uint8Array に書いてから WASM memory へコピーし、 scratch は次の呼び出しまで
+/// そのまま残る (getrandom 0.2 src/js.rs)。 鍵を引いた直後に scratch 全体を
+/// 捨て乱数で上書きして、 生成した鍵バイトが JS heap に残らないようにする。
+const GETRANDOM_JS_SCRATCH_LEN: usize = 256;
+
+fn random_key_bytes(out: &mut [u8; 32]) -> Result<(), getrandom::Error> {
+    getrandom::getrandom(out)?;
+    let mut scrub = [0u8; GETRANDOM_JS_SCRATCH_LEN];
+    let r = getrandom::getrandom(&mut scrub);
+    scrub.zeroize();
+    if let Err(e) = r {
+        out.zeroize();
+        return Err(e);
+    }
+    Ok(())
+}
+
 /// MEK opaque handle (= Master-derived data encryption key、 Phase 7.3-A.5)。
 ///
 /// 内部に 32 byte の AES-256 key を保持。 raw bytes export 関数なし。
@@ -485,6 +506,22 @@ impl MekKey {
         let mut bytes = [0u8; 32];
         bytes.copy_from_slice(raw);
         Ok(MekKey { bytes })
+    }
+
+    /// Stage 2 raw-MEK elimination: 新規 MEK (/ K2) を WASM 内で生成する。
+    /// JS の crypto.getRandomValues → new MekKey(raw) と違い、 生成した鍵を返す
+    /// Uint8Array が JS 側に存在しない (= signup / Recovery Case B で生 MEK を作らない)。
+    pub fn generate() -> Result<MekKey, JsError> {
+        let mut bytes = [0u8; 32];
+        random_key_bytes(&mut bytes)
+            .map_err(|e| JsError::new(&format!("MekKey::generate: {e}")))?;
+        Ok(MekKey { bytes })
+    }
+
+    /// 同じ鍵の別 handle を返す (= raw export なし)。 session が mekKey / mekHkdfKey を
+    /// 別々に free する設計のため、 1 つの MEK から 2 つの handle が要る箇所で使う。
+    pub fn duplicate(&self) -> MekKey {
+        MekKey { bytes: self.bytes }
     }
 
     /// AES-256-GCM encrypt with this handle as key。
@@ -691,7 +728,7 @@ impl BekKey {
     /// から渡す。 ここでは getrandom 経由 (= window.crypto に橋渡し済)。
     pub fn generate() -> Result<BekKey, JsError> {
         let mut bytes = [0u8; 32];
-        getrandom::getrandom(&mut bytes)
+        random_key_bytes(&mut bytes)
             .map_err(|e| JsError::new(&format!("BekKey::generate: {e}")))?;
         Ok(BekKey { bytes })
     }
@@ -1851,5 +1888,74 @@ mod tests {
         let body_ct = aes256_gcm_encrypt(&mek, &body_iv, plaintext, &[]).unwrap();
         let decrypted = mek_handle.aes_gcm_decrypt(&body_iv, &body_ct, &[]).unwrap();
         assert_eq!(decrypted, plaintext, "unwrap_mek した handle == 元 MEK");
+    }
+
+    #[test]
+    fn wrap_mek_handle_equals_raw_secret_wrap() {
+        // Stage 2 A-2: addCredential / changePassword / changeRecovery_caseA の
+        //   secretToWrap (Personal: MEK / Business: K2) を handle で渡したとき
+        //   (kek.wrap_mek(secret, iv)) と、 raw で渡したとき (aesGcmEncrypt(kek, iv, raw) =
+        //   kek.aes_gcm_encrypt(iv, raw, [])) の wrap が bit-identical であること。
+        let m1 = [0x31u8; 32];
+        let m2 = [0x52u8; 32];
+        let secret = [0x7cu8; 32];
+        let iv = [9u8; 12];
+        for (salt, info) in [
+            (&b"arpass-kek-pr-v1"[..], &b"kek-pr"[..]),
+            (&b"arpass-kek-pk-v1"[..], &b"kek-pk"[..]),
+            (&b"arpass-kek-kr-v1"[..], &b"kek-kr"[..]),
+        ] {
+            let kek = derive_kek_handle(&m1, &m2, salt, info).unwrap();
+            let via_handle = kek.wrap_mek(&MekKey::new(&secret).unwrap(), &iv).unwrap();
+            let via_js_raw = kek.aes_gcm_encrypt(&iv, &secret, &[]).unwrap();
+            let mut ikm = Vec::new();
+            ikm.extend_from_slice(&m1);
+            ikm.extend_from_slice(&m2);
+            let kek_raw = hkdf_sha256(&ikm, salt, info, 32).unwrap();
+            let via_raw = aes256_gcm_encrypt(&kek_raw, &iv, &secret, &[]).unwrap();
+            assert_eq!(via_handle, via_js_raw, "wrap_mek == aes_gcm_encrypt(raw secret)");
+            assert_eq!(via_handle, via_raw, "wrap_mek == raw HKDF KEK + AES-GCM");
+            // 旧 (raw) 経路での unwrap が元 secret を返す = 既存クライアント互換
+            let back = aes256_gcm_decrypt(&kek_raw, &iv, &via_handle, &[]).unwrap();
+            assert_eq!(back, secret.to_vec());
+        }
+    }
+
+    #[test]
+    fn mek_generate_unique_and_raw_compatible() {
+        // MekKey::generate で作った MEK を KEK で wrap した envelope は、 旧 raw 経路
+        //   (= raw unwrap → raw 鍵で本体復号 / 署名鍵派生) とも完全に互換であること。
+        let a = MekKey::generate().unwrap();
+        let b = MekKey::generate().unwrap();
+        assert_ne!(a.bytes, b.bytes, "generate は毎回別の鍵");
+        assert_ne!(a.bytes, [0u8; 32], "generate は all-zero を返さない");
+
+        let kek_raw = hkdf_sha256(&[0x44u8; 64], b"arpass-kek-pr-v1", b"kek-pr", 32).unwrap();
+        let kek = MekKey::new(&kek_raw).unwrap();
+        let iv = [3u8; 12];
+        let wrapped = kek.wrap_mek(&a, &iv).unwrap();
+        let mek_raw = aes256_gcm_decrypt(&kek_raw, &iv, &wrapped, &[]).unwrap();
+        assert_eq!(mek_raw.len(), 32);
+
+        let body_iv = [4u8; 12];
+        let body = a.aes_gcm_encrypt(&body_iv, b"vault body", &[]).unwrap();
+        assert_eq!(aes256_gcm_decrypt(&mek_raw, &body_iv, &body, &[]).unwrap(), b"vault body");
+
+        let salt = b"arpass-signing-key-v5";  // HKDF_SALTS.signing_key
+        let info = b"p256-keypair";           // HKDF_INFOS.signing_key
+        let sk = a.derive_signing_key(salt, info).unwrap();
+        let legacy = p256_keypair_from_seed(&hkdf_sha256(&mek_raw, salt, info, 48).unwrap()).unwrap();
+        assert_eq!(sk.public_key_raw(), &legacy[32..97], "generate 鍵の署名 pubkey == raw 経路");
+    }
+
+    #[test]
+    fn mek_duplicate_is_same_key_and_independent() {
+        let orig = MekKey::new(&[0x5au8; 32]).unwrap();
+        let dup = orig.duplicate();
+        let iv = [6u8; 12];
+        let ct = orig.aes_gcm_encrypt(&iv, b"x", &[]).unwrap();
+        drop(orig);  // 片方を free (= Drop で zeroize) しても他方は有効
+        assert_eq!(dup.aes_gcm_decrypt(&iv, &ct, &[]).unwrap(), b"x");
+        assert_eq!(dup.bytes, [0x5au8; 32]);
     }
 }

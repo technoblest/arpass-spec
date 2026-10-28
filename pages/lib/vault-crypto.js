@@ -41,7 +41,7 @@ async function _getRustCrypto() {
   if (_rustCryptoLoading) return _rustCryptoLoading;
   _rustCryptoLoading = (async () => {
     try {
-      const mod = await import("./rust-crypto/arpass_crypto.js?v=864a584e");
+      const mod = await import("./rust-crypto/arpass_crypto.js?v=0f39971d");
       // wasm-bindgen が emit する default export は init 関数。 呼ぶと
       // /lib/rust-crypto/arpass_crypto_bg.wasm を fetch + instantiate する。
       await mod.default();
@@ -197,18 +197,18 @@ const HKDF_INFOS = {
 //
 // Phase 6.7 (2026-05-06): on-chain 110 KiB ターゲットに最適化。
 //   raw 80 KiB → base64 1.33× → on-chain 約 106-117 KiB (jitter 込み)
-//   平均コスト ~¥0.33/write。Turbo 無料枠 100 KiB を最小ケースでも超える。
+//   Turbo 無料枠 100 KiB を最小ケースでも超える。
 //
 // これにより以下を同時に達成する:
 //   (a) フィンガープリント耐性: tx サイズで Arpass vault を一発抽出できない
 //   (b) フリーライド回避: 全 write が Turbo の有料 tier に入り、AUP 違反リスクを排除
 //   (c) サイズ秘匿: エントリ数の増減が外部に漏れない
-//   (d) コスト最小化: 過去 120 KiB raw (¥0.47/write) → 80 KiB raw (¥0.33/write) で 30% 圧縮
+//   (d) コスト最小化: 過去 120 KiB raw → 80 KiB raw で 1 回あたりの書き込みコストを約 30% 削減
 //
 // 履歴:
 //   v5.0 cutover: `[4 KiB, 16 KiB, ...]` に退化 (a)(b) 破綻 — Phase 5.2 で修正
-//   Phase 5.2:    `[120 KiB, ...]` に復元 (a)(b)(c) 達成、コスト ¥0.47/write
-//   Phase 6.7:    `[80 KiB, ...]` に再設計 (a)(b)(c)(d) 達成、コスト ¥0.33/write
+//   Phase 5.2:    `[120 KiB, ...]` に復元 (a)(b)(c) 達成
+//   Phase 6.7:    `[80 KiB, ...]` に再設計 (a)(b)(c)(d) 達成
 const PAD_BUCKETS = [80 * 1024, 160 * 1024, 240 * 1024];
 // バケットに加算するランダムジッタ。同一ユーザーの連続書き込みでも tx サイズが
 // 揺らぐので「サイズ X = Arpass」という size-based フィンガープリントが成立しない。
@@ -914,6 +914,27 @@ async function aesGcmDecrypt(key, iv, ciphertext, aad) {
   throw new Error("aesGcmDecrypt: key は opaque handle または Uint8Array 必須 (CryptoKey 廃止)");
 }
 
+// Stage 2 A-2: envelope.w に入れる secret (Personal: MEK / Business: K2) を KEK で wrap する。
+//   MekKey handle なら kek.wrap_mek で WASM 内完結 (= 生 secret を JS heap に出さない)、
+//   raw 32B なら従来の aesGcmEncrypt。 両経路の出力は bit-identical
+//   (Rust test wrap_mek_handle_equals_raw_secret_wrap)。
+async function _wrapSecretWithKek(kek, iv, secret) {
+  if (secret instanceof Uint8Array) {
+    if (secret.length !== 32) throw new Error("secretToWrap: raw は 32 byte");
+    return aesGcmEncrypt(kek, iv, secret);
+  }
+  if (secret && typeof secret.hkdf_derive_mek === "function" && kek && typeof kek.wrap_mek === "function") {
+    return kek.wrap_mek(secret, iv);
+  }
+  throw new Error("secretToWrap: MekKey handle または 32-byte Uint8Array 必須");
+}
+
+function _freeHandles(...hs) {
+  for (const h of hs) {
+    if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Phase 7.0w-AH: encryptedRecovery (vault 内 Recovery 保管) helpers
 // ---------------------------------------------------------------------------
@@ -1508,8 +1529,9 @@ export async function decryptVault(envelope, factors) {
  * 既存 envelope に新端末の Passkey を追加 (AB / BC wrap を 2 個追加)。
  * 既存の MEK / publicKey は不変。
  *
- * @param {Uint8Array} secretToWrap  Personal mode: real MEK、 Business mode: K2
- *                                    (= envelope.w に wrap される 32 byte 素材)
+ * @param {object|Uint8Array} secretToWrap  Personal mode: real MEK、 Business mode: K2
+ *                                    (= envelope.w に wrap される 32 byte 素材)。
+ *                                    MekKey handle (推奨、 生 secret 不要) または raw 32B。
  */
 export async function addCredential(envelope, secretToWrap, password, recoveryMaterial, newPrfOutput, newCredIdHash) {
   const salt = b64uDecode(envelope.s);
@@ -1522,8 +1544,13 @@ export async function addCredential(envelope, secretToWrap, password, recoveryMa
   const kekKR = await deriveKEK(kMat, rMat, "kek_kr");
   const ivB = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
   const ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapB = await aesGcmEncrypt(kekPK, ivB, secretToWrap);
-  const wrapC = await aesGcmEncrypt(kekKR, ivC, secretToWrap);
+  let wrapB, wrapC;
+  try {
+    wrapB = await _wrapSecretWithKek(kekPK, ivB, secretToWrap);
+    wrapC = await _wrapSecretWithKek(kekKR, ivC, secretToWrap);
+  } finally {
+    _freeHandles(kekPK, kekKR);
+  }
 
   // 既存の同じ credIdHash があれば置き換え (1 端末 1 wrap、上書き安全)
   const newW = JSON.parse(JSON.stringify(envelope.w));
@@ -1545,7 +1572,7 @@ export async function addCredential(envelope, secretToWrap, password, recoveryMa
  *     - 新 Passkey 用の BC wrap (Passkey+Recovery) を追加 (Master 無関係)
  *   旧 Passkey の BC wrap は残す (Master 無関係に有効。各端末の救済路)。
  * @param {object} envelope
- * @param {Uint8Array} secretToWrap   Personal: MEK / Business: K2
+ * @param {object|Uint8Array} secretToWrap   Personal: MEK / Business: K2 (MekKey handle または raw 32B)
  * @param {string} newCredIdHash      changePasswordUI が作った新 Passkey の credIdHash
  * @param {string} newPassword        新 Master
  * @param {Uint8Array} newPrfOutput   新 Passkey の PRF 出力
@@ -1559,20 +1586,26 @@ export async function changePassword(envelope, secretToWrap, newCredIdHash, newP
   const newKMat = deriveKMat(newPrfOutput);
   const rMat = recoveryMaterial.slice(0, 32);
 
-  // AC wrap (Master+Recovery) を新 Master で再生成
-  const kekPR = await deriveKEK(newPMat, rMat, "kek_pr");
-  const ivA = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapA = await aesGcmEncrypt(kekPR, ivA, secretToWrap);
+  let kekPR = null, kekPK = null, kekKR = null;
+  let ivA, wrapA, ivB, wrapB, ivC, wrapC;
+  try {
+    // AC wrap (Master+Recovery) を新 Master で再生成
+    kekPR = await deriveKEK(newPMat, rMat, "kek_pr");
+    ivA = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    wrapA = await _wrapSecretWithKek(kekPR, ivA, secretToWrap);
 
-  // AB wrap (Master+Passkey): 全 wraps.pk を破棄し新 Passkey 用 1 個だけにする
-  const kekPK = await deriveKEK(newPMat, newKMat, "kek_pk");
-  const ivB = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapB = await aesGcmEncrypt(kekPK, ivB, secretToWrap);
+    // AB wrap (Master+Passkey): 全 wraps.pk を破棄し新 Passkey 用 1 個だけにする
+    kekPK = await deriveKEK(newPMat, newKMat, "kek_pk");
+    ivB = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    wrapB = await _wrapSecretWithKek(kekPK, ivB, secretToWrap);
 
-  // BC wrap (Passkey+Recovery): 新 Passkey 用エントリを追加 (Master 無関係)
-  const kekKR = await deriveKEK(newKMat, rMat, "kek_kr");
-  const ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapC = await aesGcmEncrypt(kekKR, ivC, secretToWrap);
+    // BC wrap (Passkey+Recovery): 新 Passkey 用エントリを追加 (Master 無関係)
+    kekKR = await deriveKEK(newKMat, rMat, "kek_kr");
+    ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    wrapC = await _wrapSecretWithKek(kekKR, ivC, secretToWrap);
+  } finally {
+    _freeHandles(kekPR, kekPK, kekKR);
+  }
 
   const newW = JSON.parse(JSON.stringify(envelope.w));
   newW.a = { i: b64uEncode(ivA), c: b64uEncode(wrapA) };
@@ -1595,15 +1628,21 @@ export async function changeRecovery_caseA(envelope, secretToWrap, password, cur
   const kMat = deriveKMat(currentPrfOutput);
   const newRMat = newRecoveryMaterial.slice(0, 32);
 
-  // AC wrap 再生成
-  const kekPR = await deriveKEK(pMat, newRMat, "kek_pr");
-  const ivA = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapA = await aesGcmEncrypt(kekPR, ivA, secretToWrap);
+  let kekPR = null, kekKR = null;
+  let ivA, wrapA, ivC, wrapC;
+  try {
+    // AC wrap 再生成
+    kekPR = await deriveKEK(pMat, newRMat, "kek_pr");
+    ivA = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    wrapA = await _wrapSecretWithKek(kekPR, ivA, secretToWrap);
 
-  // この端末の BC wrap 再生成
-  const kekKR = await deriveKEK(kMat, newRMat, "kek_kr");
-  const ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
-  const wrapC = await aesGcmEncrypt(kekKR, ivC, secretToWrap);
+    // この端末の BC wrap 再生成
+    kekKR = await deriveKEK(kMat, newRMat, "kek_kr");
+    ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    wrapC = await _wrapSecretWithKek(kekKR, ivC, secretToWrap);
+  } finally {
+    _freeHandles(kekPR, kekKR);
+  }
 
   const newW = JSON.parse(JSON.stringify(envelope.w));
   newW.a = { i: b64uEncode(ivA), c: b64uEncode(wrapA) };
@@ -1650,12 +1689,26 @@ export async function changeRecovery_caseB(envelope, oldMek, vault, password, cu
   const wrapB = await aesGcmEncrypt(kekPK, ivB, newMek);
   const wrapC = await aesGcmEncrypt(kekKR, ivC, newMek);
 
+  // 2026-10-27: 本体を新 MEK で暗号化する前に、旧 MEK で直接包んでいたファイルの鍵 (BEK / CEK) と
+  //   2段階認証の秘密キー (entries[].totp) を新 MEK で包み直す。以前は包み直しておらず、
+  //   Case B の後にそれらが開けなくなっていた。1 つでも失敗したら例外 (中途半端な状態で書き込まない)。
+  const _oldMekH = await importMekRawAsHandle(oldMek);
+  const _newMekH = await importMekRawAsHandle(newMek);
+  let _rewrapped;
+  try {
+    _rewrapped = await rewrapVaultSecretsForNewMek(vault, _oldMekH, _newMekH);
+  } finally {
+    for (const h of [_oldMekH, _newMekH]) {
+      if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
+    }
+  }
+
   // 新 MEK で本体再暗号化
   // Phase 7.0w-AH/AP: 新 Recovery + 新 MEK で encryptedRecovery も refresh。
   // 文字列が渡されていない場合は encryptedRecovery 抜きで再暗号化 (legacy 互換)。
   const vaultWithRecovery = (typeof newRecoverySecret === "string" && newRecoverySecret.length > 0)
-    ? await injectEncryptedRecovery(vault, newRecoverySecret, newMek)
-    : vault;
+    ? await injectEncryptedRecovery(_rewrapped.vault, newRecoverySecret, newMek)
+    : _rewrapped.vault;
   const ivBody = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
   const mekKey = await importMekRawAsHandle(newMek);  // Rust handle (CryptoKey importKey 廃止)
   const padded = padPlaintext(enc.encode(JSON.stringify(vaultWithRecovery)));
@@ -1684,6 +1737,9 @@ export async function changeRecovery_caseB(envelope, oldMek, vault, password, cu
     newAppNameTag: deriveAppNameTag(newRMat),
     newSigningKey: deriveSigningKey(newMek),
     oldSigningKey,
+    // 2026-10-27: 包み直し済みの vault (= 本体として書き込んだ内容)。呼出側は session の vault をこれに揃える
+    vault: vaultWithRecovery,
+    rewrapCounts: _rewrapped.counts,
   };
 }
 
@@ -3056,4 +3112,92 @@ export function isUserIdHwkey(userIdBytes) {
   return userIdBytes instanceof Uint8Array
     && userIdBytes.length === USERID_HWKEY_LEN
     && userIdBytes[0] === USERID_HWKEY_VERSION;
+}
+
+// ---------------------------------------------------------------------------
+// TOTP（2段階認証コード）— docs/totp-spec.md
+//   秘密キーは Rust の TotpKey handle の中だけに置き、JS には生バイトを返さない。
+//   包む / ほどくのは MekKey handle のメソッド（rust-crypto/src/totp.rs）。
+//   MekKey と同じ WASM インスタンスの TotpKey を使う必要があるので、ここ経由で作る。
+// ---------------------------------------------------------------------------
+
+/** 登録時: Base32 文字列から TotpKey handle を作る。WASM が使えなければ null。 */
+export async function totpKeyFromBase32ViaRust(base32) {
+  const rc = await _getRustCrypto();
+  if (!rc || typeof rc.TotpKey?.from_base32 !== "function") return null;
+  return rc.TotpKey.from_base32(base32);
+}
+
+/** TotpKey を MekKey handle で包む（AAD = エントリ ID）。戻り値は { iv, ct }（Uint8Array）。 */
+export function wrapTotpWithMekHandle(mekHandle, totpKey, entryId) {
+  if (!mekHandle || typeof mekHandle.wrap_totp !== "function") {
+    throw new Error("wrapTotpWithMekHandle: MekKey handle required");
+  }
+  const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+  const ct = mekHandle.wrap_totp(totpKey, entryId, iv);
+  return { iv, ct };
+}
+
+/** 包んだ秘密キーを MekKey handle でほどいて TotpKey handle を返す。呼出側は使い終わったら free する。 */
+export function unwrapTotpWithMekHandle(mekHandle, ct, iv, entryId) {
+  if (!mekHandle || typeof mekHandle.unwrap_totp !== "function") {
+    throw new Error("unwrapTotpWithMekHandle: MekKey handle required");
+  }
+  return mekHandle.unwrap_totp(ct, iv, entryId);
+}
+
+/**
+ * Recovery 再発行 Case B（MEK 一新）用: vault の中で MEK に直接包まれている鍵を新 MEK で包み直す。
+ *   - ファイルの鍵: `wrappedBEK` / `wrappedCEK` と `wrapIv` を持つオブジェクト（records の
+ *     attachments[].encryption、chunks[].encryption など。場所に依存しないよう vault 全体を走査）
+ *   - 2段階認証の秘密キー: entries[].totp.wrapped（AAD = entry.id）
+ * 鍵はすべて Rust の handle のまま扱い、JS に生バイトを出さない。元の vault は変更せず、
+ * 包み直したコピーを返す。1 つでもほどけなければ例外（中途半端な状態で保存させない）。
+ *
+ * @param {object} vault
+ * @param {object} oldMekHandle  MekKey（旧 MEK）
+ * @param {object} newMekHandle  MekKey（新 MEK）
+ * @returns {Promise<{ vault: object, counts: { bek: number, cek: number, totp: number } }>}
+ */
+export async function rewrapVaultSecretsForNewMek(vault, oldMekHandle, newMekHandle) {
+  if (!oldMekHandle || !newMekHandle) throw new Error("rewrapVaultSecretsForNewMek: MekKey handles required");
+  const out = JSON.parse(JSON.stringify(vault ?? {}));
+  const counts = { bek: 0, cek: 0, totp: 0 };
+  const walk = (node) => {
+    if (!node || typeof node !== "object") return;
+    if (Array.isArray(node)) { node.forEach(walk); return; }
+    for (const [field, kind] of [["wrappedBEK", "bek"], ["wrappedCEK", "cek"]]) {
+      if (typeof node[field] !== "string" || typeof node.wrapIv !== "string") continue;
+      if (node.k1Version != null) {
+        // Business の real MEK で包んだものは Case B の対象外（Case B は Personal 専用）
+        throw new Error("rewrapVaultSecretsForNewMek: business-wrapped key found (k1Version)");
+      }
+      const h = oldMekHandle.unwrap_bek(b64uDecode(node[field]), b64uDecode(node.wrapIv));
+      try {
+        const iv = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+        node[field] = b64uEncode(newMekHandle.wrap_bek(h, iv));
+        node.wrapIv = b64uEncode(iv);
+        counts[kind]++;
+      } finally {
+        if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
+      }
+    }
+    for (const [k, v] of Object.entries(node)) {
+      if (k !== "entries") walk(v);
+    }
+  };
+  walk(out);
+  for (const e of Array.isArray(out.entries) ? out.entries : []) {
+    const t = e?.totp?.wrapped;
+    if (!t?.ct || !t?.iv) continue;
+    const k = unwrapTotpWithMekHandle(oldMekHandle, b64uDecode(t.ct), b64uDecode(t.iv), e.id);
+    try {
+      const w = wrapTotpWithMekHandle(newMekHandle, k, e.id);
+      e.totp.wrapped = { iv: b64uEncode(w.iv), ct: b64uEncode(w.ct) };
+      counts.totp++;
+    } finally {
+      k.free();
+    }
+  }
+  return { vault: out, counts };
 }

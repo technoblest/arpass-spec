@@ -41,12 +41,12 @@ import {
   credentialIdToHash,
   unwrapBekWithMekHandle,
   decryptWithBekHandle,
-} from "./vault-crypto.js?v=6bb1e228";
+} from "./vault-crypto.js?v=6f4f3ce1";
 
 import {
   decryptBusinessVaultWithK1,
   authenticateWithPasskey,
-} from "./vault-client.js?v=d38b7689";
+} from "./vault-client.js?v=c162c514";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----
 const STRINGS = {

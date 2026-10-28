@@ -34,6 +34,8 @@ aes = "0.8"             # AES block cipher (CTR mode 用)
 ctr = "0.9"             # AES-256-CTR (= v7 user.id outer-key Master-wrap)
 sha2 = "0.10"           # SHA-256
 hkdf = "0.12"           # HKDF
+hmac = "0.12"          # HMAC (TOTP, RFC 6238)
+sha1 = "0.10"          # SHA-1 (TOTP の既定方式。RFC 6238 / otpauth の標準)
 p256 = { version = "0.13", features = ["ecdh", "ecdsa", "arithmetic", "pkcs8"] }   # ECDH P-256 + ECDSA + PKCS8
 elliptic-curve = { version = "0.13", features = ["sec1"] }
 crypto-bigint = "0.5"
