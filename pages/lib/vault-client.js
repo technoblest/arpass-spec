@@ -1776,7 +1776,9 @@ export async function hwkeyAuthenticateForUnlock(opts = {}) {
     let hint = null;
     if (!_forcePicker) { try { const m = readMeta(); if (m && m.mode === "hwkey" && m.credentialId) hint = m.credentialId; } catch (_) {} }
     console.log("[hwkeyAuthForUnlock] iOS native assertion 経路 hint=" + (hint ? "あり(specific)" : "なし(discoverable)") + " forcePicker=" + _forcePicker);
-    return await nativeHwkeyAssert(hint ? [hint] : null);
+    const nr = await nativeHwkeyAssert(hint ? [hint] : null);
+    if (!hint) nr.viaPicker = true;
+    return nr;
   }
   let hint = null;
   try {
@@ -1812,7 +1814,24 @@ export async function hwkeyAuthenticateForUnlock(opts = {}) {
   //   Mac Chrome / iPhone Safari は picker + PRF で問題ないので、 1-tap 維持。
   // Android 2-tap 特例は撤去。UV=required の単一 discover(+PRF) に全環境統一(PM 起動1回)。
   console.log("[hwkeyAuthForUnlock] picker get (1-tap)");
-  return await hwkeyAuthenticate({ forcePicker: true });
+  const pr = await hwkeyAuthenticate({ forcePicker: true });
+  pr.viaPicker = true;  // 開けなければ app 側が hwkeyReauthNamed で名指し再取得する
+  return pr;
+}
+
+// 一覧 (discoverable) で選んだ鍵を名指しして PRF を取り直す。 YubiKey に同じサイトの鍵が
+//   複数あると、 認証器は新しい順に返し、 Android は先頭 (最新) 以外の鍵に正しい PRF を
+//   付けない (= 同じ YubiKey の古いドライブが開けない)。 名指しすればその鍵が先頭になる
+//   (2026-11-01)。 返り値: { credentialId, prfOutput, userHandle } (userHandle は一覧時のもの)。
+export async function hwkeyReauthNamed({ credentialId, userHandle }) {
+  if (!(credentialId instanceof Uint8Array) || !credentialId.length)
+    throw new Error("hwkeyReauthNamed: credentialId が必要");
+  console.log("[hwkeyReauthNamed] 選んだ鍵を名指しして PRF を取り直す");
+  const r = _hasNativeHwkey()
+    ? await nativeHwkeyAssert([b64uEncode(credentialId)])
+    : await hwkeyAuthenticate({ credentialIdHint: credentialId, transports: ["usb", "nfc", "ble"] });
+  _assertSameCredential(credentialId, r.credentialId);
+  return { credentialId, prfOutput: r.prfOutput, userHandle: userHandle || r.userHandle };
 }
 
 // envelope v7 増分2: 認証済みの { credentialId, prfOutput, userHandle } から
@@ -2093,7 +2112,7 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
 
   // --- 1. 既存の YubiKey で認証 → MEK / outerKey / appNameTag を取得 ---
   if (typeof opts.onExistingKey === "function") await opts.onExistingKey();
-  const ex = await _authenticateHwkey({ forcePicker: true, onFollowup: opts.onTouchAgain });
+  let ex = await _authenticateHwkey({ forcePicker: true, onFollowup: opts.onTouchAgain });
   if (!ex.userHandle || !isUserIdHwkey(ex.userHandle))
     throw new Error("addHwkeyDevice: 選択された YubiKey は YubiKey モード形式ではありません");
   const exKeyslotTag = decodeUserIdHwkey(ex.userHandle).keyslotTag;
@@ -2102,7 +2121,16 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
   if (!exKsTxid) exKsTxid = await findLatestVaultTx(exKeyslotTag);
   if (!exKsTxid) throw new Error("addHwkeyDevice: 既存 YubiKey の keyslot が見つかりません");
   const exKsBlob = await fetchKeyslotBlob(exKsTxid);
-  const { appNameTag, outerKey } = await decodeKeyslot(ex.prfOutput, exKsBlob);
+  let appNameTag, outerKey;
+  try {
+    ({ appNameTag, outerKey } = await decodeKeyslot(ex.prfOutput, exKsBlob));
+  } catch (e) {
+    // 一覧で最新以外の鍵を選ぶと Android が別の鍵の PRF を渡す。 名指しで取り直して 1 回だけ再試行。
+    console.warn("[addHwkeyDevice] decodeKeyslot 失敗 — 名指しで再取得:", e?.message);
+    if (typeof opts.onTouchAgain === "function") opts.onTouchAgain();
+    ex = await hwkeyReauthNamed(ex);
+    ({ appNameTag, outerKey } = await decodeKeyslot(ex.prfOutput, exKsBlob));
+  }
   const exCredIdHash = await credentialIdToHash(ex.credentialId);
   const exDec = await decryptVaultHwkey(_session.lastEnvelope, ex.prfOutput, exCredIdHash);
   const mek = exDec.mekKey;   // MEK の MekKey handle (Stage 2: 生 mek は返らない)
