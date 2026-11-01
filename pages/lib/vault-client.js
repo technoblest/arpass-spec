@@ -1091,6 +1091,16 @@ export async function createPasskey(userId, displayName, opts = {}) {
   return { credentialId, prfOutput };
 }
 
+// YubiKey モードの鍵の名前。 YubiKey の中では鍵がドライブ単位に並ばず、 Android は
+//   タッチ後にこの名前の一覧を出すため、 同じドライブの鍵には同じ「ドライブ作成日時」と
+//   通し番号を付けて見分けられるようにする (2026-11-01)。
+function _hwkeyKeyName(driveCreatedAt, index) {
+  const d = driveCreatedAt instanceof Date && !isNaN(driveCreatedAt) ? driveCreatedAt : new Date();
+  const p = (n) => String(n).padStart(2, "0");
+  return `Arpass YubiKey ${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ` +
+    `${p(d.getHours())}:${p(d.getMinutes())} #${index}`;
+}
+
 // 名指しした追加 get() で返ってきた資格情報が、名指しした鍵と同じか確かめる。
 //   Android はこの get() でもパスキー一覧を出すため、 別の鍵の PRF で keyslot を
 //   作ってしまわないよう、 違えば止める (2026-11-01)。
@@ -1495,12 +1505,15 @@ export async function createHwkeyVault(keyCount, userDisplayName, captchaToken =
 
   // 1. N 本の YubiKey を登録 (各 createPasskey = WebAuthn ceremony、UV 必須)。
   //    各鍵に固有のランダム keyslot 所在タグを割り当て、user.id に焼く。
-  const regs = [];  // { credentialId, prfOutput, credIdHash, keyslotTag }
+  const regs = [];  // { credentialId, prfOutput, credIdHash, keyslotTag, name }
+  // 鍵の名前は userDisplayName ではなく _hwkeyKeyName (ドライブ作成日時 + 通し番号)。
+  const createdAt = new Date();
   for (let i = 0; i < keyCount; i++) {
     if (typeof opts.onBeforeKey === "function") await opts.onBeforeKey(i, keyCount);
     const keyslotTag = randomAppNameTag();
     const userId = encodeUserIdHwkey(keyslotTag);
-    const { credentialId, prfOutput } = await createPasskey(userId, userDisplayName, {
+    const name = _hwkeyKeyName(createdAt, i + 1);
+    const { credentialId, prfOutput } = await createPasskey(userId, name, {
       requireResidentKey: true,
       userVerification: "required", // hwkey: PRF を UV 非依存 (touch のみ) に固定
       followupTransports: ["usb", "nfc", "ble"],   // PRF follow-up get を YubiKey 直行に
@@ -1508,14 +1521,14 @@ export async function createHwkeyVault(keyCount, userDisplayName, captchaToken =
       onFollowup: opts.onTouchAgain,   // 2 回目の確認の前に画面へ案内を出す
     });
     const credIdHash = await credentialIdToHash(credentialId);
-    regs.push({ credentialId, prfOutput, credIdHash, keyslotTag });
+    regs.push({ credentialId, prfOutput, credIdHash, keyslotTag, name });
   }
 
   // 2. hwkey envelope を暗号化
   const vault = emptyVault("personal", null);
   vault.mode = "hwkey";
   vault.credentials = regs.map((r) => ({
-    credIdHash: r.credIdHash, name: userDisplayName, addedAt: new Date().toISOString(),
+    credIdHash: r.credIdHash, name: r.name, addedAt: createdAt.toISOString(),
   }));
   const enc = await encryptVaultHwkey(
     vault,
@@ -2082,6 +2095,11 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
     try { exDec.signingKey.handle.free(); } catch (_) {}
   }
 
+  // 追加する鍵の名前: このドライブの最初の鍵の登録日時 (= ドライブ作成日時) + 次の番号。
+  const _creds = Array.isArray(_session.vault?.credentials) ? _session.vault.credentials : [];
+  const _firstAt = _creds.map((c) => Date.parse(c?.addedAt)).filter((t) => !isNaN(t)).sort((a, b) => a - b)[0];
+  const newKeyName = _hwkeyKeyName(_firstAt ? new Date(_firstAt) : new Date(), _creds.length + 1);
+
   let newEnvelope, newCredIdHash;
   try {
     // --- 2. 新しい YubiKey を登録 ---
@@ -2089,7 +2107,7 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
     const newKeyslotTag = randomAppNameTag();
     const newUserId = encodeUserIdHwkey(newKeyslotTag);
     const { credentialId: newCredId, prfOutput: newPrf } = await createPasskey(
-      newUserId, userDisplayName,
+      newUserId, newKeyName,
       { requireResidentKey: true, userVerification: "required",
         followupTransports: ["usb", "nfc", "ble"], securityKey: true,
         onFollowup: opts.onTouchAgain },
@@ -2112,7 +2130,7 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
   if (!Array.isArray(vault.credentials)) vault.credentials = [];
   vault.credentials.push({
     credIdHash: newCredIdHash,
-    name: userDisplayName,
+    name: newKeyName,
     addedAt: new Date().toISOString(),
   });
   await saveVault(vault);
