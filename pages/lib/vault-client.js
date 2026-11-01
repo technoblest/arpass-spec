@@ -1043,6 +1043,9 @@ export async function createPasskey(userId, displayName, opts = {}) {
           // envelope v7: discoverable (resident) credential なら新端末で userHandle が
           //   返り、v7 user.id を読める。v7 personal vault は requireResidentKey:true。
           residentKey: opts.requireResidentKey ? "required" : "preferred",
+          // YubiKey モード: セキュリティキーに限る。 指定しないと Android は Google パスワード
+          //   マネージャーを既定の保存先に出し、 指紋 1 回でスマホ側に鍵ができてしまう (2026-11-01)。
+          ...(opts.securityKey ? { authenticatorAttachment: "cross-platform" } : {}),
         },
         extensions: { prf: { eval: { first: PRF_SALT } } },
         timeout: 60000,
@@ -1068,6 +1071,18 @@ export async function createPasskey(userId, displayName, opts = {}) {
     throw e;
   }
   if (!cred) throw new Error("Passkey creation cancelled");
+  // YubiKey モードで、 スマホ内 / Google パスワード マネージャー / 別の端末 (hybrid) に鍵が
+  //   できた場合は使わずに止める。 判定材料が無い (null / 空) ときは通す。
+  if (opts.securityKey) {
+    const _att = cred.authenticatorAttachment || null;
+    const _tr = typeof cred.response?.getTransports === "function" ? cred.response.getTransports() : [];
+    console.log("[createPasskey] securityKey attachment=" + _att + " transports=" + JSON.stringify(_tr));
+    if (_att === "platform" || _tr.includes("internal") || _tr.includes("hybrid")) {
+      const er = new Error("YubiKey 以外 (スマホや Google パスワード マネージャーなど) に鍵が作られたため、登録を中止しました。");
+      er.code = "hwkey_not_security_key";
+      throw er;
+    }
+  }
   const credentialId = new Uint8Array(cred.rawId);
   const ext = cred.getClientExtensionResults?.();
   let prfOutput = ext?.prf?.results?.first ? new Uint8Array(ext.prf.results.first) : null;

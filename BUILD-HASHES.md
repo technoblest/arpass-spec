@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-11-01T07:08:54.137Z
+**Generated**: 2026-11-01T08:11:01.337Z
 **Files**: 238
 
 | SHA-256 | Bytes | Path |
@@ -52,11 +52,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `43ffceff8f1402639df91ff8ddd0d0af8212adfc9f1726cec4a13b2be21dd425` | 170737 | `app.html` |
+| `9c58382c08387405fc32a065ce0cd1735b63240b016b998427ef88e7266f6dcb` | 171195 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |
 | `9ddd5664ae832dd18bb378a28c12f72e95ec72b5e067eecc6e867ae0f9efae89` | 61464 | `ar/help.html` |
 | `0e2a1de0345013c34e6010e12939e45ad684b4efd36cd80bd3aaa6313e2fe995` | 96239 | `ar/index.html` |
-| `ee66bf3a4c8b5ad3de7266bf539f82b2356b78dfec088a8192b7d48c029d9462` | 14991 | `arpass-emergency-restore.html` |
+| `66f7966014447d6ad10dbad5f1b909784816e3092650b7618841070fa5a7b693` | 14991 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `f47c46f51fe6630f11e1287763f31092ced8c5642a53c822dcfc98535120817d` | 6322 | `de/download.html` |
@@ -184,23 +184,23 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `473e43994df05b1fd0517cc91e30e38d4017c16cb7da81ff0c029fc9f4a763bf` | 7479 | `hi/download.html` |
 | `520b84f23a72614d8cde94e989c267f13f0981bcc5187d5b152bd14e3ccb1d57` | 74039 | `hi/help.html` |
 | `0b02d6be48f692feb91fea577fc285d41424c94be980bf5b81313c90910d5cd5` | 115454 | `hi/index.html` |
-| `19155a8f023f78692ca8ead21e38ef9d7bbc9b0a04107c3fae1f89b4db66dce7` | 246189 | `i18n/ar.json` |
-| `a1c2020e9eaa1d58efc1d51e001f830149d58864e56f2dfff13a402ef554e86f` | 213135 | `i18n/de.json` |
-| `c599ef9501cd4a1d66330012c647f76d60625b2fceea5bcf9dbc8c38820376fa` | 192188 | `i18n/en.json` |
-| `92bee8160a1c2d576a7c214ab289674c59580162e401219b5fc0494b3c0e488c` | 207340 | `i18n/es.json` |
-| `a8da8198dded81e9ae04916e02d9da46996ec3c0a9cd3f5baf7b1f16f15adb31` | 215434 | `i18n/fr.json` |
-| `2db003b2fa385d41c35cbbc66307e7eb22716b3415c3aa55034df7fdde494638` | 328847 | `i18n/hi.json` |
-| `5792a81e9c1e725d8eb127c131c5da6b7c392e52485e87aca51868b2d2d88c04` | 197800 | `i18n/id.json` |
-| `3a4d26ef1959ad5316838af5dc7931a62657925882c3cb6c478afdf4b57d778f` | 204836 | `i18n/it.json` |
-| `1f79b8f504eb5da8f384e3df7796fc75c8c179fef40f3a3e5f0ec04c9d4a12cb` | 229862 | `i18n/ja.json` |
-| `848ecdcdaa854e185ea04b9d69a2408035fdcf45ec8104566a58ed4f23c81add` | 212304 | `i18n/ko.json` |
-| `1efe241c3ee7efec575b85e3a9de13d62271711463a33de85e4bb5e80af85389` | 204603 | `i18n/pt-BR.json` |
+| `9fb5a2ec898a864af21ca688ece44432ba7e773c4ec9ed7f5dde561ab3d22290` | 246624 | `i18n/ar.json` |
+| `c94484d1dc18e8628f8f726a9e399a8d275e3f3dabffaebdd3273fc5d944642a` | 213494 | `i18n/de.json` |
+| `0ca41e8db09b922ca23e858b78fe152823e486261856b37a8e89b05bf1b6b8f3` | 192459 | `i18n/en.json` |
+| `ef6458db8db1308a8b0aa2869308a6bc26eab0d5c8f57f80422bb93907a2f69f` | 207628 | `i18n/es.json` |
+| `c96b7a128ef26e5a8ebea526d153a54c40775427370066e81e2a8c9064e02d06` | 215742 | `i18n/fr.json` |
+| `42a6f3cc8de91668a44397bdf2710a5483cf779c926864ba173a92effe0cb166` | 329428 | `i18n/hi.json` |
+| `3ed16213f5f1ee66b2fa956a5e2abd287cae36099917584912058c4b1987f5ac` | 198067 | `i18n/id.json` |
+| `9367203d118c476268fccf7c4e8d67149f8f47f1960a15a0be56541b1683aa33` | 205135 | `i18n/it.json` |
+| `ace6c26fa42be594a55500bc3e1a508118f46f0c70be7df6aa812ad90dcabc28` | 230167 | `i18n/ja.json` |
+| `2a483df145086629bd9d8826ec260065fb51add1cc5a1af2c1d9021d294d7064` | 212600 | `i18n/ko.json` |
+| `2627052d502a0326e3cb4bc954a654ddf1ad741f370a106ec34364e64e8d088b` | 204900 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `1573968fca696847da41f4b5ed017abdc1c2b3c990e143a0f5ee41e4342379a7` | 286700 | `i18n/ru.json` |
-| `04de5f00f64da5612e57977be423b80968c9500485842154fa72e5b530a25c23` | 204548 | `i18n/tr.json` |
-| `27679053b2b1ce36cc1c59afe7c2326454b2281a0c81118aa3399092e239d150` | 220032 | `i18n/vi.json` |
-| `0e3f5bc3df919ec12387ed91e83c50bba4a109496b1375124de35e1ed7a6d6d3` | 183977 | `i18n/zh-CN.json` |
-| `9952b61df36a4b8cd4022a060d4dfe7a5e6edeaafd7e0d038fe0d8c8c9b26d09` | 184247 | `i18n/zh-TW.json` |
+| `6e2ac5b8f89790956b1655ba7c893ac76b88b19505bac91dfb0e9e357cc8ed37` | 287209 | `i18n/ru.json` |
+| `ec67fa9c132c561dd89951b5ec3944a0b333e837d76be8186d023fde72b75ce2` | 204884 | `i18n/tr.json` |
+| `cf4295326cfeef2a2b77913c0ce80b448a0d4692e1e578f47007813f9e1a6ae4` | 220310 | `i18n/vi.json` |
+| `d1b5597d70a4481c854e1cb98ae15cfcdd3aa5f2e27267585e62e24a37c65727` | 184219 | `i18n/zh-CN.json` |
+| `e364164282b9e0d6dd2a9abbdda1751ca05256fde0f9d6e57ba0fc5c6c572893` | 184489 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
@@ -215,11 +215,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `34b5bf9788ee78e0c583a3f928f28a4c0acbf240a7166bc678f25a828ceb60ef` | 6323 | `ko/download.html` |
 | `b6dbd660d5e2bc415a2eae548737147651148074676821b481d2486ca755626d` | 53522 | `ko/help.html` |
 | `70696482917304bcffa9febe8d663e516d4d2e69a7608d2bc399e9a630098be2` | 89842 | `ko/index.html` |
-| `65345553348c57e176920ed374fac838a1d79befd1a70449d32c480bbb674280` | 504849 | `lib/app-main.js` |
+| `22610a3704d1272f1f83dc3b868154824fe8889a560a87e0310e34643e9c761c` | 505069 | `lib/app-main.js` |
 | `25ebb918af8d27a4a2626f8af4a83b73819bc7cb54898768d11016b8688cd842` | 51977 | `lib/client-auth.js` |
 | `54b0d6fdeb01bb8bfb35285f8809fddae1b441bb8f269b97614d2dc45f0d6b67` | 626 | `lib/download-main.js` |
 | `d44eb2a8b45e132405ef9ed38fa8f697ab3b30a72bd90ce3b27049a54e558343` | 12100 | `lib/emergency-recover-purejs.js` |
-| `68d7fdfa3ebab36f0e5356372b483250d7220cf76af7536a2534a41eea80285b` | 38255 | `lib/emergency-restore-main.js` |
+| `fa05abd1507c54e3675790774e1a37ab59e3cb71e630de3fa653d00cb5747696` | 38255 | `lib/emergency-restore-main.js` |
 | `9d85e1bd6a25ae994ddc3b011fec9d0b3d0223fe00c09aa24243aa1e7067d44e` | 1862 | `lib/help-main.js` |
 | `e28daf5a58671268fc966355ba5c082dfafb1c932db361996bdaefd05d000e49` | 17941 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -240,7 +240,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `657946c12bbbd0ed9883a8b80fc3a1978effcd58d73c2378879c459b1b73e994` | 10523 | `lib/save-debounce.js` |
 | `907f5ce3bf5908037010821d9973e66ce607b62ab86a2cad3f1a1ea2147bfb28` | 663 | `lib/security-main.js` |
 | `f3d8acfba9a0b4736c359fea476dd5990c7aa461a3bff41ee9c4aa00b4ab3207` | 5094 | `lib/totp.js` |
-| `baede31ff5dd7559a2b898b96e2413a3b18ed06da875d261c4e94059132e69d6` | 276315 | `lib/vault-client.js` |
+| `260e9052fb03d43d09fe19f853b196871f8f71cdad2cb8b8bad317f0806a0583` | 277585 | `lib/vault-client.js` |
 | `623689e77bd83b04e095299f7950fe3dddddfbc36ec7bced9d1f6c21d143c868` | 158555 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
@@ -271,7 +271,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `fc7bf3febf4545a93f494c6b61b86788baa475c11c6099963dd63b4c19c406c7` | 104774 | `ru/index.html` |
 | `1d41ba64363d7d83e4615ecbc4cd93364190342ecd6b62555d22b5f7a10a4052` | 30679 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
-| `884691df735f86028aa526c94cce73064aa8e856216fe6d8a0c47d2b824514e5` | 7427 | `sw.js` |
+| `271ff974ffdc0e00bd21bacaacbde99b8ba778ded2159d35ce75c1a7b174b1c2` | 7427 | `sw.js` |
 | `33f6731adcb76de32e27d75df1cf954b32cc062b8ef411fb896553bfd8feb0ad` | 19037 | `terms.html` |
 | `ed8d9d2782dabb39f15fafe78789507c6e60067f2103d0b0ee58a532b3b4d193` | 12930 | `tokushoho.html` |
 | `ebe9b8e778eb0a447c4cc495845a7604e690302b40f1d052ff4e3f770cf9dc5e` | 6290 | `tr/download.html` |
