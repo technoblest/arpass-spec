@@ -49,7 +49,7 @@ import {
 
 import {
   authenticateWithPasskey,
-} from "./vault-client.js?v=9ec530b9";
+} from "./vault-client.js?v=6e59d0de";
 import { generateOtpauthQrSvg } from "./qr.js?v=ad52de48";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----

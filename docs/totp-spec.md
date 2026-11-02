@@ -12,7 +12,7 @@ Mirror generator: scripts/generate-arpass-spec-mirror.mjs
 
 # TOTP（2段階認証コード）— 保存形式と実装仕様
 
-最終更新: 2026-10-28
+最終更新: 2026-11-03
 ステータス: **本番公開（2026-10-28）。Phase 1〜3 と本番公開まで完了**
 担当: Yamaki / Technoblest
 関連: [rust-crypto-opaque-handle.md](./rust-crypto-opaque-handle.md)（鍵の opaque handle 方式）、
@@ -133,7 +133,7 @@ ct  = AES-256-GCM(totpWrapKey, iv, aad, secretBytes)
 |---|---|
 | `otpauth://totp/<label>?secret=…&issuer=…&algorithm=…&digits=…&period=…` | 受け付ける |
 | `otpauth://hotp/…` | 拒否（回数ベースは対象外） |
-| `otpauth-migration://…`（Google 認証システムの一括エクスポート） | 拒否（各サービスの QR を個別に読んでもらう） |
+| `otpauth-migration://…`（Google 認証システムの一括エクスポート） | エントリの登録欄では受けず、一括取り込みの画面へ回す（§5.1）。2026-11-03 までは拒否していた |
 | その他の URI・文字列 | Base32 の秘密キーとして解釈を試みる |
 
 - **label:** パーセントデコードし、`発行元:アカウント` の形なら分ける。`issuer` パラメータがあればそちらを優先。
@@ -144,9 +144,31 @@ ct  = AES-256-GCM(totpWrapKey, iv, aad, secretBytes)
 - **digits:** 省略時 6。6・7・8 のみ。
 - **period:** 省略時 30。10〜300 の整数のみ。
 
+### 5.1 Google 認証システムの一括エクスポート（2026-11-03 追加）
+
+Google 認証システムの「コードを移行」→「コードをエクスポート」が出す QR（`otpauth-migration://offline?data=<base64>`）を
+`parseMigrationInput`（`web/lib/totp.js`）で解く。中身は protobuf の `MigrationPayload`。
+
+- **秘密キー:** 生バイトで入っているので、Base32 に**エンコード**して §5 と同じ検査（16〜128 文字）にかける。
+  以降はエントリの登録と同じく `wrapTotpSecretForEntry` で Rust に渡す。バイト列は保持しない。
+- **name:** `発行元:アカウント` の形なら分ける（`issuer` が空か、前半が `issuer` と同じとき）。
+- **algorithm:** 0・1 = SHA1、2 = SHA256、3 = SHA512。4（MD5）は取り込めない。
+- **digits:** 0・1 = 6 桁、2 = 8 桁。
+- **type:** 1（HOTP）は取り込めない。0・2 は TOTP として扱う。
+- **period:** 持たない（Google 認証システムは 30 秒固定）。
+- **複数枚:** アカウントが多いと QR が分かれる。`batch_id`（同じ書き出しで共通）・`batch_index`・`batch_size` で
+  何枚目まで読んだかを数え、残りがあれば画面で知らせる。同じ QR を読み直しても重複して足さない。
+- 取り込めない項目（HOTP・MD5・短すぎる秘密キーなど）は一覧に理由付きで出し、秘密キーは残さない。
+- Microsoft Authenticator と Authy には書き出し機能が無いので対象外。
+- テスト: `scripts/test-totp-parse.mjs`（protobuf を組み立てて読む）。
+
 ## 6. 画面の規則
 
 - **登録:** 編集画面の「2段階認証コード」欄で、QR を読む（カメラ・画像）か、URI / 秘密キーを貼り付ける。
+- **一括取り込み（§5.1）:** 登録欄の「Google 認証システムからまとめて取り込む」、または登録欄で一括エクスポートの QR を
+  読んだときに開く。読み取った項目ごとに、取り込み先を「新しいエントリ」か、発行元の名前が合う既存エントリ
+  （2段階認証がまだ無いもの。ユーザ名がアカウントと一致するものを既定に）から選ぶ。同じ発行元・アカウントが
+  登録済みなら既定で外す。取り込みは 1 件ずつ包み、ドライブへの書き込みは 1 回にまとめる。
   貼り付け欄は `type="password"`。読み取り結果は発行元・アカウント・方式だけを表示し、秘密キーは表示しない。
 - **表示:** 詳細画面と一覧に、コードと残り秒数、コードのコピーボタン。秘密キーの表示・コピーのボタンは作らない。
 - **編集:** 既存の `totp` はそのまま保持（エントリ更新は spread なので自動的に残る）。削除と再登録はできる。
