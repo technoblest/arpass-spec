@@ -176,6 +176,17 @@ Google 認証システムの「コードを移行」→「コードをエクス�
   取り込み終わった時点で捨てる。CSV 自体はサーバーに送らない。
 - テスト: `scripts/test-csv-import.mjs`（CSV の読み取りと各社の形式の判定）。
 
+### 5.3 iOS の「パスワード」アプリから直接（Credential Exchange、2026-11-03 追加）
+
+iOS 26 以降の「パスワード」→「データをほかのアプリに書き出す」→ Arpass（FIDO CXP/CXF、`ASCredentialImportManager`）。
+CSV のファイルを作らずに、§5.2 と同じ取り込み画面に出す。
+
+- iOS アプリ（arpass-ios の `App/CredentialExchangeImport.swift`）が受け取り、1 件ずつ `{ site, url, user, pw, notes, otp }` にする。
+  2段階認証は CXF の TOTP（秘密キーはバイト列）を Base32 に戻して otpauth:// の URI にし、web は §5.2 と同じく
+  `parseTotpInput` → `wrapTotpSecretForEntry` で包む。パスキーは保存先が無いので移さず、件数だけを渡して画面に出す。
+- 受け渡しは `window.__arpassCxImport` と `arpass-cx-import` イベント。web は受け取ったらすぐ window から消し、
+  ロック中なら解錠まで持つ（`_pendingCxImport`）。iOS 側もパスワードをディスク・UserDefaults・ログに書かない。
+
 ## 6. 画面の規則
 
 - **登録:** 編集画面の「2段階認証コード」欄で、QR を読む（カメラ・画像）か、URI / 秘密キーを貼り付ける。
