@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-11-03T08:44:20.315Z
+**Generated**: 2026-11-03T10:01:13.042Z
 **Files**: 239
 
 | SHA-256 | Bytes | Path |
@@ -52,15 +52,15 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `3327b2bcb97a87cd1d7fd40f9d239f3b94d9fe579e1de37f00b326a496426c38` | 177545 | `app.html` |
+| `b1dcd4403c5cb525b766625335b02ecf482a70395d86b0614bfa2e3f63e1b476` | 177571 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |
-| `d647d73ec130ac6a20a016fac240983fb59a0aa26c6b7d321c9c5f853afd06e5` | 63007 | `ar/help.html` |
+| `3af9e382579ad8dac4d5e18b40c20ef1176c7543bf754ca7888f2db994edfe56` | 63007 | `ar/help.html` |
 | `31544b79448270d7da28a053009c008b9a85dcf5f186fd720dc57b550df03c3b` | 97863 | `ar/index.html` |
 | `132ee7dda6ae24fe4e6dddf35131fa9cf6d3e97713d297e1e1323ce54f281525` | 14991 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `f47c46f51fe6630f11e1287763f31092ced8c5642a53c822dcfc98535120817d` | 6322 | `de/download.html` |
-| `76c4cbfc367a6643980d53853a609d5d9465ee1f42fce9908952416f8508a8c3` | 56138 | `de/help.html` |
+| `ea8559df2c8f021e2c34743273c647fd1a80d285e753b148b997ae64c67bc74f` | 56138 | `de/help.html` |
 | `25928f39188d320586a9acd5dadd2be0e3edf0fe3de891b9c52df94c52366848` | 91285 | `de/index.html` |
 | `7329551e8f2573fc41960ae4992fa96949fbbf2f01a854cf45155e549f935289` | 1585 | `demo/demo.js` |
 | `4d52541fc8c6bfefff05a7de6192c77cce4cad6a828728dd94301d8d9ecb554c` | 1612 | `demo/index.html` |
@@ -72,16 +72,16 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `98f6058bf008cd61d03b00af3fd348932f3ad0bc87d1fc882da7ca788a22cdd9` | 1320982 | `download/arpass-for-safari-mac.dmg` |
 | `e3fedc2ab36d297dfa3a7d58a997e4e962f8b607ffdc0e4772ffe4d1403ac43c` | 260 | `download/README.txt` |
 | `0c39aecd2bdad3da24bdbf177c68cc9d8b4dffe16e84f35bf4708d8947f8b48a` | 6015 | `en/download.html` |
-| `fa11ecca1e278d8f81a9f48ef24f69b7c05076ecb1aef1aeb30a41d3f16e2b6f` | 50197 | `en/help.html` |
+| `e87b34f401a42c5db50cbad2d21f544074d67ddaeeb361bc855a6db4087cca3c` | 50197 | `en/help.html` |
 | `4ce849154c2842fed2bc7f3b1f1f6eacf251b4b5f4713f28e30823800ebe5bf3` | 88438 | `en/index.html` |
 | `29b6f1bf523308b9a80a1f8b6d3a1c457293f28c0ff8333e0dfe3802abc146ad` | 6171 | `es/download.html` |
-| `fdf884e3dfa6cd1f740a7ca49218702bdc0e6920154aef8494c2ce5c3bf3c84c` | 54226 | `es/help.html` |
+| `a027d0bab7cf519f064cac1bf43e73a56d9d39aba839bebe5130b36823ac85d6` | 54226 | `es/help.html` |
 | `9febe11ee2fdb31be77826e7715eadfe929bea6dd325018033900087c9ccf40d` | 90217 | `es/index.html` |
 | `ebaa0b820a097106fe6cefd3c56b46187d051f7ddc13efbc75ba7dc781b988df` | 625 | `favicon-16.png` |
 | `bb52ebe86d04fca009d38d88da2366f3e3eba013b926c0c6f9b8fa5094471a03` | 1637 | `favicon-32.png` |
 | `c52ba1a98f447fb79168d3b5b6c60f2f892056fe02897eb207808e8ff0b3c240` | 15342 | `favicon.ico` |
 | `8a4e6badc50ad4e203e14b396827a8723a9740412ffeb3e9d9bdd037fcbd35af` | 6365 | `fr/download.html` |
-| `c522cb06c8c87addb491f18420c0863f4ca19eceb1e9d2182c82ee9dde271677` | 56228 | `fr/help.html` |
+| `dc091b644d8f05b6aad95364a85173a440ef440ed685e8a1efadf0bf7bb52d88` | 56228 | `fr/help.html` |
 | `834b7303778bb38b697c0d1f3ebe3b91bcc10076fb9b6c8a7ad020b2ab1f610a` | 92242 | `fr/index.html` |
 | `ece6e7b94f51a3af8fa02ffa96bd354c6dbbb3f1c8be18d78312371f56fffc47` | 5052 | `guide/ar/index.html` |
 | `8197399cab569a587740ab34ca2adc294f7f1c4b99059d1b2114a69248b82d80` | 14339 | `guide/ar/security-glossary.html` |
@@ -180,9 +180,9 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `add80e16de903d40f28ff3ec1f1f029f2898b33bd18f72129825014ad445be30` | 10470 | `guide/zh-TW/yubikey-guide.html` |
 | `eb06e0eb1abd147ae3b026e33a5e2332bea3a0f12f55f2d6fbc858f66e25656f` | 8182 | `guide/zh-TW/yubikey-price.html` |
 | `d582ed7036cba3bac4b329bded0813ff2e06dfbcc44106f1e0b81e24d6c3a505` | 9136 | `guide/zh-TW/yubikey-vs-passkey.html` |
-| `4360119950d9e45602dcf70257b4f920e742cb3ee462a4666966b3780d5bfd41` | 58847 | `help.html` |
+| `81114ab515e76cf70592836d2438b06f7a4b120b1cc668e04970b1375ad63864` | 58847 | `help.html` |
 | `473e43994df05b1fd0517cc91e30e38d4017c16cb7da81ff0c029fc9f4a763bf` | 7479 | `hi/download.html` |
-| `74523bc760088a274e5c4c05379c4b51a44020b8a812c9690eeb4b88348b36ad` | 76376 | `hi/help.html` |
+| `80d9c44c23a3e90a2ef1ead5350d9382042c3950264b180412fa15db62968a01` | 76376 | `hi/help.html` |
 | `55f2680161be54c0945832fbcfa8fb93adec138350e1be66741c149f80a58430` | 117893 | `hi/index.html` |
 | `90c5222a83836e758a5259656acca43023635c1e6441911a0e4c5c8e3cb77163` | 255684 | `i18n/ar.json` |
 | `7899d196a1a742ddfcb44aaa8cc6eaba1f68261b88c7fc79eef7d7e37835c21f` | 221158 | `i18n/de.json` |
@@ -205,23 +205,23 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
 | `a31dc49b53cd022f7b81f5507d0884ebd63b45cb29b9abb482bc31f929b2eaf4` | 6081 | `id/download.html` |
-| `19e82e144b829d82e561715eb4fb68e848942982a0cf081cda7faacecfedf6cc` | 51668 | `id/help.html` |
+| `47291b42b47cb6c9ae6e8bb9826473d1d801be8c54c96f8d3e1a935f78c4d398` | 51668 | `id/help.html` |
 | `383b16ce041c27eaa02197d9b17c3dc694a928582ee8f957e89e6b63a9f2dc44` | 89006 | `id/index.html` |
 | `cb2fcd992f534f15f835528b34b839706369e7c0ce855af1d21c9077ac22ecea` | 13617 | `img/lock-icon-gold.png` |
 | `249263ea8c01093a9ab21ec3ce24ad29e9d3ab170883d8976e2556b3ffa2d3a4` | 96379 | `index.html` |
 | `3577082dc5179414ed3764d621f323026544c761f2b7fe79e441bb33b3cdce5d` | 6163 | `it/download.html` |
-| `a6a4ac3c3b36c74b00f40d8c0548c38fd1bc5295b38cb92ae9755bb97ffe66be` | 53285 | `it/help.html` |
+| `f7862f6c169884423bbe1365587f76cf3e983f492bb7fce20e95c21fe20b6896` | 53285 | `it/help.html` |
 | `5bafb393fbea2896e3cf4cd14ab5eaf0dc5d2c8765977eaf0be070f7376f24d6` | 89836 | `it/index.html` |
 | `34b5bf9788ee78e0c583a3f928f28a4c0acbf240a7166bc678f25a828ceb60ef` | 6323 | `ko/download.html` |
-| `40321c073193a763e340664c26b5b522aeb0d8bfd44273e2678e036e7fc714d5` | 54791 | `ko/help.html` |
+| `53d8035ec701d00b4d95b79c28a581dab39ad74baf272e33b166fcc6522566bf` | 54791 | `ko/help.html` |
 | `79722c4fc032bc7f4bb6a4adf0d749da3146e752de96f596a4cc3f799247c490` | 91193 | `ko/index.html` |
-| `774610883b6120eae8c2d94334f27bde489e7ea73ca205a68138baca59cc2dea` | 533479 | `lib/app-main.js` |
+| `ea1fc741af3a262fdf2ac9b5ced5d15ec64927cc8fae5d1eff84d0fbca1907d3` | 534527 | `lib/app-main.js` |
 | `25ebb918af8d27a4a2626f8af4a83b73819bc7cb54898768d11016b8688cd842` | 51977 | `lib/client-auth.js` |
 | `617eb01eb52c910fde828e3b3c6098aa718fc91c07fcb4e8fe2980d020f0881a` | 13216 | `lib/csv-import.js` |
 | `54b0d6fdeb01bb8bfb35285f8809fddae1b441bb8f269b97614d2dc45f0d6b67` | 626 | `lib/download-main.js` |
 | `d44eb2a8b45e132405ef9ed38fa8f697ab3b30a72bd90ce3b27049a54e558343` | 12100 | `lib/emergency-recover-purejs.js` |
 | `c85c80e27adce80f791f4766839e660e917464b39c93b69bb53b8add4f9b82a1` | 38255 | `lib/emergency-restore-main.js` |
-| `9d85e1bd6a25ae994ddc3b011fec9d0b3d0223fe00c09aa24243aa1e7067d44e` | 1862 | `lib/help-main.js` |
+| `1a1f069ce210e29a8d7e3288ec70a1716c0d138ff0f61a2278f6b38b49b4c648` | 2657 | `lib/help-main.js` |
 | `e28daf5a58671268fc966355ba5c082dfafb1c932db361996bdaefd05d000e49` | 17941 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
 | `2d299d83fcf0c8ba16df3a797d02a5fba286fd7066ea10a844f345b41ccb8312` | 5754 | `lib/image-compress.js` |
@@ -264,26 +264,26 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `7a6da9139a10729e274d34ef52ee43170a85156ff9fd3856706782e0b345d38f` | 8751 | `pricing.html` |
 | `bc658d1ab408772167316f230af3f1e1a3e624f95de9f4a137a65636bfaed177` | 26337 | `privacy.html` |
 | `2019d633684c2fbb2482b92ce08a39bd1f35d448100aba39ee3450c0f1899191` | 6146 | `pt-BR/download.html` |
-| `20b632f00b6afd2342cf46a46d82ec090a00de9481110c462fcd142343a92612` | 53553 | `pt-BR/help.html` |
+| `8940017ab3569b8529c12542dae16037e936a2338bd04c8422797f0cdd25a454` | 53553 | `pt-BR/help.html` |
 | `2d786b6e00d2c879933121b861328ee74493d2b38432f3d3ee144d10994418fb` | 89783 | `pt-BR/index.html` |
 | `4d99cb71b68b5371a8b9b562cd5d108cdeedddad07347c71f38aceac97849c48` | 364 | `robots.txt` |
 | `79db34b8a4e278b93eb8aeca5bfe0dc8ea71d419cb94f3ff1b69ae5651502cec` | 6779 | `ru/download.html` |
-| `07b86fec390d6880442bf4342c58788347dcdea3bf8b7b4befd6536311b27e4c` | 72568 | `ru/help.html` |
+| `6580809b1b97a5cfd032d486616fcdde5a72e4d3a9f03a0bf7f559186556248d` | 72568 | `ru/help.html` |
 | `faa53ed690126acfab348d06ba27a772a24cecf85c6f16b77fdcc09d73c6869d` | 106594 | `ru/index.html` |
 | `1d41ba64363d7d83e4615ecbc4cd93364190342ecd6b62555d22b5f7a10a4052` | 30679 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
-| `c803eac50c50504a4b78fbba80836f2fcf99281377c05ab8f36391e050626bc1` | 7427 | `sw.js` |
+| `56bed735a28b8a4ac5af49dd9ac2c5c0f881a09a8b602029f07018581008f8b5` | 7427 | `sw.js` |
 | `33f6731adcb76de32e27d75df1cf954b32cc062b8ef411fb896553bfd8feb0ad` | 19037 | `terms.html` |
 | `ed8d9d2782dabb39f15fafe78789507c6e60067f2103d0b0ee58a532b3b4d193` | 12930 | `tokushoho.html` |
 | `ebe9b8e778eb0a447c4cc495845a7604e690302b40f1d052ff4e3f770cf9dc5e` | 6290 | `tr/download.html` |
-| `bdbfbd495eeed57fb834c11abe6524e93ccbe7bfa78c65558b4d5206f7d0b4b2` | 53786 | `tr/help.html` |
+| `73ff1dbb5684f4354db6cd341bec426886225cff49fd2714587d05d27942ae5f` | 53786 | `tr/help.html` |
 | `ed60ab74199784956ec02a74d21b768c448450242f27619e0ece83ba8dc3918b` | 89893 | `tr/index.html` |
 | `4a1c5561d2df761f43ced428b084bca1e1de916f4f7b61b59dde88641d8bb713` | 6342 | `vi/download.html` |
-| `a5a851ffccec9c1b9c6cb6aaf9809a6a6dd92d9986b86a6ff12fa27d87aa8815` | 56394 | `vi/help.html` |
+| `a6ec621f4637f10fce2dafdbc4e0fe00e6b02ce480479e760d1055bac6a64e0d` | 56394 | `vi/help.html` |
 | `9e82187b01787114fe5eae51a2ebcf6ed72496cab86718f38651c3dc4973d9d5` | 94099 | `vi/index.html` |
 | `794f19682eeee2f9ff2a52bcddf420ca1219c3fdd6e2ae68190efd6ec640e58e` | 6108 | `zh-CN/download.html` |
-| `a972e896ef0f4bb5e114af73e32b50bf8c722fe1e259c6aa446723b7b7ca2404` | 49326 | `zh-CN/help.html` |
+| `c9859094dbcdd97e61d4aacacd9b71c44780df83a4427debfd267587c443460b` | 49326 | `zh-CN/help.html` |
 | `934cf1cc49d811570aaef356f62b887e7e7a0a276f3f53eb47080aa5b209b696` | 85810 | `zh-CN/index.html` |
 | `eda081e7318cd51df9aea81626c4d95b9ec17eaec1506e5ff154ecd1122a7f5f` | 6132 | `zh-TW/download.html` |
-| `f1ac87c978c2b70d951a5cc06618aa11ee3550e60a0dc1667cf9d76a4b1ae164` | 49252 | `zh-TW/help.html` |
+| `bf03bce3d740a9cd036c001a7ce64702a4d8e734e7ee025d4cc30eb7c76ef0d2` | 49252 | `zh-TW/help.html` |
 | `67d764868f9d4ba5dda58edf2d3a6ad641a798146e5832402a4aeaeb1fc2f826` | 85917 | `zh-TW/index.html` |
