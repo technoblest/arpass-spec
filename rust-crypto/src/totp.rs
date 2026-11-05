@@ -11,6 +11,8 @@
 //! TOTP（2段階認証コード、RFC 6238）— docs/totp-spec.md
 //!
 //! 秘密キーは `TotpKey` handle の中だけに置く。**生バイトを返すメソッドは作らない。**
+//! 外に出す口は、ほかの認証アプリへ移すための `export_base32` だけ（本人確認のあとに
+//! アプリが QR で表示する。2026-11-05、docs/totp-spec.md §2-1 / §6）。
 //! 保存時は MEK から HKDF で派生した TOTP 専用鍵で AES-256-GCM で包み (wrap)、
 //! AAD にエントリ ID を入れて、包んだ秘密キーを別エントリへ付け替えられないようにする。
 //!
@@ -62,6 +64,12 @@ impl TotpKey {
             return Err(JsError::new("TotpKey.code: invalid time"));
         }
         totp_code(&self.bytes, unix_secs.floor() as u64, period, digits, algorithm).map_err(JsError::new)
+    }
+
+    /// ほかの認証アプリへ移すときだけ: 秘密キーを Base32（大文字、`=` なし）で返す。
+    /// 呼ぶのはアプリの本人確認つきの QR 表示 (app-main の `openTotpExport`) だけ (lint:security (29) / (31))。
+    pub fn export_base32(&self) -> String {
+        base32_encode(&self.bytes)
     }
 }
 
@@ -134,6 +142,28 @@ pub(crate) fn base32_decode(s: &str) -> Result<Vec<u8>, &'static str> {
         return Err("TotpKey: secret must be 10..80 bytes (16..128 Base32 chars)");
     }
     Ok(out)
+}
+
+/// RFC 4648 の Base32（大文字、`=` の埋めなし。otpauth:// の `secret=` と同じ形）
+pub(crate) fn base32_encode(bytes: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::with_capacity((bytes.len() * 8 + 4) / 5);
+    let mut buf: u32 = 0;
+    let mut bits: u32 = 0;
+    for &b in bytes {
+        buf = (buf << 8) | b as u32;
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHABET[((buf >> bits) & 0x1f) as usize] as char);
+        }
+        buf &= (1 << bits) - 1;
+    }
+    if bits > 0 {
+        out.push(ALPHABET[((buf << (5 - bits)) & 0x1f) as usize] as char);
+    }
+    buf.zeroize();
+    out
 }
 
 pub(crate) fn totp_code(key: &[u8], unix_secs: u64, period: u32, digits: u32, algorithm: &str) -> Result<String, &'static str> {
@@ -277,6 +307,25 @@ mod tests {
         assert!(base32_decode("JBSWY3DPEHPK3PXPJ").is_err(), "invalid length (17 chars)");
         assert!(base32_decode("JBSWY3DP").is_err(), "too short (5 bytes)");
         assert!(base32_decode("JBSW=Y3DP").is_err(), "data after padding");
+    }
+
+    #[test]
+    fn base32_encoding() {
+        // RFC 4648 §10 のテスト値（埋めの `=` は付けない）
+        assert_eq!(base32_encode(b""), "");
+        assert_eq!(base32_encode(b"f"), "MY");
+        assert_eq!(base32_encode(b"fo"), "MZXQ");
+        assert_eq!(base32_encode(b"foo"), "MZXW6");
+        assert_eq!(base32_encode(b"foob"), "MZXW6YQ");
+        assert_eq!(base32_encode(b"fooba"), "MZXW6YTB");
+        assert_eq!(base32_encode(b"foobar"), "MZXW6YTBOI");
+        assert_eq!(base32_encode(SEED_SHA1), "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ");
+        // decode → encode の往復（小文字・空白入りの登録値も、書き出しでは正規の形になる）
+        assert_eq!(base32_encode(&base32_decode("jbsw y3dp-ehpk 3pxp").unwrap()), "JBSWY3DPEHPK3PXP");
+        for len in SECRET_MIN_BYTES..=SECRET_MAX_BYTES {
+            let bytes: Vec<u8> = (0..len).map(|i| (i * 37 + 11) as u8).collect();
+            assert_eq!(base32_decode(&base32_encode(&bytes)).unwrap(), bytes, "len={len}");
+        }
     }
 
     #[test]

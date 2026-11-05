@@ -73,9 +73,9 @@ export function generateDeviceAddQrSvg(text, opts = {}) {
   return qr.createSvgTag({ cellSize, margin, scalable: true });
 }
 
-// 2026-10-28: 2段階認証 (TOTP) の otpauth:// URI 用 QR。 緊急復旧ツール
-//   (emergency-restore-main.js) が他の認証アプリへ秘密キーを移すためだけに使う
-//   (docs/totp-spec.md §2-5 / §7-4。 lint:security で呼び出し元を緊急復旧ツールに限定)。
+// 2026-10-28: 2段階認証 (TOTP) の otpauth:// URI 用 QR。 他の認証アプリへ秘密キーを移すためだけに使う:
+//   緊急復旧ツール (emergency-restore-main.js) と、 2026-11-05 からはアプリの本人確認つきの表示
+//   (app-main.js の openTotpExport)。 docs/totp-spec.md §2-5 / §6 / §7-4。 lint:security で呼び出し元を限定。
 //   URI の長さは秘密キーと発行元・アカウント名で変わるので typeNumber は自動 (0)。
 export function generateOtpauthQrSvg(text, opts = {}) {
   const {

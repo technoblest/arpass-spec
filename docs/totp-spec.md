@@ -12,8 +12,8 @@ Mirror generator: scripts/generate-arpass-spec-mirror.mjs
 
 # TOTP（2段階認証コード）— 保存形式と実装仕様
 
-最終更新: 2026-11-03
-ステータス: **本番公開（2026-10-28）。Phase 1〜3 と本番公開まで完了**
+最終更新: 2026-11-05
+ステータス: **本番公開（2026-10-28）。Phase 1〜3 と本番公開まで完了。本人確認つきの QR 書き出し（§6）は staging（2026-11-05）**
 担当: Yamaki / Technoblest
 関連: [rust-crypto-opaque-handle.md](./rust-crypto-opaque-handle.md)（鍵の opaque handle 方式）、
 [web-stage2-raw-mek-elimination-plan.md](./web-stage2-raw-mek-elimination-plan.md)（生 MEK の JS heap 露出撲滅）、
@@ -30,14 +30,18 @@ PC 中心で使う人が、スマホの認証アプリを取り出さずに Web 
 
 ### 守ること
 
-1. **秘密キーは保存後に画面・コピー・書き出しで一切出さない。** 表示・コピーできるのはコードだけ。
+1. **秘密キーは、本人確認なしには画面・コピー・書き出しで出さない。** ふだん表示・コピーできるのはコードだけ。
+   出すのは、詳細画面の「ほかの認証アプリへ移す（QR）」で本人確認（Passkey・YubiKey）をしたときだけ（§6）。
+   2026-11-05 に「一切出さない」から変更（八巻さん判断: 緊急復旧ツールは運営終了時向けで、YubiKey だけの
+   ドライブを開けず、全パスワードを平文で一覧表示するため、ふだんの移行には使えない）。
 2. **秘密キーは JS heap に置かない。** 保存時は Rust の opaque handle（`TotpKey`）に渡して包み（wrap）、
    ほどく（unwrap）のもコード計算も Rust の中で行う。JS に戻るのはコード文字列だけ。
+   例外は 1. の書き出しで、`TotpKey.export_base32()` の Base32 文字列が表示のあいだだけ JS と DOM にある。
 3. **運営・サーバー・Arweave からは見えない。** vault 本体と同じく端末内で暗号化した形でしか外に出ない。
 4. **既存の受け渡し経路に乗らない。** 自動入力（iOS AutoFill / Android AutofillService / 拡張機能ブリッジ）は
    決まった項目（`id`, `site`, `url`, `user`, `pw`）しか渡さない。`totp` はこの固定項目に入れない。
-5. **取り出せるのは緊急復旧ツールだけ。** 運営が消えても他の認証アプリへ移せるように、
-   `arpass-emergency-restore.html` と `tools/recover-yubikey.py` は otpauth:// URI と QR で秘密キーを出せる。
+5. **取り出せるのは、本人確認つきの QR 表示（§6）と緊急復旧ツールだけ。** 運営が消えても他の認証アプリへ
+   移せるように、`arpass-emergency-restore.html` と `tools/recover-yubikey.py` は otpauth:// URI と QR で秘密キーを出せる。
 
 ### 守れないこと（割り切り）
 
@@ -195,16 +199,25 @@ CSV のファイルを作らずに、§5.2 と同じ取り込み画面に出す�
   （2段階認証がまだ無いもの。ユーザ名がアカウントと一致するものを既定に）から選ぶ。同じ発行元・アカウントが
   登録済みなら既定で外す。取り込みは 1 件ずつ包み、ドライブへの書き込みは 1 回にまとめる。
   貼り付け欄は `type="password"`。読み取り結果は発行元・アカウント・方式だけを表示し、秘密キーは表示しない。
-- **表示:** 詳細画面と一覧に、コードと残り秒数、コードのコピーボタン。秘密キーの表示・コピーのボタンは作らない。
+- **表示:** 詳細画面と一覧に、コードと残り秒数、コードのコピーボタン。秘密キーをそのまま表示・コピーするボタンは作らない。
+- **ほかの認証アプリへ移す（2026-11-05）:** 詳細画面の「ほかの認証アプリへ移す（QR）」から。
+  1. 本人確認: 「Recovery を表示」と同じく Passkey 認証（`authenticateWithPasskey`、前回の Passkey を名指し）。
+     YubiKey モードは解錠と同じ `hwkeyAuthenticateForUnlock`（iOS アプリはネイティブ）でタッチを求める。
+  2. `exportTotpSecretForEntry`（vault-client）が Rust でほどいて `TotpKey.export_base32()` を呼び、すぐ `free()` する。
+  3. `openTotpExport`（app-main）が otpauth:// URI（`buildOtpauthUri`、緊急復旧ツールと同じ形）の QR と、
+     4 文字ずつ区切ったセットアップキー、キーのコピーボタンを出す。閉じる・2 分たつ・ロック（再読み込み）で DOM から消す。
+  - 移してもエントリの `totp` はそのまま（Arpass のコードも使い続けられる）。
 - **編集:** 既存の `totp` はそのまま保持（エントリ更新は spread なので自動的に残る）。削除と再登録はできる。
 - **ロック時:** 保持している `TotpKey` handle をすべて `free()` する。
 
 ## 7. 規則を守る仕組み（`scripts/lint-security.sh` の (28)〜(31)、2026-10-28）
 
 1. (28) エントリに平文の秘密キーを入れるコードが無いこと（`totp.secret` などへの代入の禁止）
-2. (29) `TotpKey` の公開メソッドは `from_base32` と `code` だけ（生バイトを返すメソッド・getter が無いこと、Rust 側）
+2. (29) `TotpKey` の公開メソッドは `from_base32` と `code`、それに `export_base32`（§6 の書き出し用）だけ
+   （ほかに生バイトや秘密キーを返すメソッド・getter が無いこと、Rust 側。2026-11-05 に `export_base32` を追加）
 3. (30) 拡張機能ブリッジ・iOS / Android 自動入力の受け渡し・アプリの CSV 書き出しに `totp` が含まれないこと
-4. (31) otpauth の QR（`qr.js` の `generateOtpauthQrSvg`）を作るのは緊急復旧ツールだけ（検査 (5) の Recovery 専用ルールの例外）
+4. (31) otpauth の QR（`qr.js` の `generateOtpauthQrSvg`）と `exportTotpSecretForEntry` を使うのは、緊急復旧ツールと
+   app-main の `openTotpExport` の中だけ（検査 (5) の Recovery 専用ルールの例外。2026-11-05 に `openTotpExport` を追加）
 
 ## 8. テスト
 
@@ -237,6 +250,7 @@ CSV のファイルを作らずに、§5.2 と同じ取り込み画面に出す�
 | Phase 2b | 鍵ローテーション対応（Personal の Recovery 再発行 Case B、Business の K1 ローテーション）、一覧へのコード表示（残り秒数・コピー） | staging で実装（2026-10-28） |
 | Phase 3 | 緊急復旧ツール（otpauth URI / QR、一括書き出し。business も pure-JS で復号）・`tools/recover-personal.py` / `recover-yubikey.py`（`totp.txt`）、lint の検査 (28)〜(31)、ヘルプ（16 言語、`isTotpUiEnabled` のときだけ表示）、公開仕様ミラーへの本書と `totp.rs` の追加 | staging で実装（2026-10-28） |
 | 本番公開 | `isTotpUiEnabled()` を本番でも true にする、`app.totp.staging_notice` の表示をやめる（文言も削除）、ヘルプの節を常時表示にする | 完了（2026-10-28、八巻さんの指示） |
+| QR 書き出し | 本人確認つきで、ほかの認証アプリへ移す QR とセットアップキーを出す（§6）。`TotpKey.export_base32`、lint (29) / (31)、ヘルプ（16 言語） | staging で実装（2026-11-05、八巻さんの指示） |
 
 TOTP の画面（登録欄・詳細画面と一覧のコード）とヘルプの節は `isTotpUiEnabled()`（`web/lib/totp.js`）が true のときだけ
 表示・保存する。2026-10-28 の本番公開で常に true になった（それまでは staging / localhost / `localStorage["arpass.feature.totp"]`

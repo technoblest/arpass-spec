@@ -2783,6 +2783,7 @@ export async function saveVault(updatedVault, opts = {}) {
   const _bizRecKey = isBusinessMode ? _session.k2Handle : null;
   const needsInjectBusiness = isBusinessMode && !!_session.recoverySecret && !!_bizRecKey;
   if (needsInjectPersonal || needsInjectBusiness) {
+    const sourceVault = updatedVault;
     // Stage 2 A-3: personal は MEK handle (旧実装の _session.mek は handle 化後 null で throw していた)。
     updatedVault = {
       ...updatedVault,
@@ -2791,6 +2792,12 @@ export async function saveVault(updatedVault, opts = {}) {
     // Phase 7.3-A.9 part 1.1: inject 直後に session から文字列を消去。 以後は
     //   vault.encryptedRecovery から復号して取り出す (= decryptRecoveryWithMek 経由)。
     _session.recoverySecret = null;
+    // 2026-11-05: keepSessionVault (save-debounce の writeOnly) では session の vault を差し替えないので、
+    //   足した encryptedRecovery を渡された写しと session の vault にも入れる (次の書き込みで落とさないように)。
+    if (opts.keepSessionVault) {
+      sourceVault.encryptedRecovery = updatedVault.encryptedRecovery;
+      if (_session.vault) _session.vault.encryptedRecovery = updatedVault.encryptedRecovery;
+    }
   }
 
   // Phase 7.2-B (α) 修正: K1 rotation は admin 意識的 (= rotate-kek 押下時) のみ。
@@ -2874,7 +2881,8 @@ export async function saveVault(updatedVault, opts = {}) {
     }
     throw e;
   }
-  _session.vault = updatedVault;
+  // keepSessionVault: 書き込み待ちを残したまま 1 操作だけ書いたので、session の vault (書き込み待ちを含む) はそのまま
+  if (!opts.keepSessionVault) _session.vault = updatedVault;
   _session.lastEnvelope = newEnvelope;
   _session.latestTxId = writeResult.txid;
   _recordWrittenTxId(writeResult.txid);  // Phase 7.1-AI
@@ -5366,6 +5374,29 @@ export async function totpCodeForEntry(entry, nowMs = Date.now()) {
   const totpKey = unwrapTotpWithMekHandle(mekKey, b64uDecode(t.wrapped.ct), b64uDecode(t.wrapped.iv), entry.id);
   try {
     return totpKey.code(nowMs / 1000, t.period ?? 30, t.digits ?? 6, t.algorithm ?? "SHA1");
+  } finally {
+    totpKey.free();
+  }
+}
+
+/**
+ * ほかの認証アプリへ移すときだけ: entry.totp の秘密キーを Base32 で返す（docs/totp-spec.md §6）。
+ * 呼ぶのは app-main の本人確認つきの QR 表示 (openTotpExport) だけ。結果は表示したら捨てる。
+ * @param {object} entry  vault.entries[] の要素
+ * @returns {Promise<string>}
+ */
+export async function exportTotpSecretForEntry(entry) {
+  const t = entry?.totp;
+  if (!t?.wrapped?.ct || !t?.wrapped?.iv) throw new Error("exportTotpSecretForEntry: entry has no totp");
+  if (!_session?.mekKey) throw new Error("exportTotpSecretForEntry: drive is locked");
+  let mekKey = _session.mekKey;
+  if (isBusinessMode() && t.k1Version != null && t.k1Version !== (_session.k1Version ?? 1)) {
+    mekKey = await _getRealMekForVersion(t.k1Version);
+  }
+  const totpKey = unwrapTotpWithMekHandle(mekKey, b64uDecode(t.wrapped.ct), b64uDecode(t.wrapped.iv), entry.id);
+  try {
+    if (typeof totpKey.export_base32 !== "function") throw new Error("exportTotpSecretForEntry: Rust crypto core is too old");
+    return totpKey.export_base32();
   } finally {
     totpKey.free();
   }
