@@ -60,6 +60,7 @@ import {
   encodeUserIdHwkey,
   decodeUserIdHwkey,
   isUserIdHwkey,
+  userIdForNativeAutofill,
   randomAppNameTag,
   deriveAppNameTag,
   deriveAllAppNameTags,
@@ -1251,11 +1252,15 @@ function provisionIosAutofill({ prfOutput, userHandle, credIdHash }) {
   if (!mh) return;
   try {
     if (!prfOutput || !userHandle || !credIdHash) return;
-    if (prfOutput.length !== 32 || userHandle.length !== 57) {
+    // 2026-11-07: ネイティブ (AutofillBridge / Rust decode_user_id_v7) は 57 byte の v7 しか受け付けない。
+    //   v8 (61 byte、2026-07-17 以降のパスキー) は v7 の並びにそろえて渡す (userIdForNativeAutofill 参照)。
+    //   以前は 57 byte 以外を捨てていたため、v8 のパスキーでは自動入力が使えなかった。
+    const uh57 = userIdForNativeAutofill(userHandle instanceof Uint8Array ? userHandle : new Uint8Array(userHandle));
+    if (prfOutput.length !== 32 || !uh57) {
       console.warn("[ios-autofill] skip store: 長さ不正 prf=" + prfOutput.length + " uh=" + userHandle.length);
       return;
     }
-    mh.postMessage({ action: "store", prf: b64uEncode(prfOutput), userHandle: b64uEncode(userHandle), credIdHash });
+    mh.postMessage({ action: "store", prf: b64uEncode(prfOutput), userHandle: b64uEncode(uh57), credIdHash });
     console.log("[ios-autofill] secret store 送信");
   } catch (e) { console.warn("[ios-autofill] store 失敗(non-fatal):", e?.message); }
 }
@@ -1321,7 +1326,10 @@ function provisionAndroidAutofill({ credentialId, userHandle }) {
     const inApp = mm && (mm("(display-mode: standalone)").matches || mm("(display-mode: fullscreen)").matches);
     if (!isAndroid || !inApp) return;
     const cid = credentialId instanceof Uint8Array ? credentialId : new Uint8Array(credentialId);
-    const uh  = userHandle  instanceof Uint8Array ? userHandle  : new Uint8Array(userHandle);
+    const uhRaw = userHandle instanceof Uint8Array ? userHandle : new Uint8Array(userHandle);
+    // 2026-11-07: Android の AutofillAuthActivity は user.id を 57 byte (v7) / 25 byte (hwkey) でしか受け付けない。
+    //   v8 (61 byte) は v7 の並びにそろえる (userIdForNativeAutofill)。hwkey の 25 byte はそのまま渡す。
+    const uh = userIdForNativeAutofill(uhRaw) ?? uhRaw;
     // intent:// 形式 (Chrome が package 明示で Activity を起動)。data = arpass-provision://cred?...
     const q = "cred?credId=" + encodeURIComponent(b64uEncode(cid))
             + "&uh=" + encodeURIComponent(b64uEncode(uh));
