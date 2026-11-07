@@ -18,7 +18,7 @@ import {
   wrapEnvelopeOuter,
   b64uEncode,
   b64uDecode,
-} from "./vault-crypto.js?v=f0263299";
+} from "./vault-crypto.js?v=02350f92";
 
 import {
   getEnvelopeCache,
@@ -357,8 +357,26 @@ export async function fetchServerVaultLatest(appNameTagValue) {
     if (!r.ok) return null;
     const j = await r.json();
     if (!j.ok || !j.txid) return null;
+    // 2026-11-08: fallback 応答 (= タグは一致しないが、 user.id の目印として登録済みなので今の保存先を
+    //   返したもの) は使わない。 Web の呼び出し側は「一致したタグ」を次の書込み先 (matchedAppName) に
+    //   使うので、 一致していない応答を受けると書込み先がずれる。 fallback は iOS / Android の自動入力用。
+    if (j.fallback) return null;
     return { txid: j.txid, pkHash: j.pkHash };
   } catch { return null; }
+}
+
+/**
+ * 2026-11-08: パスキーの user.id に入っている保存場所の目印を、 この account の vault の目印として
+ *   server に登録する (POST /api/vault/userid-tag)。 iOS / Android の自動入力は user.id の目印で
+ *   /api/vault/latest?app= を引くので、 登録しておくと今の保存先の最新が返る。
+ * @param {string} appNameTagValue  user.id の appNameTag.value (b64u)
+ * @param {object} signingState
+ * @returns {Promise<{ ok: boolean, code?: string }>}
+ */
+export async function registerVaultUserIdTag(appNameTagValue, signingState) {
+  const r = await signedFetch("/api/vault/userid-tag", "POST", { app: appNameTagValue }, signingState, { timeoutMs: 8000 });
+  const j = await r.json().catch(() => ({}));
+  return { ok: r.ok && j.ok === true, code: j.code };
 }
 
 /**

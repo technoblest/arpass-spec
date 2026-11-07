@@ -115,6 +115,14 @@ Master は credential 作成順序と独立なので順序制約に抵触しな�
 > **legacy（tier 非依存）** のもの。現行コードでも Arweave 書き込みタグは常に
 > legacy tag（`deriveAppNameTag(rMat)` tier=null）で、tier 変更では移動しない
 > （tier は `body.tier` で別途サーバ申告）。よって user.id の appNameTag は永続的に有効。
+>
+> **訂正（2026-11-08）**: 上の監査は誤り。2026-05-05（008c0144）から、2 回目以降の保存は
+> `refreshTierQualifier` が決める tier つきタグ（`deriveAppNameTag(rMat, "free"|"paid"|"private")`）に
+> 書かれる。user.id の legacy タグで `?app=` を引くと一致する slot が無く、GraphQL で作成直後の版を
+> 開いていた（iOS / Android の自動入力）。対策として、Web が解錠時に user.id のタグを
+> `POST /api/vault/userid-tag` で登録し（`vuid:<appName>→pkHash`）、`?app=` は一致しないとき
+> 登録済みタグに限り今の保存先（priority slot）を `fallback: "userid-tag"` 付きで返す。
+> Web 自身は fallback 応答を使わない（書込み先タグの判定に使うため）。
 
 ---
 
@@ -315,6 +323,7 @@ YubiKey モード:
    - vault の Arweave 書き込みタグは現行・v7 とも **legacy（tier 非依存）appNameTag** 固定。
      tier（free/paid/corp）は `body.tier` で別途サーバ申告し、タグは動かさない。
      → user.id は legacy appNameTag を持てばよく、tier 変更後も有効。
+     **（2026-11-08 訂正: 書き込みタグは tier で動く。§4 末尾の訂正と `POST /api/vault/userid-tag` を参照）**
    - 新端末の vault 特定: userHandle → appNameTag → サーバ `?app=`（高速路）
      → GraphQL `findLatestVaultTx`（フォールバック、サーバ非依存）。
    - サーバ側: `vlatest:<appName>→pkHash` 索引は実コード上すでに TTL なしで恒久

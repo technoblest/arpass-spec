@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-11-07T09:59:11.929Z
+**Generated**: 2026-11-07T11:59:23.866Z
 **Files**: 239
 
 | SHA-256 | Bytes | Path |
@@ -52,11 +52,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `19c1d618dc2426850df0a5ec88fa727eb1fb81a66576a561acc214f8eab85af1` | 182819 | `app.html` |
+| `9040f0a247d6f28957c2232fadda93fb3f2b2ec1d1b631279181fb66ca9472a5` | 182819 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |
 | `2372b479683f8158d6a33d045d05defc7320909a60b8aef7c20b9c74bdb14f81` | 65665 | `ar/help.html` |
 | `c241b6b7a88fca85848bfc054f8d9e4512b00725683954468dfaabcedfcf7374` | 98138 | `ar/index.html` |
-| `c5850a5280c9b334186e6734de781db69253f23eedb6787bfeada225bedf524f` | 14991 | `arpass-emergency-restore.html` |
+| `649d3088fe6efbc96a6d4c3f1c152fb6144c23b22f355939c16c1927e885f555` | 14991 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `f47c46f51fe6630f11e1287763f31092ced8c5642a53c822dcfc98535120817d` | 6322 | `de/download.html` |
@@ -215,12 +215,12 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `34b5bf9788ee78e0c583a3f928f28a4c0acbf240a7166bc678f25a828ceb60ef` | 6323 | `ko/download.html` |
 | `2d2ac7ba8596cec74dc70a319b283cd2abc6358b21c530238af64ac65c133a21` | 56602 | `ko/help.html` |
 | `11ab4df48ba999ec75c4e6689e23430032887908a99d1c996bf73048616330ed` | 91405 | `ko/index.html` |
-| `ad3441194e93bd06af2925eb8cbc6ca2640c8a9134d76b37f42f4ab9d5a715c0` | 553857 | `lib/app-main.js` |
-| `4d7bac3bca987b2f718393ea47446a456a289404ecfeaa916bb2ed97ca959d29` | 51977 | `lib/client-auth.js` |
+| `7c2bbfca999b906493661b83ec3c4af86416bdafed8ac421f3114cb9d8ded6f5` | 553857 | `lib/app-main.js` |
+| `44116b370fbac371773ce1dae2662c0fac6f684204d87cedb6c50b94b097d066` | 51977 | `lib/client-auth.js` |
 | `b99b7097f89f1978fdb158b005654286e66ba0734aad6f80fe0db9efa676843b` | 18046 | `lib/csv-import.js` |
 | `54b0d6fdeb01bb8bfb35285f8809fddae1b441bb8f269b97614d2dc45f0d6b67` | 626 | `lib/download-main.js` |
 | `d44eb2a8b45e132405ef9ed38fa8f697ab3b30a72bd90ce3b27049a54e558343` | 12100 | `lib/emergency-recover-purejs.js` |
-| `b65f18b597f699c5fcd6e0bba0d70e952aadab71bdc521e661614e1134ba4fd5` | 38255 | `lib/emergency-restore-main.js` |
+| `e82e48a4e356c2a926a51075e00ff3450e39c3ae01c3c1af958fd82c04839ce0` | 38255 | `lib/emergency-restore-main.js` |
 | `1a1f069ce210e29a8d7e3288ec70a1716c0d138ff0f61a2278f6b38b49b4c648` | 2657 | `lib/help-main.js` |
 | `e28daf5a58671268fc966355ba5c082dfafb1c932db361996bdaefd05d000e49` | 17941 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -232,7 +232,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `2edd7410d86986f0658251500473e07cc5ba22cfe5bad6f40cc12c4fe38b24ee` | 659 | `lib/pay-cancel-main.js` |
 | `d5b80baa47b7993fe395a6752933e2f6364657054c88f9483928357cfdaf7fc3` | 1087 | `lib/pay-success-main.js` |
 | `890960c51e5a485fe4c1ba9f6b0b2dcbd93f8e162e64e9ce8575be2269f8ea71` | 3634 | `lib/pdf-to-image.js` |
-| `73e12e71111012336eb730543e1e2ffdbadf376206609b9c0db6c481844a23a7` | 5683 | `lib/pricing-main.js` |
+| `e54ab470cdb338cc8fde8c9e8c8a057286c121b8bd3633e29e42378b540c35e9` | 5683 | `lib/pricing-main.js` |
 | `7762257ba6c0896c3f15beac10993d52c48c0b51b88d6034c2a3b2fb11a0d3b6` | 14371 | `lib/profiles.js` |
 | `310ff450ee8fc3bc7ac946987d4532ccc6c8d6d91184dee5e4097801f916ed13` | 10626 | `lib/pwa-install.js` |
 | `6177d9899940fa5f1a81ff6095b0eea7e2204248629c562ca16b394ee81a2fd0` | 12592 | `lib/qr.js` |
@@ -241,8 +241,8 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `0700d8a98ce4cd75f7f51653ee0fc519b660d38d9e1d662bba64e6ae46aff04d` | 15267 | `lib/save-debounce.js` |
 | `907f5ce3bf5908037010821d9973e66ce607b62ab86a2cad3f1a1ea2147bfb28` | 663 | `lib/security-main.js` |
 | `3c789b7feb40a662640a5fe78e32e78f3acca61d3de339ed9ee374b7a3740fa4` | 14530 | `lib/totp.js` |
-| `a2b027d33b1068440371783183291a5a559eb4e45cbede3812bbc7ef3b6b581c` | 282928 | `lib/vault-client.js` |
-| `f026329961112f1d6d846d1022987855c2217eda4120aff9673aef3d6e330e58` | 158555 | `lib/vault-crypto.js` |
+| `296486fa49e6a8ee963bea9e7afaf3e3b9327d76c816b58786884a772929a805` | 283735 | `lib/vault-client.js` |
+| `02350f920152e43381b568cd31dca1787d3df10982387f838ef57c922255814f` | 160026 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
 | `c518e8e7d6fd6add47849fe528790af26533102d1ac898882dc1df49a76f6678` | 1915 | `lib/vendor/LICENSE-noble` |
@@ -261,7 +261,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `9822e3ab29bee4f1690c49157ce2e66c2f652ad43404abb07b4cea32ccc8a24a` | 83577 | `og-card.png` |
 | `a0307310f3788643759c524e162b1e662d282c3c925abedc0285197aaa487523` | 1782 | `pay-cancel.html` |
 | `c5c4d08fdafaf7416dc0643a1d4754af99dd4938fd46c951089f69ddf1357378` | 2493 | `pay-success.html` |
-| `d1cc77468baf9fa1bccfbdb7ce065fea472afa9c8be81e7c8c3b3100c32fd12b` | 8751 | `pricing.html` |
+| `20a6d8b6db1f4d2b76d98a4e23615a1459369ed95be98b3ca9f476752625a4a1` | 8751 | `pricing.html` |
 | `bc658d1ab408772167316f230af3f1e1a3e624f95de9f4a137a65636bfaed177` | 26337 | `privacy.html` |
 | `2019d633684c2fbb2482b92ce08a39bd1f35d448100aba39ee3450c0f1899191` | 6146 | `pt-BR/download.html` |
 | `064bef2e4d9c6778dec44fed3ceae2b08d9c9005ababe2fcfa8e799fcde86d27` | 54985 | `pt-BR/help.html` |
@@ -272,7 +272,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `ffe14084804574932ea6da1f0c8f1f2cae47afc169f6e5831bad9f7384167008` | 106891 | `ru/index.html` |
 | `1d41ba64363d7d83e4615ecbc4cd93364190342ecd6b62555d22b5f7a10a4052` | 30679 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
-| `3502e094eeb81bf6216db605329c051165eedbd9c375678721c247887b125f57` | 7427 | `sw.js` |
+| `f12e62f6364cb88ca8bcb49b879ed6b746c5d585e1712f2a1f404df171e447b5` | 7427 | `sw.js` |
 | `33f6731adcb76de32e27d75df1cf954b32cc062b8ef411fb896553bfd8feb0ad` | 19037 | `terms.html` |
 | `ed8d9d2782dabb39f15fafe78789507c6e60067f2103d0b0ee58a532b3b4d193` | 12930 | `tokushoho.html` |
 | `ebe9b8e778eb0a447c4cc495845a7604e690302b40f1d052ff4e3f770cf9dc5e` | 6290 | `tr/download.html` |
