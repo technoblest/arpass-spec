@@ -45,12 +45,12 @@ import {
 import {
   decodeUserIdV7,
   credentialIdToHash,
-} from "./vault-crypto.js?v=623689e7";
+} from "./vault-crypto.js?v=f0263299";
 
 import {
   authenticateWithPasskey,
-} from "./vault-client.js?v=6e59d0de";
-import { generateOtpauthQrSvg } from "./qr.js?v=ad52de48";
+} from "./vault-client.js?v=de6113e9";
+import { generateOtpauthQrSvg } from "./qr.js?v=6177d989";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----
 const STRINGS = {
