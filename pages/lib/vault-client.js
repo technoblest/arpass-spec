@@ -101,7 +101,7 @@ import {
   writeKeyslot,
   fetchKeyslotBlob,
   lookupKeyslotTxid,
-} from "./client-auth.js?v=44116b37";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
+} from "./client-auth.js?v=0515efc5";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
 
 import {
   setRecordFileCache,
@@ -1329,6 +1329,17 @@ function provisionIosAutofillHwkey({ prfOutput, userHandle, credIdHash }) {
 //   user gesture で発火するために保持する (custom scheme 起動には activation が必須)。
 let _androidProvisionUrl = null;
 export function hasAndroidProvision() { return !!_androidProvisionUrl; }
+// 2026-11-08: 自動入力の初期設定カードが「どの Vault をこの端末に登録したか」を覚えるための短い識別子。
+//   credId / userHandle は秘密ではないが、localStorage にはそのまま置かず 32bit FNV-1a の 16 進にする。
+export function androidProvisionKey() {
+  if (!_androidProvisionUrl) return null;
+  let h = 0x811c9dc5;
+  for (let i = 0; i < _androidProvisionUrl.length; i++) {
+    h ^= _androidProvisionUrl.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(16).padStart(8, "0");
+}
 // provision 起動は Android 標準の intent:// (package 明示) + top-level navigation で行う。
 //   custom scheme(arpass-provision://)の iframe 起動は TWA Chrome では弾かれ Activity が起動しない
 //   (実機確認 2026-06-29: ボタンの user gesture でも provisioned cred 出ず)。intent:// は Chrome が
