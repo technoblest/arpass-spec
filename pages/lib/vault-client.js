@@ -81,10 +81,10 @@ import {
   quOpen,
   quSign,
   quKdfParamsHash,
-} from "./vault-crypto.js?v=02350f92";
+} from "./vault-crypto.js?v=550aefc3";
 // 2026-07-12: 緊急パディングの singleton を app-main へ (ES module identity 罠回避のため
 //   vault-client 経由で公開。re-export 構文はローカル束縛を作らないため import + export)
-import { enableEmergencyPad, isEmergencyPadActive } from "./vault-crypto.js?v=02350f92";
+import { enableEmergencyPad, isEmergencyPadActive } from "./vault-crypto.js?v=550aefc3";
 export { enableEmergencyPad, isEmergencyPadActive };
 
 import {
@@ -109,7 +109,7 @@ import {
   writeKeyslot,
   fetchKeyslotBlob,
   lookupKeyslotTxid,
-} from "./client-auth.js?v=0515efc5";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
+} from "./client-auth.js?v=352862bc";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
 
 import {
   setRecordFileCache,
@@ -128,7 +128,7 @@ import {
   quListApi,
   quRevokeApi,
   quRevokeAllApi,
-} from "./quick-unlock.js";
+} from "./quick-unlock.js?v=4864deb5";
 
 import {
   // Stage 2c Stage G4 v2 (2026-06-06): Rust handle path
@@ -137,7 +137,7 @@ import {
   decryptWithBekHandle,
   wrapBekWithMekHandle,
   unwrapBekWithMekHandle,
-} from "./vault-crypto.js?v=02350f92";
+} from "./vault-crypto.js?v=550aefc3";
 
 // ---------------------------------------------------------------------------
 // セッション (in-memory secrets, lockSession で消える)
@@ -1019,7 +1019,7 @@ export async function refreshTierQualifier() {
   let newTag;
   if (_session.rmat) {
     try {
-      const { deriveAppNameTagFromHkdf } = await import("./vault-crypto.js?v=02350f92");
+      const { deriveAppNameTagFromHkdf } = await import("./vault-crypto.js?v=550aefc3");
       newTag = await deriveAppNameTagFromHkdf(_session.rmat, useTier);
     } catch (e) {
       console.warn("[refreshTierQualifier] HKDF path failed, falling back to raw:", e?.message);
@@ -2146,7 +2146,7 @@ export async function createVault(password, userDisplayName, captchaToken = null
   const mode = opts.mode || "personal";
   const companyId = opts.companyId || null;
   // 1. Recovery Secret 生成 (画面に 1 度表示)
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=02350f92");
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=550aefc3");
   const recoverySecret = generateRecoverySecret();
   const recoveryMaterial = deriveRMat(recoverySecret);
   const appNameTag = deriveAppNameTag(recoveryMaterial);  // {name,value}
@@ -5656,7 +5656,7 @@ export async function currentSigningPrivateKeyRaw() {
     console.warn("[currentSigningPrivateKeyRaw] session に HKDF base key が無い");
     return null;
   }
-  const { deriveSigningKeyFromHkdf } = await import("./vault-crypto.js?v=02350f92");
+  const { deriveSigningKeyFromHkdf } = await import("./vault-crypto.js?v=550aefc3");
   const sk = await deriveSigningKeyFromHkdf(hkdfBase);
   return sk.privateKeyRaw;  // 32-byte big-endian scalar
 }
@@ -6260,7 +6260,7 @@ import {
   unwrapTotpWithMekHandle,
   countBusinessSecretsNeedingK1Migration,
   rewrapBusinessSecretsToCurrentK1,
-} from "./vault-crypto.js?v=02350f92";
+} from "./vault-crypto.js?v=550aefc3";
 
 /**
  * 登録時: Base32 の秘密キーを TotpKey にして、現行の vault 鍵で包む。

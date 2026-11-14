@@ -16,7 +16,7 @@
 import {
   loadMatcher, randomIndices, diceToIndex, indexToDice, masterFromIndices,
   MASTER_WORDS, MASTER_BITS, MASTER_BITS_REORDERED, WORDLIST_LANGS, WORDLIST_ID, SPACED_LANGS, fold,
-} from "./dicewords.js?v=55a01651";
+} from "./dicewords.js?v=2b44ba46";
 
 // 言語の名前 (i18n.js の LANGUAGES と同じ。復旧ツールは i18n.js を読まないので、ここに持つ)
 export const LANG_NAMES = {

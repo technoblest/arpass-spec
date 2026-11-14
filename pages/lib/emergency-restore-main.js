@@ -45,16 +45,16 @@ import {
 import {
   decodeUserIdV7,
   credentialIdToHash,
-} from "./vault-crypto.js?v=02350f92";
+} from "./vault-crypto.js?v=550aefc3";
 
 import {
   authenticateWithPasskey,
-} from "./vault-client.js?v=66c6f3b7";
+} from "./vault-client.js?v=d231ea26";
 import { generateOtpauthQrSvg } from "./qr.js?v=6177d989";
 // 2026-11-08: マスターがダイスの言葉 (8 語。2026-11-09 に 7 語から変えた) のときは、各国語の語でも英語の語でも受け付ける。
 //   単語表と照合の決まりは Web と同じもの (dicewords.js + wordlist/)。設計書 6.3 節・5 章。
-import { mountMasterInput } from "./dicewords-ui.js";
-import { runVectorSelfTest } from "./dicewords.js";
+import { mountMasterInput } from "./dicewords-ui.js?v=5783e5e5";
+import { runVectorSelfTest } from "./dicewords.js?v=2b44ba46";
 
 // ---- minimal i18n (JA + EN only; full 16-locale i18n intentionally not used) ----
 const STRINGS = {
