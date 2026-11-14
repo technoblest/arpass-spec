@@ -455,6 +455,335 @@ def find_envelope(rmat: bytes, outer_key: bytes):
     return None
 
 
+
+# ---------------------------------------------------------------------------
+# Dice words (Master made of 7 random words) — bit-for-bit the same matching
+# rules as web/lib/dicewords.js. The Master itself is ALWAYS the English words,
+# lowercase, joined by single ASCII spaces; other languages are only for display
+# and typing. Shared test vectors: web/lib/wordlist/test-vectors.json
+# (python3 recover-personal.py --check-dicewords <dir>).
+# ---------------------------------------------------------------------------
+import unicodedata
+
+DICE_WORD_COUNT = 1296
+DICE_MASTER_WORDS = 8  # 2026-11-09: 7 words -> 8 words (dicewords.js MASTER_WORDS)
+DICE_LANGS = ["en", "ja", "zh-CN", "zh-TW", "ko", "es", "pt-BR", "de",
+              "fr", "it", "ru", "id", "vi", "hi", "ar", "tr"]
+_ZERO_WIDTH_RE = re.compile("[​‌‍⁠﻿]")
+_WS_CHARS = " \t\n\r\f\v\u0085   "
+_WS_ALL_RE = re.compile("[" + _WS_CHARS + "]+")
+_SPLIT_RE = re.compile("[" + _WS_CHARS + "、,،]+")
+_AR_MARKS_RE = re.compile("[ً-ٰٟـ]")
+_LATIN_STRIP_LANGS = {"es", "pt-BR", "fr", "it"}
+# Languages whose words may contain single spaces (design doc 6.3, rule 4).
+# Matching removes the spaces; pasted text is split by searching for a split
+# into table words (see DiceMatcher.split).
+_SPACED_LANGS = {"vi", "id", "tr", "ar", "hi"}
+# Indonesian reduplication hyphen (kupu-kupu); removed in matching.
+_HYPHEN_RE = re.compile("[-\u2010\u2011\u2012\u2013\u2212]")
+_HARD_SPLIT_RE = re.compile("[\n\r\f\v\u0085\u2028\u2029\u3001,\u060c]+")
+_SOFT_SPLIT_RE = re.compile("[ \t\u1680]+")
+_MAX_PARTS = 6  # same as MAX_PARTS in dicewords.js
+_MAX_TOKENS = 64
+
+
+def dice_normalize_common(s: str) -> str:
+    t = unicodedata.normalize("NFKC", s).lower()
+    t = _ZERO_WIDTH_RE.sub("", t)
+    return t.strip(_WS_CHARS)
+
+
+def _strip_marks(s: str) -> str:
+    d = unicodedata.normalize("NFD", s)
+    d = "".join(c for c in d if not unicodedata.category(c).startswith("M"))
+    return unicodedata.normalize("NFC", d)
+
+
+def _kata_to_hira(s: str) -> str:
+    return "".join(chr(ord(c) - 0x60) if 0x30A1 <= ord(c) <= 0x30F6 else c for c in s)
+
+
+def _fold_arabic(s: str) -> str:
+    s = _AR_MARKS_RE.sub("", s)
+    s = re.sub("[أإآ]", "ا", s)
+    return s.replace("ى", "ي").replace("ة", "ه")
+
+
+def dice_fold(lang: str, s: str) -> str:
+    t = dice_normalize_common(s)
+    if lang == "en":
+        return t
+    if lang == "ja":
+        return _kata_to_hira(t)
+    if lang in ("zh-CN", "zh-TW", "ko"):
+        return t
+    if lang == "de":
+        t = t.replace("ä", "ae").replace("ö", "oe").replace("ü", "ue").replace("ß", "ss")
+        return _strip_marks(t)
+    if lang == "tr":
+        return _WS_ALL_RE.sub("", _strip_marks(t.replace("ı", "i")))
+    if lang == "id":
+        return _HYPHEN_RE.sub("", _WS_ALL_RE.sub("", _strip_marks(t)))
+    if lang == "vi":
+        return _WS_ALL_RE.sub("", t)
+    if lang == "ru":
+        return t.replace("ё", "е")
+    if lang == "ar":
+        return _WS_ALL_RE.sub("", _fold_arabic(t))
+    if lang == "hi":
+        # nukta removed; chandrabindu (U+0901) folded to anusvara (U+0902)
+        return _WS_ALL_RE.sub("", t.replace("\u093c", "").replace("\u0901", "\u0902"))
+    if lang in _LATIN_STRIP_LANGS:
+        return _strip_marks(t)
+    return t
+
+
+def dice_fold_vi_stripped(s: str) -> str:
+    return _strip_marks(dice_fold("vi", s)).replace("đ", "d")
+
+
+def dice_table_keys(lang: str, form: str):
+    keys = {dice_fold(lang, form)}
+    if lang == "de":
+        keys.add(_strip_marks(dice_normalize_common(form).replace("ß", "ss")))
+    return keys
+
+
+def _dice_wordlist_file(lang: str) -> str:
+    return "zh" if lang in ("zh-CN", "zh-TW") else lang
+
+
+def dice_find_wordlist_dir(explicit=None):
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [explicit] if explicit else []
+    cands += [os.path.join(here, "wordlist"),
+              os.path.join(here, "..", "web", "lib", "wordlist"),
+              os.path.join(here, "..", "lib", "wordlist")]
+    for d in cands:
+        if d and os.path.isfile(os.path.join(d, "en.json")):
+            return os.path.abspath(d)
+    raise RuntimeError(
+        "Dice-word lists not found. Pass --wordlist-dir pointing at the folder that "
+        "contains en.json (web/lib/wordlist in the arpass-spec repository).")
+
+
+def _dice_entries(lang: str, raw: dict):
+    words = raw["words"]
+    if len(words) != DICE_WORD_COUNT:
+        raise RuntimeError("word list %s: expected %d words" % (lang, DICE_WORD_COUNT))
+    if lang == "en":
+        return list(words), [[w] for w in words]
+    if lang in ("zh-CN", "zh-TW"):
+        key = "cn" if lang == "zh-CN" else "tw"
+        return [e[key] for e in words], [[e["cn"], e["tw"]] + list(e.get("f") or []) for e in words]
+    return [e[0] for e in words], [list(e) for e in words]
+
+
+class DiceMatcher:
+    """Accepts the chosen language's words and the English words (design doc 6.3)."""
+
+    def __init__(self, lang: str, wordlist_dir: str):
+        if lang not in DICE_LANGS:
+            raise RuntimeError("unknown word list language: %s" % lang)
+        self.lang = lang
+
+        def load(name):
+            with open(os.path.join(wordlist_dir, name + ".json"), encoding="utf-8") as f:
+                return json.load(f)
+        en_raw = load("en")
+        self.english, _ = _dice_entries("en", en_raw)
+        if lang == "en":
+            self.display, forms = self.english, [[w] for w in self.english]
+        else:
+            self.display, forms = _dice_entries(lang, load(_dice_wordlist_file(lang)))
+        exact = {}
+
+        def add(k, i):
+            if not k:
+                return
+            prev = exact.get(k)
+            exact[k] = i if prev is None or prev == i else -1
+        for i in range(DICE_WORD_COUNT):
+            for f in forms[i]:
+                for k in dice_table_keys(lang, f):
+                    add(k, i)
+            add(dice_fold(lang, self.english[i]), i)
+        self.exact = exact
+        self.stripped = None
+        if lang == "vi":
+            counts = {}
+            for i in range(DICE_WORD_COUNT):
+                for k in {dice_fold_vi_stripped(f) for f in forms[i]}:
+                    prev = counts.get(k)
+                    counts[k] = i if prev is None or prev == i else -1
+            self.stripped = {k: i for k, i in counts.items() if i >= 0 and k not in exact}
+
+    def lookup(self, token: str) -> int:
+        k = dice_fold(self.lang, token)
+        if not k:
+            return -1
+        i = self.exact.get(k)
+        if i is not None:
+            return i
+        # Vietnamese: the unmarked form is accepted only when the input has no marks at all
+        if self.stripped is not None and dice_fold_vi_stripped(token) == k:
+            j = self.stripped.get(dice_fold_vi_stripped(token))
+            if j is not None:
+                return j
+        return -1
+
+    def split(self, text: str, want: int = DICE_MASTER_WORDS):
+        """Split pasted text into words (design doc 6.4). Same algorithm as
+        splitPasted() in web/lib/dicewords.js. Returns None when a language that
+        allows spaces inside words cannot be split in exactly one way."""
+        s = unicodedata.normalize("NFKC", text or "")
+        if self.lang not in _SPACED_LANGS:
+            return [p for p in _SPLIT_RE.split(s) if p]
+        toks, end = [], []
+        for chunk in _HARD_SPLIT_RE.split(s):
+            parts = [p for p in _SOFT_SPLIT_RE.split(chunk) if p]
+            e = len(toks) + len(parts)
+            for p in parts:
+                toks.append(p)
+                end.append(e)
+        T = len(toks)
+        if T == 0:
+            return []
+        if T > _MAX_TOKENS:
+            return toks
+
+        def word(p, n):
+            return " ".join(toks[p:p + n])
+
+        def span(p):
+            return min(_MAX_PARTS, end[p] - p)
+        ways = [[0] * (T + 1) for _ in range(T + 1)]
+        first = [[0] * (T + 1) for _ in range(T + 1)]
+        ways[T][0] = 1
+        for p in range(T - 1, -1, -1):
+            for n in range(1, span(p) + 1):
+                if self.lookup(word(p, n)) < 0:
+                    continue
+                for c in range(1, T - p + 1):
+                    w = ways[p + n][c - 1]
+                    if not w:
+                        continue
+                    if not ways[p][c]:
+                        first[p][c] = n
+                    ways[p][c] = min(2, ways[p][c] + w)
+
+        def build(c):
+            out, p = [], 0
+            while p < T:
+                n = first[p][c]
+                out.append(word(p, n))
+                p += n
+                c -= 1
+            return out
+        exact = ways[0][want] if 1 <= want <= T else 0
+        if exact == 1:
+            return build(want)
+        if exact >= 2:
+            return None
+        total, only = 0, 0
+        for c in range(1, T + 1):
+            if ways[0][c]:
+                total += ways[0][c]
+                only = c
+        if total == 1:
+            return build(only)
+        if total >= 2:
+            return None
+        out, p = [], 0
+        while p < T:
+            took = 1
+            for n in range(span(p), 1, -1):
+                if self.lookup(word(p, n)) >= 0:
+                    took = n
+                    break
+            out.append(word(p, took))
+            p += took
+        return out
+
+    def master_from_text(self, text: str):
+        """-> (master_string, None) or (None, error message)."""
+        tokens = self.split(text)
+        if tokens is None:
+            return None, ("These words can be split in more than one way. "
+                          "Separate the %d words with commas." % DICE_MASTER_WORDS)
+        if len(tokens) != DICE_MASTER_WORDS:
+            return None, "Found %d words; the Master has exactly %d." % (len(tokens), DICE_MASTER_WORDS)
+        idx = [self.lookup(t) for t in tokens]
+        bad = [t for t, i in zip(tokens, idx) if i < 0]
+        if bad:
+            return None, "Not in the %s word list: %s" % (self.lang, ", ".join(bad))
+        return " ".join(self.english[i] for i in idx), None
+
+
+def dice_check_vectors(wordlist_dir: str) -> int:
+    """Run the shared input -> index test vectors (same file the web tests use)."""
+    with open(os.path.join(wordlist_dir, "test-vectors.json"), encoding="utf-8") as f:
+        vec = json.load(f)
+    matchers = {}
+    fails = 0
+    for c in vec["lookup"]:
+        m = matchers.get(c["lang"]) or matchers.setdefault(c["lang"], DiceMatcher(c["lang"], wordlist_dir))
+        got = m.lookup(c["input"])
+        if got != c["index"]:
+            fails += 1
+            print("FAIL lookup %s %r: got %d want %d" % (c["lang"], c["input"], got, c["index"]))
+    for c in vec["split"]:
+        m = matchers.get(c["lang"]) or matchers.setdefault(c["lang"], DiceMatcher(c["lang"], wordlist_dir))
+        got = m.split(c["text"], c["want"]) if "want" in c else m.split(c["text"])
+        if got != c["tokens"]:
+            fails += 1
+            print("FAIL split %s %r: got %r want %r" % (c["lang"], c["text"], got, c["tokens"]))
+    for c in vec.get("master", []):
+        m = matchers.get(c["lang"]) or matchers.setdefault(c["lang"], DiceMatcher(c["lang"], wordlist_dir))
+        got, _err = m.master_from_text(c["text"])
+        if got != c["master"]:
+            fails += 1
+            print("FAIL master %s %r: got %r want %r" % (c["lang"], c["text"], got, c["master"]))
+    for c in vec.get("fold", []):
+        got = dice_fold(c["lang"], c["input"])
+        keys = sorted(dice_table_keys(c["lang"], c["input"]))
+        vi = dice_fold_vi_stripped(c["input"]) if c["lang"] == "vi" else None
+        if got != c["key"] or keys != c["keys"] or (c["lang"] == "vi" and vi != c.get("vi")):
+            fails += 1
+            print("FAIL fold %s %r: got %r %r %r want %r %r %r" % (
+                c["lang"], c["input"], got, keys, vi, c["key"], c["keys"], c.get("vi")))
+    total = (len(vec["lookup"]) + len(vec["split"]) + len(vec.get("master", []))
+             + len(vec.get("fold", [])))
+    print("dice-words vectors: %d/%d OK" % (total - fails, total))
+    return 1 if fails else 0
+
+
+def read_master_interactive(args) -> str:
+    """Ask whether the Master is dice words; if so, read the words in the chosen language."""
+    import getpass
+    print("\nHow is your Master written?")
+    print("  1) Dice words (%d words, e.g. on your printed Master memo)" % DICE_MASTER_WORDS)
+    print("  2) A password you chose yourself")
+    choice = (args.dice_words and "1") or input("Choose 1 or 2 [1]: ").strip() or "1"
+    if choice != "1":
+        return getpass.getpass("Master password: ")
+    wl_dir = dice_find_wordlist_dir(args.wordlist_dir)
+    lang = args.dice_words if args.dice_words and args.dice_words != "ask" else None
+    if not lang:
+        print("Word list language (the language written on your memo):")
+        print("  " + " ".join(DICE_LANGS))
+        lang = input("Language [en]: ").strip() or "en"
+    m = DiceMatcher(lang, wl_dir)
+    while True:
+        sep = "commas (,)" if lang in _SPACED_LANGS else "spaces"
+        text = input("Type the %d words (%s or English), separated by %s: " % (DICE_MASTER_WORDS, lang, sep))
+        master, err = m.master_from_text(text)
+        if master:
+            print("  OK: %d words recognised." % DICE_MASTER_WORDS)
+            return master
+        print("  " + err + " Please try again.")
+
+
 # ---------------------------------------------------------------------------
 # Main flow
 # ---------------------------------------------------------------------------
@@ -467,6 +796,12 @@ def main() -> int:
                     help="Do not write totp.txt (two-factor secrets as otpauth:// URIs).")
     ap.add_argument("--show-passwords", action="store_true",
                     help="Print passwords in cleartext to the console (default: masked).")
+    ap.add_argument("--dice-words", nargs="?", const="ask", default=None, metavar="LANG",
+                    help="Your Master is dice words (8 words). Optionally give the word list "
+                         "language (en, ja, zh-CN, ...).")
+    ap.add_argument("--wordlist-dir", default=None,
+                    help="Folder with the dice-word lists (default: ./wordlist, "
+                         "../web/lib/wordlist or ../lib/wordlist next to this script).")
     args = ap.parse_args()
 
     out_dir = os.path.abspath(args.out)
@@ -477,8 +812,7 @@ def main() -> int:
     print("  Output dir    : %s" % out_dir)
 
     # Inputs — read locally; sent nowhere.
-    import getpass
-    master = getpass.getpass("Master password: ")
+    master = read_master_interactive(args)
     recovery = input("Recovery secret (RS1-...): ")
     if not master:
         raise RuntimeError("Master password is empty.")
@@ -628,6 +962,10 @@ def _selftest() -> int:
 if __name__ == "__main__":
     if "--selftest" in sys.argv:
         sys.exit(_selftest())
+    if "--check-dicewords" in sys.argv:
+        _i = sys.argv.index("--check-dicewords")
+        _d = sys.argv[_i + 1] if len(sys.argv) > _i + 1 else None
+        sys.exit(dice_check_vectors(dice_find_wordlist_dir(_d)))
     try:
         sys.exit(main())
     except KeyboardInterrupt:

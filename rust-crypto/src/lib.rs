@@ -467,6 +467,63 @@ use zeroize::Zeroize;
 // TOTP（2段階認証コード）: TotpKey handle と MekKey::wrap_totp / unwrap_totp。docs/totp-spec.md
 pub mod totp;
 
+// 素早い解錠 (quick unlock、 設計書 §3.2): Kprf / skQ / Kwrap は Rust の中だけで作って捨てる。
+//   JS に出すのは Q (公開鍵)・署名・暗号文・開いた平文 (pMat と userIdKek) だけ。
+//   lint-security (33b) が、 ここから出す関数を qu_public_key / qu_sign / qu_seal / qu_open に限る。
+pub mod quick_unlock_core;
+
+/// 素早い解錠: 登録の公開鍵 Q (65 byte、 SEC1 非圧縮)。 prf は WebAuthn PRF の出力、 id は 16 byte。
+#[wasm_bindgen]
+pub fn qu_public_key(prf: &[u8], id: &[u8]) -> Result<Vec<u8>, JsError> {
+    quick_unlock_core::public_key(prf, id).map_err(JsError::new)
+}
+
+/// 素早い解錠: eval 用の署名 (raw r || s、 64 byte)。 skQ はこの中で作って捨てる。
+#[wasm_bindgen]
+pub fn qu_sign(prf: &[u8], id: &[u8], nonce: &[u8]) -> Result<Vec<u8>, JsError> {
+    quick_unlock_core::sign(prf, id, nonce).map_err(JsError::new)
+}
+
+/// 素早い解錠: blob の封。 Kwrap はこの中で作って捨てる。 戻り値は ciphertext || tag。
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn qu_seal(
+    prf: &[u8],
+    y: &[u8],
+    id: &[u8],
+    cred_id_hash: &[u8],
+    app_tag_value: &[u8],
+    profile_id: &[u8],
+    iv: &[u8],
+    p_mat: &[u8],
+    user_id_kek: &[u8],
+    kdf_params_hash: &[u8],
+) -> Result<Vec<u8>, JsError> {
+    quick_unlock_core::seal(
+        prf, y, id, cred_id_hash, app_tag_value, profile_id, iv, p_mat, user_id_kek, kdf_params_hash,
+    )
+    .map_err(JsError::new)
+}
+
+/// 素早い解錠: blob を開く。 戻り値は 97 byte の平文 [0x01] || pMat || userIdKek || kdfParamsHash
+///   (呼び出し側は使ったらすぐ fill(0) する)。
+#[wasm_bindgen]
+#[allow(clippy::too_many_arguments)]
+pub fn qu_open(
+    prf: &[u8],
+    y: &[u8],
+    id: &[u8],
+    cred_id_hash: &[u8],
+    app_tag_value: &[u8],
+    profile_id: &[u8],
+    iv: &[u8],
+    ct: &[u8],
+) -> Result<Vec<u8>, JsError> {
+    quick_unlock_core::open(prf, y, id, cred_id_hash, app_tag_value, profile_id, iv, ct)
+        .map(|pt| pt.to_vec())
+        .map_err(JsError::new)
+}
+
 /// getrandom の js backend (= ブラウザ) は乱数を一旦 256 byte の JS 側 scratch
 /// Uint8Array に書いてから WASM memory へコピーし、 scratch は次の呼び出しまで
 /// そのまま残る (getrandom 0.2 src/js.rs)。 鍵を引いた直後に scratch 全体を

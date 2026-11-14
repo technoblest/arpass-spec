@@ -314,6 +314,19 @@ YubiKey モード:
 - Mac Safari は PRF 非互換のため共有不可。ブロックせず注意喚起のみ（§10）。
 - test-envelope-v7.mjs 56/56 PASS、lint:security clean、i18n:check 0 errors。
 
+### 例外 — 素早い解錠の blob（2026-11-09、`Arpass_素早い解錠_設計書.md` §3.7）
+- 増分 1 の「localStorage に outer 鍵を置かない」の例外として、素早い解錠を ON にした端末は
+  **暗号化した blob** `{ v:1, pMat, userIdKek, kdfParamsHash }` を置く。blob とパスキーとサーバーの答え y が
+  そろうと outer 鍵が出てくる（userIdKek で user.id を開くため）ので、置き場所を次に限る:
+  - **ブラウザ（段階 3）**: localStorage の別キー `arpass_qu_v1__<profileId>`（`web/lib/quick-unlock.js`）だけ。
+    meta（`arpass_vault_meta_v5__<profileId>`）には入れない。meta は秘密を入れない決まりがあり、`writeMeta` が
+    meta をまるごと置き換えるので blob が黙って消える。
+  - **iPhone アプリ（段階 2）**: blob と PRF は Keychain（`kSecAttrAccessibleWhenUnlockedThisDeviceOnly` +
+    `.biometryCurrentSet`）。localStorage の `arpass_qu_v1__<profileId>` には登録番号などの秘密でない値だけを置く。
+- blob だけでは開けない: Kwrap = HKDF(Kprf ‖ y)。y はサーバーが、パスキーの PRF から作った鍵（skQ）で使い捨ての
+  nonce に署名した端末にだけ返す。取り消し（1 台ずつ / epoch）と、ブラウザは 90 日の期限で止められる。
+- `lint-security.sh` (34) が、`arpass_qu_v1__` をこのモジュール以外で使っていないか、meta に入れていないかを確かめる。
+
 ---
 
 ## 12. 未確定事項（実装で詰める）

@@ -357,6 +357,26 @@ export async function derivePMat(passwordString, saltBytes, kdfParams) {
   return new Uint8Array(out);
 }
 
+// 2026-11-09 素早い解錠 (設計書 §8): decryptVault / decryptVaultBusiness / K2 取り出しは、 マスターの
+//   代わりに pMat (32 byte) も受け取る。 factors.pMat は呼び出し側の値なので、 ここでは消さない。
+function _isPMat(v) { return v instanceof Uint8Array && v.length === 32; }
+export async function pMatFromFactors(factors, saltBytes, kdfParams) {
+  if (_isPMat(factors?.pMat)) return factors.pMat;
+  return await derivePMat(factors.password, saltBytes, kdfParams);
+}
+
+/**
+ * 素早い解錠の kdfParamsHash: SHA-256("argon2id:m=<m>:t=<t>:p=<p>:dkLen=<dkLen>")。
+ *   blob を封じたときの envelope.kdfParams。 開いたあと envelope と比べ、 違えば pMat は古い (マスター入力に戻る)。
+ *   Rust (quick_unlock_core::kdf_params_hash) と同じ文字列。
+ * @param {object} kdfParams envelope.kdfParams
+ * @returns {Uint8Array} 32 byte
+ */
+export function quKdfParamsHash(kdfParams) {
+  const p = validateKdfParams(kdfParams);
+  return sha256(enc.encode(`argon2id:m=${p.m}:t=${p.t}:p=${p.p}:dkLen=${p.dkLen}`));
+}
+
 /**
  * WebAuthn PRF 出力を HKDF で 32-byte の kMat に整形。
  */
@@ -1426,7 +1446,7 @@ export async function decryptVault(envelope, factors) {
   if (!envelope || envelope.v !== VAULT_FORMAT_V5) {
     throw new Error(`v5 envelope expected, got v=${envelope?.v}`);
   }
-  const haveP = !!factors?.password;
+  const haveP = !!factors?.password || _isPMat(factors?.pMat);
   const haveK = factors?.prfOutput instanceof Uint8Array && factors.prfOutput.length >= 16;
   const haveR = factors?.recoveryMaterial instanceof Uint8Array && factors.recoveryMaterial.length >= 32;
   if ([haveP, haveK, haveR].filter(Boolean).length < 2) {
@@ -1435,7 +1455,8 @@ export async function decryptVault(envelope, factors) {
 
   const salt = b64uDecode(envelope.s);
   // Phase 7.4.1: 旧 envelope は kdfParams を持たないので CURRENT に fallback
-  const pMat = haveP ? await derivePMat(factors.password, salt, envelope.kdfParams) : null;
+  // 2026-11-09 素早い解錠: factors.pMat (32 byte) があればマスターの代わりに使う (Argon2id を省く)。
+  const pMat = haveP ? await pMatFromFactors(factors, salt, envelope.kdfParams) : null;
   const kMat = haveK ? deriveKMat(factors.prfOutput) : null;
   const rMat = haveR ? factors.recoveryMaterial.slice(0, 32) : null;
 
@@ -2438,7 +2459,7 @@ export async function decryptVaultBusiness(envelope, factors, k1Bytes) {
   if (!_k1IsHandle && (!(k1Bytes instanceof Uint8Array) || k1Bytes.length !== 32))
     throw new Error("k1 (32 byte Uint8Array or K1Key handle) required");
 
-  const haveP = !!factors?.password;
+  const haveP = !!factors?.password || _isPMat(factors?.pMat);
   const haveK = factors?.prfOutput instanceof Uint8Array && factors.prfOutput.length >= 16;
   const haveR = factors?.recoveryMaterial instanceof Uint8Array && factors.recoveryMaterial.length >= 32;
   if ([haveP, haveK, haveR].filter(Boolean).length < 2)
@@ -2446,7 +2467,8 @@ export async function decryptVaultBusiness(envelope, factors, k1Bytes) {
 
   const salt = b64uDecode(envelope.s);
   // Phase 7.4.1: envelope.kdfParams を採用 (旧 envelope の場合は CURRENT)
-  const pMat = haveP ? await derivePMat(factors.password, salt, envelope.kdfParams) : null;
+  // 2026-11-09 素早い解錠: factors.pMat があればマスターの代わりに使う。
+  const pMat = haveP ? await pMatFromFactors(factors, salt, envelope.kdfParams) : null;
   const kMat = haveK ? deriveKMat(factors.prfOutput) : null;
   const rMat = haveR ? factors.recoveryMaterial.slice(0, 32) : null;
 
@@ -2615,8 +2637,35 @@ async function _userIdV7Counter(nameB, valB) {
 //   Phase 7.4.1: ここは USERID_KDF_PARAMS で固定。 user.id は credential 作成後
 //   不変なので、CURRENT_KDF_PARAMS の将来変更があっても user.id outer wrap は
 //   絶対に変えない。 強化したい場合は USERID_V7_VERSION を 8 に上げる。
-async function _wrapOuterForUserId(outerKeyBytes, password, nameB, valB, mode) {
-  const kekBytes = await derivePMat(password, valB, USERID_KDF_PARAMS);
+// 2026-11-09 素早い解錠 (設計書 §8): user.id の outer 鍵ラップ鍵 (userIdKek) の導出を切り出した。
+//   素早い解錠では、 マスターで開いたときに作った userIdKek を端末の blob に入れておき、 マスター無しで
+//   decodeUserIdV7 に直接渡す。 userIdKek = Argon2id(Master, salt = appNameTag.value, USERID_KDF_PARAMS)。
+async function _userIdKekFromPassword(password, valB) {
+  return await derivePMat(password, valB, USERID_KDF_PARAMS);
+}
+
+/**
+ * user.id (v7 / v8) とマスターから userIdKek (32 byte) を作る。 呼び出し側が使い終えたら fill(0) する。
+ * @param {Uint8Array} userIdBytes  v7 (57) / v8 (61)
+ * @param {string} password  Master
+ * @returns {Promise<Uint8Array>}
+ */
+export async function deriveUserIdKek(userIdBytes, password) {
+  if (!isUserIdV7(userIdBytes)) throw new Error("deriveUserIdKek: v7/v8 user.id required");
+  if (typeof password !== "string" || password.length === 0)
+    throw new Error("deriveUserIdKek: password (Master) required");
+  const valB = userIdBytes.slice(1 + APPTAG_NAME_LEN, 1 + APPTAG_NAME_LEN + APPTAG_VALUE_LEN);
+  return await _userIdKekFromPassword(password, valB);
+}
+
+// passwordOrKek: Master の文字列、 または { userIdKek: Uint8Array(32) }。 後者は呼び出し側の値なので
+//   ここでは消さない (呼び出し側が fill(0) する)。 前者から作った鍵はここで消す。
+async function _wrapOuterForUserId(outerKeyBytes, passwordOrKek, nameB, valB, mode) {
+  const _givenKek = (passwordOrKek && typeof passwordOrKek === "object" && passwordOrKek.userIdKek instanceof Uint8Array)
+    ? passwordOrKek.userIdKek : null;
+  if (_givenKek && _givenKek.length !== 32) throw new Error("_wrapOuterForUserId: userIdKek must be 32 bytes");
+  const kekBytes = _givenKek ?? await _userIdKekFromPassword(passwordOrKek, valB);
+  const _zeroKek = () => { if (!_givenKek) kekBytes.fill(0); };
   const counter  = await _userIdV7Counter(nameB, valB);
   // fallback 撤去: Rust AES-256-CTR を必須化 (user.id outer 鍵ラップの subtle/CryptoKey を除去)。
   //   CTR は対合なので mode 不問。 KAT (test_aes_ctr_webcrypto_vector) で WebCrypto と bit 互換。
@@ -2625,13 +2674,13 @@ async function _wrapOuterForUserId(outerKeyBytes, password, nameB, valB, mode) {
   //   (iPhone 実機: アプリ再インストールでしか復旧しない事象の真因)。await すれば読み込みを待てる。
   const rc = await _getRustCrypto();
   if (!rc || typeof rc.aes256_ctr_apply !== "function") {
-    kekBytes.fill(0);
+    _zeroKek();
     throw new Error("_wrapOuterForUserId: Rust crypto core (aes256_ctr_apply) 必須");
   }
   try {
     return new Uint8Array(rc.aes256_ctr_apply(kekBytes, counter, outerKeyBytes));
   } finally {
-    kekBytes.fill(0);
+    _zeroKek();
   }
 }
 
@@ -2698,6 +2747,8 @@ export async function encodeUserIdV8(appNameTag, outerKeyBytes, password) {
  * @returns {Promise<{version:number, appNameTag:{name:string,value:string}, outerKey:Uint8Array}>}
  */
 export async function decodeUserIdV7(userIdBytes, password) {
+  // 2026-11-09 素早い解錠: 第 2 引数は Master の文字列、 または { userIdKek: Uint8Array(32) }。
+  //   後者は blob から取り出した値 (マスター無し)。 呼び出し側が使い終えたら fill(0) する。
   if (!(userIdBytes instanceof Uint8Array))
     throw new Error("decodeUserIdV7: userIdBytes must be Uint8Array");
   // v7 (57 byte, version=7) と v8 (61 byte, version=8: 末尾 nonce 付き) の両対応。
@@ -2706,8 +2757,9 @@ export async function decodeUserIdV7(userIdBytes, password) {
   const _isV8 = userIdBytes.length === USERID_V8_LEN && userIdBytes[0] === USERID_V8_VERSION;
   if (!_isV7 && !_isV8)
     throw new Error(`decodeUserIdV7: expected v7(${USERID_V7_LEN})/v8(${USERID_V8_LEN}) byte with matching version, got len=${userIdBytes.length} ver=${userIdBytes[0]}`);
-  if (typeof password !== "string" || password.length === 0)
-    throw new Error("decodeUserIdV7: password (Master) required");
+  const _kekGiven = password && typeof password === "object" && password.userIdKek instanceof Uint8Array;
+  if (!_kekGiven && (typeof password !== "string" || password.length === 0))
+    throw new Error("decodeUserIdV7: password (Master) or { userIdKek } required");
   let off = 1;
   const nameB = userIdBytes.slice(off, off + APPTAG_NAME_LEN); off += APPTAG_NAME_LEN;
   const valB  = userIdBytes.slice(off, off + APPTAG_VALUE_LEN); off += APPTAG_VALUE_LEN;
@@ -2761,6 +2813,71 @@ export function isUserIdV8(userIdBytes) {
   return userIdBytes instanceof Uint8Array
     && userIdBytes.length === USERID_V8_LEN
     && userIdBytes[0] === USERID_V8_VERSION;
+}
+
+// ============================================================================
+// 素早い解錠 (quick unlock、 設計書 §3.2): blob の封・開封と eval の署名
+// ----------------------------------------------------------------------------
+// Kprf / skQ / Kwrap は Rust (WASM) の中だけで作って捨てる (JS には出さない)。 JS に出るのは
+//   Q (公開鍵)・署名・暗号文、 開いたときの pMat と userIdKek (一瞬だけ。 呼び出し側がすぐ fill(0))。
+// 文字列 (credIdHash、 appNameTag.value、 profileId) は UTF-8 のバイト列として束ねる。 id は 16 byte、
+//   nonce と y は 32 byte。 Rust が無い・古い (qu_* が無い) ときは止める (fail-closed)。
+// ============================================================================
+
+async function _quRust(where) {
+  const rc = await _getRustCrypto();
+  if (!rc || typeof rc.qu_seal !== "function" || typeof rc.qu_open !== "function"
+      || typeof rc.qu_sign !== "function" || typeof rc.qu_public_key !== "function") {
+    throw new Error(`${where}: Rust crypto core (qu_*) 必須`);
+  }
+  return rc;
+}
+function _quStr(v, what) {
+  if (typeof v !== "string" || v.length === 0) throw new Error(`quick unlock: ${what} required`);
+  return enc.encode(v);
+}
+
+/** Q (65 byte) — 登録のときサーバに預ける公開鍵。 */
+export async function quPublicKey(prfOutput, idBytes) {
+  const rc = await _quRust("quPublicKey");
+  return new Uint8Array(rc.qu_public_key(prfOutput, idBytes));
+}
+
+/** eval の署名 (raw r||s、 64 byte)。 */
+export async function quSign(prfOutput, idBytes, nonceBytes) {
+  const rc = await _quRust("quSign");
+  return new Uint8Array(rc.qu_sign(prfOutput, idBytes, nonceBytes));
+}
+
+/**
+ * blob の封。 { pMat, userIdKek, kdfParamsHash } を Kwrap = HKDF(Kprf || y, ...) で AES-256-GCM。
+ * @returns {Promise<Uint8Array>} ciphertext || tag
+ */
+export async function quSeal({ prfOutput, y, id, credIdHash, appTagValue, profileId, iv, pMat, userIdKek, kdfParamsHash }) {
+  const rc = await _quRust("quSeal");
+  return new Uint8Array(rc.qu_seal(
+    prfOutput, y, id, _quStr(credIdHash, "credIdHash"), _quStr(appTagValue, "appTagValue"),
+    _quStr(profileId, "profileId"), iv, pMat, userIdKek, kdfParamsHash,
+  ));
+}
+
+/**
+ * blob を開く。 どれか 1 つでも違えば (y・PRF・id・credIdHash・appTagValue・profileId・改ざん) throw。
+ * @returns {Promise<{pMat:Uint8Array, userIdKek:Uint8Array, kdfParamsHash:Uint8Array}>}
+ *   呼び出し側が使い終えたら pMat と userIdKek を fill(0) する。
+ */
+export async function quOpen({ prfOutput, y, id, credIdHash, appTagValue, profileId, iv, ct }) {
+  const rc = await _quRust("quOpen");
+  const pt = new Uint8Array(rc.qu_open(
+    prfOutput, y, id, _quStr(credIdHash, "credIdHash"), _quStr(appTagValue, "appTagValue"),
+    _quStr(profileId, "profileId"), iv, ct,
+  ));
+  try {
+    if (pt.length !== 97 || pt[0] !== 1) throw new Error("quOpen: unexpected plaintext");
+    return { pMat: pt.slice(1, 33), userIdKek: pt.slice(33, 65), kdfParamsHash: pt.slice(65, 97) };
+  } finally {
+    pt.fill(0);
+  }
 }
 
 // YubiKey モードの MEK wrap 鍵 = HKDF(PRF, mek_wrap_v7) を WASM 内で派生した MekKey handle。
