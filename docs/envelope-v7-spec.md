@@ -247,7 +247,7 @@ v6 の envelope をそのまま使う（`{ v:5, s, i, c, w:{a,b[],c[]} }`、構�
 YubiKey を 1 本足す:
 1. 既存の登録済み YubiKey で認証 → その keyslot blob から `outerKey`/`appNameTag` を、
    `envelope.k[]` から raw MEK を取り出す（session の MEK は zeroize 済のため再取得）。
-2. 新しい YubiKey を登録（`createPasskey`、resident 必須、`userVerification:"discouraged"` §10）。
+2. 新しい YubiKey を登録（`createPasskey`、resident 必須、`userVerification:"required"` = PIN 必須 §10）。
    user.id に新しいランダム keyslotTag（version=8、§5.4）を焼く。
 3. `addHwkey` で `envelope.k[]` に新鍵の PRF-wrap を追加し、新鍵専用の keyslot blob を
    `encodeKeyslot` で作って書き込む（write-once）。
@@ -274,18 +274,27 @@ YubiKey モード:
    無いぶん 1 本運用は全鍵喪失で復旧不能になり危険）。
 2. **Recovery 扉を作らない** — Recovery 秘密を生成せず `w` も `encryptedRecovery` も作らない。
 3. **discoverable 必須** — `residentKey:"required"`（新端末で userHandle を読むため）。
-4. **UV 非依存（`userVerification:"discouraged"`、増分2 で確定）** — 当初は「UV 必須
-   （`"required"`）」を予定したが、WebAuthn PRF は **UV（PIN 入力）の有無で出力値が
-   変わる**。プラットフォーム間で UV の有無が食い違うと PRF が一致せず keyslot を
-   復号できない（特に Mac Safari は `"required"` でも UV を省くことがある）。そこで
-   hwkey の全 WebAuthn 呼び出し（create / get / follow-up get）を `"discouraged"` に
-   統一し、PRF を常に「UV なし変種（タッチのみ）」に固定する。全プラットフォームで
-   PRF が一致する。`createPasskey` は hwkey では create() が返す PRF（create ceremony の
-   UV あり PRF）を捨て、必ず follow-up get（discouraged）の PRF を採用する。
+4. **UV 必須（`userVerification:"required"`、YubiKey の PIN を毎回入力。2026-06-28 から）** —
+   WebAuthn PRF は **UV（PIN 入力）の有無で出力値が変わる**（YubiKey 内部の
+   CredRandomWithUV / WithoutUV）。プラットフォーム間で UV の有無が食い違うと PRF が
+   一致せず keyslot を復号できないため、hwkey の全 WebAuthn 呼び出し（create / get /
+   follow-up get、Web と iPhone のネイティブ経路の両方）を `"required"` に統一し、PRF を
+   常に「UV あり変種」に固定する。
+   - 経緯: 増分2（2026-05-25）では逆に `"discouraged"`（UV なし変種、タッチのみ）に
+     統一していた。しかし UV なしでは、YubiKey の credProtect により discoverable な
+     鍵の列挙ができず、Android で読み取りエラーと Passkey 選択画面の繰り返しが起き、
+     iPhone のセキュリティキー経路は反応しなかった。discoverable な鍵の作成はもともと
+     PIN 必須（UV あり）なので、解錠も UV ありにそろえた（Web eb5727f3、iPhone
+     arpass-ios 990a916、2026-06-28）。
+   - 安全面: YubiKey を盗まれても、PIN を知らなければ開けない。FIDO2 の PIN は
+     続けて誤ると YubiKey がロックされる（既定 8 回）ため、総当たりはできない。
+     ただし Mac Safari で作ったドライブは除く（下の注のとおり Safari は PIN を省くので、
+     タッチだけで開く）。
 
 > **Mac Safari の制約（増分2、アプリ側で修正不能）**: Mac の Safari は WebAuthn の
-> 実装が他ブラウザと異なり、同じ YubiKey でも他ブラウザ（Mac Chrome/Edge、Windows、
-> iPhone、Android）と PRF 値が一致しない。このため Mac Safari で作成・利用した hwkey
+> 実装が他ブラウザと異なり、`"required"` でも UV（PIN）を省くため、同じ YubiKey でも
+> 他ブラウザ（Mac Chrome/Edge、Windows、iPhone、Android）と PRF 値が一致しない
+> （Safari だけ UV なし変種になる）。このため Mac Safari で作成・利用した hwkey
 > ドライブは Mac Safari 専用になり、他環境と相互に開けない（逆も同様）。当初は Mac
 > Safari を検出してブロックしたが、Safari 内で完結する利用は可能なため、ブロックは
 > 撤廃し **「他ブラウザ/他端末と共有できない」旨の注意喚起（toast）にとどめる**
@@ -309,7 +318,7 @@ YubiKey モード:
 - 作成フロー（モード選択 UI、≥2 本、Recovery 非生成、`createHwkeyVault`）。
 - 任意端末での解錠（§7.3、`unlockWithHwkeyAuthed` / `hwkeyAuthenticateForUnlock`）。
 - 別端末での YubiKey 追加（§8.2、`addHwkeyDevice`）。
-- WebAuthn を全て `userVerification:"discouraged"` に統一し PRF を UV 非依存に固定（§10）。
+- WebAuthn を全て `userVerification:"discouraged"` に統一し PRF を UV 非依存に固定（§10）。※ 2026-06-28 に `"required"`（PIN 必須、UV あり変種）へ変更（§10 の 4）。
 - Arweave 伝播遅延のバックオフ再試行（§7.3 step 6）。
 - Mac Safari は PRF 非互換のため共有不可。ブロックせず注意喚起のみ（§10）。
 - test-envelope-v7.mjs 56/56 PASS、lint:security clean、i18n:check 0 errors。
