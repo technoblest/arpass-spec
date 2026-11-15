@@ -94,6 +94,24 @@ v=2 (Phase 7.0w-AP format marker、文字列ベース)
 - 機種追加で peer-to-peer QR ペアリング (Phase 7.0w-AH #100, 未実装) の素地ができる
 - Deep Recovery Phase A (#102, 実装済) の "Recovery + 残存 Passkey" 経路で envelope 内の Recovery を取り出して機種追加に流用できる
 
+
+### 0.3b マスターの写しを encryptedMaster として保存 (2026-11-15、staging)
+
+個人の通常モードのドライブには、マスターの写しも入れられる (設定の「マスターを見る・紙に残す」で、打たずに 8 語と QR を出す用)。
+
+```
+vault.encryptedMaster = { v: 1, i, c }
+  c = AES-GCM(HKDF(MEK, salt "arpass-master-protect-v1", info "master-protect"), iv, UTF8(JSON{ m: master, l: diceLang|null }))
+vault.masterCopyOff = true   (本人が消したとき。自動では入れ直さない)
+```
+
+- 鍵は Recovery の写しとは別 (salt が違う)。ドライブの中身ごと MEK でも暗号化されるので二重。
+- 新しいドライブは作成の書き込みに入れる。今あるドライブは、マスターを打って最新の版を開けた (AB / AC) ときに用意し、次のふだんの書き込みに入れる (余分な書き込みはしない)。素早い解錠・Passkey + Recovery (BC) では入れない。
+- マスターの変更・Recovery の作り直し (Case A / B) では、同じ書き込みで作り直す (Case B は新しい MEK で)。
+- 見るときは Passkey を 1 回求め、その同じ確認で、写しのマスターで今の版を AB で開けるかを見る。開けなければ (別の端末でマスターが変えられた) 出さない。
+- ビジネス・管理者・YubiKey モードには入れない。
+- 増える危険: Passkey + Recovery で開いた人がマスターを知る。その人はすでに中身を全部読めるので差は小さい。端末と Recovery を両方なくしたら、Recovery の作り直し (Case B) に加えてマスターも変える (同期パスキーと写しのマスターで開けてしまうため)。
+
 ### 0.4 Deep Recovery Phase A (#102, Phase 7.0w-AH)
 
 Path BC (Passkey + Recovery) unlock を **credIdHash 非依存** に拡張:

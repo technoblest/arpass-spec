@@ -75,10 +75,24 @@ const FALLBACK_EN = {
   "app.dice.memo_warn_title": "⚠ Important",
   "app.dice.memo_warn_1": "This is your Arpass Master. You need it to add a new device and to recover after the service ends.",
   "app.dice.memo_warn_2": "Keep it in a different place from your Recovery kit. Anyone who has both can open your drive.",
-  "app.dice.memo_warn_3": "Do not photograph or copy this paper, and do not show it to anyone.",
+  "app.dice.memo_warn_3": "Do not show it to anyone. If you also keep a photo or image of it, keep that apart from your Recovery paper or image.",
   "app.dice.memo_warn_4": "When typing, you can use the English words or the words in the language above.",
   "app.dice.memo_restore": "Even after the service ends, this memo and your Recovery kit open your drive with the recovery tool.",
   "app.dice.change_intro": "Your new Master is also made of dice words (8 words).",
+  // 2026-11-15: マスターの QR (印刷と読み取り)
+  "app.dice.scan_qr": "📷 Read QR",
+  "app.dice.scan_qr_title": "Read the QR on your Master memo to enter the Master",
+  "app.dice.qr_scanned": "✓ Entered the Master from the QR.",
+  "app.dice.qr_recovery": "This is the QR of your Recovery kit. Read the QR on your Master memo instead.",
+  "app.dice.qr_not_master": "This QR is not an Arpass Master.",
+  "app.dice.qr_newer": "This QR was made by a newer version of Arpass. Reload the page (or update the app) and try again.",
+  "app.dice.qr_invalid": "This QR could not be read as a Master. Type the Master instead.",
+  "app.dice.memo_printed": "Printed",
+  "app.dice.memo_not_alone": "This paper alone cannot open your drive. Keep it in a different place from your Recovery kit.",
+  "app.dice.memo_qr_caption": "QR of this Master. On the unlock screen, press “📷 Read QR” to enter it.",
+  "app.dice.memo_open": "To open: go to https://arpass.io/app and enter the Master (you can also read this QR). You also need your passkey or your Recovery kit.",
+  "app.dice.memo_text_label": "Master",
+  "app.dice.memo_text_note": "Enter it exactly as written, including capital letters, spaces and symbols.",
 };
 
 function makeTr(tr) {
@@ -123,6 +137,12 @@ const CSS = `
 .dw-tab { border: 0; background: #fff; padding: 7px 12px; font-size: 13px; cursor: pointer; color: #334155; }
 .dw-tab + .dw-tab { border-left: 1px solid #CBD5E1; }
 .dw-tab[aria-selected="true"] { background: #5B21B6; color: #fff; font-weight: 600; }
+.dw-tabrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 4px 0 8px; }
+.dw-tabrow .dw-tabs { margin: 0; }
+.dw-qrbtn { border: 1px solid #CBD5E1; background: #fff; border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; color: #334155; }
+.dw-qrbtn:hover { background: #EDE9FE; border-color: #A78BFA; }
+.dw-qrbtn[hidden] { display: none; }
+.dw-qrstatus { margin: 0 0 6px; min-height: 0; }
 /* 列の数は置き場所の幅で決める (作る画面のカードは狭い)。語の途中では折り返さない */
 .dw-words { position: relative; list-style: none; padding: 0; margin: 8px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 6px; }
 .dw-word { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 1px solid #E2E8F0; border-radius: 6px; background: #F8FAFC; }
@@ -156,19 +176,30 @@ const CSS = `
 .dw-link { background: none; border: 0; color: #5B21B6; text-decoration: underline; cursor: pointer; font-size: 13px; padding: 0; }
 #print-master-memo { display: none; }
 @media print {
+  html, body { height: auto !important; min-height: 0 !important; background: #fff !important; }
   body.dw-printing > *:not(#print-master-memo) { display: none !important; }
-  body.dw-printing #print-master-memo { display: block !important; color: #000; background: #fff;
+  body.dw-printing > #print-master-memo { display: block !important; color: #000; background: #fff;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", system-ui, sans-serif; }
-  #print-master-memo h1 { font-size: 18pt; margin: 0 0 3mm; }
-  #print-master-memo .pmm-meta { font-size: 9pt; color: #333; margin-bottom: 5mm; line-height: 1.6; }
-  #print-master-memo table { width: 100%; border-collapse: collapse; font-size: 13pt; margin: 2mm 0 5mm; }
-  #print-master-memo th, #print-master-memo td { border: 1px solid #000; padding: 2.5mm 3mm; text-align: left; }
-  #print-master-memo th { font-size: 9pt; background: #eee; }
-  #print-master-memo td.pmm-no, #print-master-memo td.pmm-dice { font-variant-numeric: tabular-nums; font-size: 10pt; width: 12%; }
-  #print-master-memo .pmm-warn { border: 1.5px solid #000; padding: 3mm; font-size: 9.5pt; line-height: 1.55; }
-  #print-master-memo .pmm-warn ul { margin: 1mm 0 0 5mm; padding: 0; }
-  #print-master-memo .pmm-drive { margin: 6mm 0 4mm; font-size: 10pt; border-bottom: 1px solid #000; padding-bottom: 6mm; }
-  #print-master-memo .pmm-foot { font-size: 8pt; color: #555; margin-top: 5mm; }
+  /* 2026-11-15: iPhone の Safari は上下に URL と日付の行を足すので、 A4 1 枚に収まるよう詰めた (前は注意と開き方が 2 枚目に出た) */
+  #print-master-memo h1 { font-size: 15pt; margin: 0 0 2mm; }
+  #print-master-memo .pmm-meta { font-size: 8.5pt; color: #333; margin-bottom: 3mm; line-height: 1.5; }
+  #print-master-memo table { width: 100%; border-collapse: collapse; font-size: 11.5pt; margin: 1.5mm 0 3mm; }
+  #print-master-memo th, #print-master-memo td { border: 1px solid #000; padding: 1.1mm 2.5mm; text-align: left; }
+  #print-master-memo th { font-size: 8.5pt; background: #eee; }
+  #print-master-memo td.pmm-no, #print-master-memo td.pmm-dice { font-variant-numeric: tabular-nums; font-size: 9.5pt; width: 12%; }
+  #print-master-memo .pmm-warn { border: 1.5px solid #000; padding: 2.2mm 3mm; font-size: 8.8pt; line-height: 1.42; break-inside: avoid; page-break-inside: avoid; }
+  #print-master-memo .pmm-warn ul { margin: 0.8mm 0 0 5mm; padding: 0; }
+  #print-master-memo .pmm-drive { margin: 2.5mm 0 2.5mm; font-size: 9.5pt; border-bottom: 1px solid #000; padding-bottom: 4mm; }
+  #print-master-memo .pmm-foot { font-size: 7.5pt; color: #555; margin-top: 2.5mm; }
+  #print-master-memo .pmm-alone { border: 2px solid #000; padding: 1.8mm 3mm; font-size: 10.5pt; font-weight: 700; margin: 0 0 2.5mm; }
+  #print-master-memo .pmm-text { border: 1px solid #000; padding: 3mm; margin: 2mm 0 1mm; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15pt; white-space: pre-wrap; word-break: break-all; }
+  #print-master-memo .pmm-textnote { font-size: 9pt; margin: 0 0 3mm; }
+  #print-master-memo .pmm-qrrow { display: flex; align-items: center; gap: 5mm; margin: 1.5mm 0 2.5mm; break-inside: avoid; page-break-inside: avoid; }
+  #print-master-memo .pmm-qr { flex: 0 0 auto; width: 30mm; height: 30mm; }
+  #print-master-memo .pmm-qr svg { display: block; width: 100%; height: 100%; }
+  #print-master-memo .pmm-qrcap { font-size: 9pt; line-height: 1.45; }
+  #print-master-memo .pmm-open { font-size: 8.8pt; line-height: 1.42; margin: 2.5mm 0 0; }
 }
 `;
 
@@ -604,6 +635,14 @@ export function mountDiceInput(container, opts = {}) {
     get matcher() { return matcher; },
     setLang,
     focus() { (fields.find((f) => f.idx < 0) || fields[0]).input.focus(); },
+    // 番号の並びで 8 つの欄を埋める (2026-11-15、マスターの QR の読み取り)。欄には今の言語の語を出す
+    async setIndices(idx) {
+      await ready;
+      if (!matcher || !Array.isArray(idx) || idx.length !== n) return false;
+      pending = null;
+      idx.forEach((v, k) => { fields[k].afterCompose = null; confirm(fields[k], v, false); });
+      return true;
+    },
     clear() {
       pending = null;
       for (const f of fields) { f.afterCompose = null; f.input.value = ""; f.idx = -1; f.gloss.textContent = ""; setState(f, null); closeCands(f); }
@@ -624,7 +663,11 @@ export function mountDiceInput(container, opts = {}) {
 
 /**
  * @param {HTMLInputElement} pwInput 既存の <input type="password">
- * @param {{ tr?: Function, uiLang?: string, onSubmit?: Function, defaultMode?: "dice"|"text" }} opts
+ * @param {{ tr?: Function, uiLang?: string, onSubmit?: Function, defaultMode?: "dice"|"text",
+ *           scanQr?: () => Promise<string|null> }} opts
+ *   scanQr: カメラで QR を読んで中身の文字列を返す (2026-11-15、マスターの QR の読み取り)。渡したときだけ
+ *           「📷 QR」のボタンを出す (カメラの無い端末では出さない)。カメラと画像はアプリの側 (app-main の
+ *           QR の読み取りの画面。2 段階認証の QR と同じ部品) が扱い、ここには文字列だけが来る。
  */
 export function mountMasterInput(pwInput, opts = {}) {
   ensureCss();
@@ -634,9 +677,15 @@ export function mountMasterInput(pwInput, opts = {}) {
   const tDice = tx(T, "button", { type: "button", class: "dw-tab", role: "tab" }, "app.dice.mode_dice");
   const tText = tx(T, "button", { type: "button", class: "dw-tab", role: "tab" }, "app.dice.mode_text");
   tabs.append(tDice, tText);
+  const tabRow = el("div", { class: "dw-tabrow" }, tabs);
+  const qrBtn = opts.scanQr ? tx(T, "button", { type: "button", class: "dw-qrbtn", hidden: true,
+    title: T("app.dice.scan_qr_title"), "data-i18n-title": "app.dice.scan_qr_title" }, "app.dice.scan_qr") : null;
+  const qrStatus = el("div", { class: "dw-status dw-qrstatus", role: "status", "aria-live": "polite" });
+  if (qrBtn) tabRow.append(qrBtn);
   const diceWrap = el("div");
   const textHint = tx(T, "p", { class: "dw-hint" }, "app.dice.text_hint");
-  outer.parentNode.insertBefore(tabs, outer);
+  outer.parentNode.insertBefore(tabRow, outer);
+  outer.parentNode.insertBefore(qrStatus, outer);
   outer.parentNode.insertBefore(diceWrap, outer);
   outer.parentNode.insertBefore(textHint, outer.nextSibling);
 
@@ -678,19 +727,59 @@ export function mountMasterInput(pwInput, opts = {}) {
       if (focus) pwInput.focus();
     }
   }
-  tDice.addEventListener("click", () => setMode("dice", { focus: true }));
-  tText.addEventListener("click", () => setMode("text", { focus: true }));
+  tDice.addEventListener("click", () => { setQrStatus(""); setMode("dice", { focus: true }); });
+  tText.addEventListener("click", () => { setQrStatus(""); setMode("text", { focus: true }); });
+
+  function setQrStatus(msg, err = false) {
+    qrStatus.textContent = msg;
+    qrStatus.classList.toggle("dw-err", !!msg && err);
+    qrStatus.classList.toggle("dw-done", !!msg && !err);
+  }
+
+  // マスターの QR を読んで、 8 つの欄か「文字で入力」の欄を埋める。 押したあとの解錠などは、 人がボタンを押して進める。
+  //   読んだ方式に切り替えても、 次に開いたときの方式 (localStorage) は変えない。
+  async function onScan() {
+    setQrStatus("");
+    let raw;
+    try { raw = await opts.scanQr(); } catch { return; }
+    if (raw == null) return;
+    const r = await parseMasterQr(raw).catch(() => ({ error: "invalid" }));
+    if (r.error) { setQrStatus(T("app.dice.qr_" + r.error), true); return; }
+    if (r.kind === "dice") {
+      setMode("dice", { save: false });
+      if (!(await dice.setIndices(r.indices))) { setQrStatus(T("app.dice.qr_invalid"), true); return; }
+    } else {
+      setMode("text", { save: false });
+      setPw(r.master);
+    }
+    setQrStatus(T("app.dice.qr_scanned"));
+  }
+  if (qrBtn) {
+    qrBtn.addEventListener("click", onScan);
+    hasCamera().then((yes) => { if (yes) qrBtn.hidden = false; });
+  }
 
   const saved = lsGet(LS_MODE);
   setMode(saved === "text" || saved === "dice" ? saved : (opts.defaultMode || "dice"), { save: false, clear: false });
 
   return {
     get mode() { return mode; },
+    // 8 つの欄で選んでいる単語表の言語 (設定の「マスターを紙に残す」で、 紙に書く言語に使う)
+    get diceLang() { return dice?.lang || defaultDiceLang(opts.uiLang || "en"); },
     setMode,
-    clear() { setPw(""); dice?.clear(); },
+    clear() { setPw(""); dice?.clear(); setQrStatus(""); },
     focus() { if (mode === "dice") dice?.ready.then(() => dice.focus()); else pwInput.focus(); },
     setError(msg) { if (mode === "dice") dice?.setError(msg); },
   };
+}
+
+// カメラがあるか (無い端末では QR の読み取りのボタンを出さない)。 許可を求める前でも、 種類 (videoinput) は分かる
+async function hasCamera() {
+  try {
+    const md = globalThis.navigator?.mediaDevices;
+    if (!md?.getUserMedia || !md.enumerateDevices) return false;
+    return (await md.enumerateDevices()).some((d) => d.kind === "videoinput");
+  } catch { return false; }
 }
 
 // ---------------------------------------------------------------------------
@@ -702,7 +791,8 @@ export function mountMasterInput(pwInput, opts = {}) {
 /**
  * @param {HTMLElement} container
  * @param {{ tr?: Function, uiLang?: string, introKey?: string,
- *           onConfirmed: (master:string)=>void, onInvalidate?: ()=>void }} opts
+ *           onConfirmed: (master:string)=>void, onInvalidate?: ()=>void,
+ *           makeQrSvg?: (master:string)=>Promise<string> }} opts
  */
 export function mountMasterCreate(container, opts = {}) {
   ensureCss();
@@ -1017,6 +1107,7 @@ export function mountMasterCreate(container, opts = {}) {
 
   function toConfirm() {
     if (!indices) return;
+    clearMasterMemo();   // 紙に書き終えたので、 印刷用の紙も消す
     stepA.style.display = "none";
     stepB.style.display = "";
     stepB.textContent = "";
@@ -1051,7 +1142,16 @@ export function mountMasterCreate(container, opts = {}) {
 
   regenBtn.addEventListener("click", generate);
   modeBtn.addEventListener("click", () => setMode(!useDice));
-  printBtn.addEventListener("click", () => { if (indices && matcher) printMasterMemo({ indices, matcher, tr: opts.tr, strengthKey: strengthKey() }); });
+  // opts.makeQrSvg (QR に入れる文字列 → SVG、 同期) を渡されたら、 紙に QR も載せる (2026-11-15)
+  // 2026-11-15: 押したその処理の中で、 紙を同期で作ってすぐ印刷する (await や requestAnimationFrame を挟むと、
+  //   iPhone の Safari が「自動的な印刷」として止める)。 opts.beforePrint が false を返したら印刷しない
+  //   (iPhone のアプリなど、 印刷できない所で案内を出す)。
+  printBtn.addEventListener("click", () => {
+    if (!indices || !matcher) return;
+    if (opts.beforePrint && opts.beforePrint() === false) return;
+    const qrSvg = safeQrSvg(opts.makeQrSvg, MASTER_QR_V1 + "d:" + masterFromIndices(indices, matcher.english));
+    printMasterMemo({ indices, matcher, tr: opts.tr, strengthKey: strengthKey(), qrSvg });
+  });
   nextBtn.addEventListener("click", toConfirm);
 
   stepB.style.display = "none";
@@ -1059,8 +1159,11 @@ export function mountMasterCreate(container, opts = {}) {
 
   return {
     ready,
+    /** 紙の言語 (作ったマスターの写しに入れて、あとで同じ言語で印刷する) */
+    get lang() { return lang; },
     reset() {
       // 作り終えたら、画面から語を消す (メモリに残る時間を短くする)
+      clearMasterMemo();
       indices = null;
       slots = null;
       words.textContent = "";
@@ -1068,14 +1171,18 @@ export function mountMasterCreate(container, opts = {}) {
       invalidate();
       setMode(false);
     },
-    destroy() { indices = null; invalidate(); root.remove(); },
+    destroy() { clearMasterMemo(); indices = null; invalidate(); root.remove(); },
   };
 }
 
 // ---------------------------------------------------------------------------
 // 4. マスターのメモを印刷 (Recovery キットと同じ作り。PDF のライブラリは使わない)
+//    Recovery キットとは別の紙にする (1 枚にまとめない。設計書 7 章「マスターを QR で印刷・読み取り」)。
+//    ダイスの言葉: { indices, matcher }。 文字のマスター (自分で決めた昔のマスター): { text }。
+//    qrSvg: マスターの QR (app-main が qr.js で作る。無ければ QR を載せない)。 紙を印刷したら、 画面から消す。
+//    dateKey: 作る画面・変える画面は「作成日」、 設定の「マスターを紙に残す」は「印刷した日」。
 // ---------------------------------------------------------------------------
-export function printMasterMemo({ indices, matcher, tr, strengthKey = "app.dice.strength" }) {
+export function printMasterMemo({ indices, matcher, text, tr, strengthKey = "app.dice.strength", qrSvg = null, dateKey = "app.dice.memo_date" }) {
   ensureCss();
   const T = makeTr(tr);
   let host = document.getElementById("print-master-memo");
@@ -1084,41 +1191,177 @@ export function printMasterMemo({ indices, matcher, tr, strengthKey = "app.dice.
     document.body.append(host);
   }
   host.textContent = "";
-  const lang = matcher.lang;
-  const table = el("table");
-  const head = el("tr", {}, el("th", { text: T("app.dice.memo_col_no") }), el("th", { text: T("app.dice.memo_col_word") + ` (${LANG_NAMES[lang] || lang})` }));
-  if (lang !== "en") head.append(el("th", { text: T("app.dice.memo_col_en") }));
-  head.append(el("th", { text: T("app.dice.memo_col_dice") }));
-  table.append(head);
-  indices.forEach((idx, k) => {
-    const tr2 = el("tr", {}, el("td", { class: "pmm-no", text: String(k + 1) }), el("td", { text: matcher.display(idx), lang }));
-    if (lang !== "en") tr2.append(el("td", { text: matcher.english(idx) }));
-    tr2.append(el("td", { class: "pmm-dice", text: indexToDice(idx) }));
-    table.append(tr2);
-  });
+  const isText = typeof text === "string";
+  const lang = isText ? null : matcher.lang;
+  const metaLines = [`${T(dateKey)}: ${new Date().toISOString().slice(0, 10)}`];
+  let body;
+  if (isText) {
+    body = [
+      el("div", { class: "pmm-text" }, el("span", { text: text })),
+      el("p", { class: "pmm-textnote", text: `${T("app.dice.memo_text_label")} · ${T("app.dice.memo_text_note")}` }),
+    ];
+  } else {
+    metaLines.push(`${T("app.dice.memo_list")}: ${LANG_NAMES[lang] || lang} · ${WORDLIST_ID}${strengthKey ? " · " + T(strengthKey) : ""}`);
+    const table = el("table");
+    const head = el("tr", {}, el("th", { text: T("app.dice.memo_col_no") }), el("th", { text: T("app.dice.memo_col_word") + ` (${LANG_NAMES[lang] || lang})` }));
+    if (lang !== "en") head.append(el("th", { text: T("app.dice.memo_col_en") }));
+    head.append(el("th", { text: T("app.dice.memo_col_dice") }));
+    table.append(head);
+    indices.forEach((idx, k) => {
+      const tr2 = el("tr", {}, el("td", { class: "pmm-no", text: String(k + 1) }), el("td", { text: matcher.display(idx), lang }));
+      if (lang !== "en") tr2.append(el("td", { text: matcher.english(idx) }));
+      tr2.append(el("td", { class: "pmm-dice", text: indexToDice(idx) }));
+      table.append(tr2);
+    });
+    body = [table];
+  }
+  let qrRow = null;
+  if (qrSvg) {
+    const qr = el("div", { class: "pmm-qr" });
+    qr.innerHTML = qrSvg;   // qr.js (qrcode-generator) が作った SVG だけ
+    qrRow = el("div", { class: "pmm-qrrow" }, qr, el("div", { class: "pmm-qrcap", text: T("app.dice.memo_qr_caption") }));
+  }
   const ul = el("ul");
-  for (const k of ["memo_warn_1", "memo_warn_2", "memo_warn_3", "memo_warn_4"]) ul.append(el("li", { text: T("app.dice." + k) }));
-  host.append(
+  const warnKeys = isText ? ["memo_warn_1", "memo_warn_2", "memo_warn_3"] : ["memo_warn_1", "memo_warn_2", "memo_warn_3", "memo_warn_4"];
+  for (const k of warnKeys) ul.append(el("li", { text: T("app.dice." + k) }));
+  const meta = el("div", { class: "pmm-meta" });
+  metaLines.forEach((s, i) => { if (i) meta.append(el("br")); meta.append(s); });
+  host.append(...[
     el("h1", { text: "🔑 " + T("app.dice.memo_title") }),
-    el("div", { class: "pmm-meta" },
-      `${T("app.dice.memo_date")}: ${new Date().toISOString().slice(0, 10)}`, el("br"),
-      `${T("app.dice.memo_list")}: ${LANG_NAMES[lang] || lang} · ${WORDLIST_ID} · ${T(strengthKey)}`),
-    table,
+    meta,
+    el("div", { class: "pmm-alone", text: T("app.dice.memo_not_alone") }),
+    ...body,
+    qrRow,
     el("div", { class: "pmm-drive", text: T("app.dice.memo_drive") }),
     el("div", { class: "pmm-warn" }, el("strong", { text: T("app.dice.memo_warn_title") }), ul),
+    el("p", { class: "pmm-open", text: T("app.dice.memo_open") }),
     el("p", { class: "pmm-foot", text: T("app.dice.memo_restore") + " — arpass.io/arpass-emergency-restore.html · github.com/technoblest/arpass-spec" }),
-  );
+  ].filter(Boolean));
+  // 2026-11-15: 紙を同期で作ったら、 その場で印刷する (押した処理の中で。 rAF や await を挟まない)。 時計や afterprint では
+  //   消さない (iPhone の Safari は印刷の画面ができる前に afterprint を出したり、 実際に印刷するときに描き直したりする。
+  //   消すと空の紙になる)。 消すのは、 画面を離れるとき (clearMasterMemo、 pagehide) と次の印刷の前。
+  document.body.classList.remove("pek-printing");   // Recovery キット (app.html) の印刷を外す
   document.body.classList.add("dw-printing");
-  const cleanup = () => {
-    document.body.classList.remove("dw-printing");
-    host.textContent = "";
-    window.removeEventListener("afterprint", cleanup);
+  if (!_memoPagehideHooked) {
+    _memoPagehideHooked = true;
+    window.addEventListener("pagehide", () => clearMasterMemo());
+  }
+  window.print();
+}
+
+let _memoPagehideHooked = false;
+
+/** 印刷用のマスターのメモを消す (画面を離れるとき・次の印刷の前。 時計では消さない) */
+export function clearMasterMemo() {
+  if (typeof document === "undefined") return;
+  const host = document.getElementById("print-master-memo");
+  if (host) host.textContent = "";
+  document.body?.classList.remove("dw-printing");
+}
+
+// ---------------------------------------------------------------------------
+// 5. マスターの QR の中身 (2026-11-15、設計書 7 章「マスターを QR で印刷・読み取り」の 1・2)
+//    ダイスの言葉:   "arpass-master:v1:d:" + 英語の 8 語。8 つの欄が内部で使う形 (Argon2id に入る文字列そのもの。
+//                    英語の小文字を半角スペース 1 つでつなぐ = masterFromIndices の出力)。各国語で作っても、中身は英語。
+//    文字のマスター: "arpass-master:v1:t:" + マスターの UTF-8 を base64url にしたもの (末尾の = は付けない)。
+//                    文字のマスターは何も正規化しないので、打ったとおりのバイト列をそのまま運ぶ (空白・記号・絵文字も)。
+//    目印 (arpass-master:) は、ほかのアプリで読んでも Arpass のマスターだと分かるように付ける。v1 は形の版。
+//    読み取り (parseMasterQr) は形を厳しく見る。8 語は英語の表の語そのもの (大文字や余分な空白は断る)。
+//    Recovery の QR (RS1-…) は目印を付けない別の形 (qr.js の generateQrSvg)。間違えて読んだら、そう伝える。
+// ---------------------------------------------------------------------------
+export const MASTER_QR_PREFIX = "arpass-master:";
+const MASTER_QR_V1 = MASTER_QR_PREFIX + "v1:";
+
+function b64uEncodeUtf8(s) {
+  let bin = "";
+  for (const b of new TextEncoder().encode(s)) bin += String.fromCharCode(b);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function b64uDecodeUtf8(s) {
+  if (!/^[A-Za-z0-9_-]+$/.test(s) || s.length % 4 === 1) return null;
+  try {
+    const bin = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+    const out = new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(bin, (c) => c.charCodeAt(0)));
+    return out && b64uEncodeUtf8(out) === s ? out : null;   // 書き方が 1 つに決まる形だけ受け付ける
+  } catch { return null; }
+}
+
+// 英語の表の語ちょうど 8 つを半角スペース 1 つでつないだ文字列なら番号の並び、そうでなければ null (en: 英語の matcher)
+function diceIndicesOf(master, en) {
+  const toks = master.split(" ");
+  if (toks.length !== MASTER_WORDS) return null;
+  const idx = toks.map((t) => { const i = en.lookup(t); return i >= 0 && en.english(i) === t ? i : -1; });
+  return idx.some((i) => i < 0) ? null : idx;
+}
+
+/** マスターの文字列 → QR に入れる文字列 */
+export async function masterQrText(master) {
+  if (typeof master !== "string" || !master) throw new Error("master required");
+  const en = await loadMatcher("en");
+  return diceIndicesOf(master, en) ? MASTER_QR_V1 + "d:" + master : MASTER_QR_V1 + "t:" + b64uEncodeUtf8(master);
+}
+
+/**
+ * QR から読んだ文字列 → { kind: "dice", indices, master } / { kind: "text", master } / { error }
+ *   error: "recovery" (Recovery キットの QR) / "not_master" (Arpass のマスターの QR ではない) /
+ *          "newer" (新しい版の形) / "invalid" (目印はあるが形が違う)
+ */
+export async function parseMasterQr(raw) {
+  const s = String(raw ?? "").trim();
+  if (/^RS1-/i.test(s)) return { error: "recovery" };
+  if (!s.startsWith(MASTER_QR_PREFIX)) return { error: "not_master" };
+  const m = /^arpass-master:v(\d+):([a-z]):([\s\S]*)$/.exec(s);
+  if (!m) return { error: "invalid" };
+  if (m[1] !== "1") return { error: Number(m[1]) > 1 ? "newer" : "invalid" };
+  if (m[2] === "d") {
+    const indices = diceIndicesOf(m[3], await loadMatcher("en"));
+    return indices ? { kind: "dice", indices, master: m[3] } : { error: "invalid" };
+  }
+  if (m[2] === "t") {
+    const master = b64uDecodeUtf8(m[3]);
+    return master ? { kind: "text", master } : { error: "invalid" };
+  }
+  return { error: "invalid" };
+}
+
+// QR の SVG を作る (同期。 qrText は masterQrText の結果。 失敗しても紙は印刷する。QR が無いだけ)
+function safeQrSvg(makeQrSvg, qrText) {
+  if (!makeQrSvg) return null;
+  try { return makeQrSvg(qrText) || null; } catch (e) { console.warn("[dicewords] master QR failed:", e?.message || e); return null; }
+}
+
+/**
+ * 設定の「マスターを見る・紙に残す」: 確かめたマスターの紙を、 前もって用意する (語の表と QR を作るのに単語表の読み込みが要るので非同期)。
+ *   返す print() は同期で、 「🖨 印刷する」を押したその処理の中で呼ぶ (iPhone の Safari が止めないように)。
+ *   ダイスの言葉なら lang の表記で 8 語の表、そうでなければ (昔の文字のマスター) その文字列を載せる。どちらも QR つき。
+ * @param {{ master: string, lang?: string, tr?: Function, makeQrSvg?: (qrText:string)=>string }} p
+ * @returns {Promise<{ print: () => void }>}
+ */
+export async function prepareMasterPaper({ master, lang, tr, makeQrSvg }) {
+  const indices = diceIndicesOf(master, await loadMatcher("en"));
+  const qrSvg = safeQrSvg(makeQrSvg, await masterQrText(master));
+  const common = { tr, qrSvg, dateKey: "app.dice.memo_printed" };
+  // 並べ替えたかどうかは分からないので、強さは書かない
+  const matcher = indices ? await loadMatcher(WORDLIST_LANGS.includes(lang) ? lang : "en") : null;
+  return {
+    print() {
+      if (indices) printMasterMemo({ ...common, indices, matcher, strengthKey: null });
+      else printMasterMemo({ ...common, text: master });
+    },
   };
-  window.addEventListener("afterprint", cleanup);
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    window.print();
-    setTimeout(cleanup, 1000);
-  }));
+}
+
+/**
+ * 設定の「マスターを見る」で画面に出す形 (2026-11-15)。
+ *   ダイスの言葉: { kind: "dice", lang, langName, words: [{ word, en }] } (lang の表記と英語)
+ *   文字のマスター: { kind: "text", text }
+ */
+export async function masterForDisplay(master, lang) {
+  const indices = diceIndicesOf(master, await loadMatcher("en"));
+  if (!indices) return { kind: "text", text: master };
+  const l = WORDLIST_LANGS.includes(lang) ? lang : "en";
+  const m = await loadMatcher(l);
+  return { kind: "dice", lang: l, langName: LANG_NAMES[l] || l, words: indices.map((i) => ({ word: m.display(i), en: m.english(i) })) };
 }
 
 export { MASTER_BITS, MASTER_BITS_REORDERED };
