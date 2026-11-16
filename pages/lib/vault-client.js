@@ -131,6 +131,8 @@ import {
   quRevokeApi,
   quRevokeAllApi,
 } from "./quick-unlock.js?v=2c75833e";
+// 2026-11-17: 登録されている端末の一覧に、 パスキーの保管場所 (AAGUID など) を出すための部品
+import { passkeyStoreInfo, registrationEnv } from "./passkey-stores.js";
 
 import {
   // Stage 2c Stage G4 v2 (2026-06-06): Rust handle path
@@ -1223,7 +1225,9 @@ export async function createPasskey(userId, displayName, opts = {}) {
   // iOS 殻 + security key(hwkey) 登録は native へ (WKWebView は security key の create 不可)。
   if (opts.securityKey && _hasNativeHwkey()) {
     console.log("[createPasskey] iOS native registration 経路");
-    return await nativeHwkeyRegister(userIdBytes, displayName);
+    const _nat = await nativeHwkeyRegister(userIdBytes, displayName);
+    // native は authenticatorData を返さないので、 保管場所はセキュリティキーと登録した環境だけ
+    return { ..._nat, store: { attachment: "cross-platform", ...registrationEnv() } };
   }
   if (!navigator.credentials?.create) throw new Error("WebAuthn unavailable");
   const challenge = crypto.getRandomValues(new Uint8Array(32));
@@ -1286,6 +1290,9 @@ export async function createPasskey(userId, displayName, opts = {}) {
     }
   }
   const credentialId = new Uint8Array(cred.rawId);
+  // 保管場所 (AAGUID・attachment・transports・登録した環境) を登録端末の一覧用に控える。 読めなくても登録は続ける。
+  let store = null;
+  try { store = passkeyStoreInfo(cred, registrationEnv()); } catch (_) { store = null; }
   const ext = cred.getClientExtensionResults?.();
   let prfOutput = ext?.prf?.results?.first ? new Uint8Array(ext.prf.results.first) : null;
   // 素早い解錠 (作成直後の提案): 作成のときの UV フラグ (authenticatorData の flags の bit 2)。
@@ -1315,7 +1322,7 @@ export async function createPasskey(userId, displayName, opts = {}) {
     uv = !!got?.uv;
   }
   if (!prfOutput) throw _prfUnsupportedError("PRF extension required but not returned by authenticator");
-  return { credentialId, prfOutput, uv };
+  return { credentialId, prfOutput, uv, store };
 }
 
 // YubiKey モードの鍵の名前。 YubiKey の中では鍵がドライブ単位に並ばず、 Android は
@@ -2295,7 +2302,7 @@ export async function createVault(password, userDisplayName, captchaToken = null
   // v8: per-credential nonce で user.id を一意化 (同期パスキー衝突→置換の防止)
   const userId = await encodeUserIdV8(appNameTag, deriveOuterKeyBytes(recoveryMaterial), password);
   // 3. Passkey 作成 → PRF (discoverable 必須 — 新端末で userHandle を読むため)
-  const { credentialId, prfOutput, uv: _createUv } = await createPasskey(userId, userDisplayName, {
+  const { credentialId, prfOutput, uv: _createUv, store: _createStore } = await createPasskey(userId, userDisplayName, {
     requireResidentKey: true,
   });
   // PRF は最後に _quHoldAfterCreate へ渡し、 そちらが使い終わったら消す。 それより前に止まったら、 ここで消す。
@@ -2311,6 +2318,7 @@ export async function createVault(password, userDisplayName, captchaToken = null
     credIdHash,
     name: userDisplayName,
     addedAt: new Date().toISOString(),
+    ...(_createStore ? { store: _createStore } : {}),
   }];
   // Phase 7.2-B (α): business mode は K1/K2 split + ECIES wrap of K1 to server pubkey
   //   Recovery は社員自身が持つ (= Personal mode 同様 encryptedRecovery を inject)
@@ -2495,7 +2503,7 @@ export async function createHwkeyVault(keyCount, userDisplayName, captchaToken =
     const keyslotTag = randomAppNameTag();
     const userId = encodeUserIdHwkey(keyslotTag);
     const name = _hwkeyKeyName(createdAt, i + 1);
-    const { credentialId, prfOutput } = await createPasskey(userId, name, {
+    const { credentialId, prfOutput, store } = await createPasskey(userId, name, {
       requireResidentKey: true,
       userVerification: "required", // hwkey: PIN 必須 (UV あり PRF に統一、 2026-06-28。 仕様書 §10 の 4)
       followupTransports: ["usb", "nfc", "ble"],   // PRF follow-up get を YubiKey 直行に
@@ -2503,7 +2511,7 @@ export async function createHwkeyVault(keyCount, userDisplayName, captchaToken =
       onFollowup: opts.onTouchAgain,   // 2 回目の確認の前に画面へ案内を出す
     });
     const credIdHash = await credentialIdToHash(credentialId);
-    regs.push({ credentialId, prfOutput, credIdHash, keyslotTag, name });
+    regs.push({ credentialId, prfOutput, credIdHash, keyslotTag, name, store });
   }
 
   // 2. hwkey envelope を暗号化
@@ -2511,6 +2519,7 @@ export async function createHwkeyVault(keyCount, userDisplayName, captchaToken =
   vault.mode = "hwkey";
   vault.credentials = regs.map((r) => ({
     credIdHash: r.credIdHash, name: r.name, addedAt: createdAt.toISOString(),
+    ...(r.store ? { store: r.store } : {}),
   }));
   const enc = await encryptVaultHwkey(
     vault,
@@ -3128,19 +3137,20 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
   const _firstAt = _creds.map((c) => Date.parse(c?.addedAt)).filter((t) => !isNaN(t)).sort((a, b) => a - b)[0];
   const newKeyName = _hwkeyKeyName(_firstAt ? new Date(_firstAt) : new Date(), _creds.length + 1);
 
-  let newEnvelope, newCredIdHash;
+  let newEnvelope, newCredIdHash, newStore = null;
   try {
     // --- 2. 新しい YubiKey を登録 ---
     if (typeof opts.onNewKey === "function") await opts.onNewKey();
     const newKeyslotTag = randomAppNameTag();
     const newUserId = encodeUserIdHwkey(newKeyslotTag);
-    const { credentialId: newCredId, prfOutput: newPrf } = await createPasskey(
+    const { credentialId: newCredId, prfOutput: newPrf, store: _ns } = await createPasskey(
       newUserId, newKeyName,
       { requireResidentKey: true, userVerification: "required",
         followupTransports: ["usb", "nfc", "ble"], securityKey: true,
         onFollowup: opts.onTouchAgain },
     );
     _newPrf = newPrf;
+    newStore = _ns || null;
     newCredIdHash = await credentialIdToHash(newCredId);
 
     // --- 3. envelope.k[] に追加 + 新鍵の keyslot blob を書く ---
@@ -3161,6 +3171,7 @@ export async function addHwkeyDevice(userDisplayName, opts = {}) {
     credIdHash: newCredIdHash,
     name: newKeyName,
     addedAt: new Date().toISOString(),
+    ...(newStore ? { store: newStore } : {}),
   });
   await saveVault(vault);
   return { credentials: vault.credentials.slice() };
@@ -4004,7 +4015,7 @@ export async function addCredentialOnThisDevice(password, userDisplayName, opts 
   const _outerKeyBytesForUserId = deriveOuterKeyBytes(rMatTransient);
   const userId = await encodeUserIdV8(_session.appNameTag, _outerKeyBytesForUserId, password);  // v8: 一意化 nonce で他端末パスキーを上書きしない
   _outerKeyBytesForUserId.fill(0);
-  const { credentialId, prfOutput } = await createPasskey(userId, userDisplayName, { requireResidentKey: true });
+  const { credentialId, prfOutput, store: _newStore } = await createPasskey(userId, userDisplayName, { requireResidentKey: true });
   try {   // 新しいパスキーの PRF は、 自動入力に渡したあと (書き込みを後に回すとき・失敗したときも) 最後に消す
   const credIdHash = await credentialIdToHash(credentialId);
   let secretToWrap = null;
@@ -4037,7 +4048,8 @@ export async function addCredentialOnThisDevice(password, userDisplayName, opts 
   }
   // vault.credentials にも端末メタを追加 (UI の登録端末リスト用)
   if (!Array.isArray(_session.vault.credentials)) _session.vault.credentials = [];
-  // 既存の credIdHash があれば置き換え (同一端末の Passkey 再登録)
+  // 同じ credIdHash の行があれば置き換える (同じパスキーの行を二重にしない)。 v8 の user.id は毎回違うので、
+  //   新しいパスキーは別の credIdHash になり、 今あるパスキーの行は残る (この操作はいつも「追加」)。
   _session.vault.credentials = _session.vault.credentials.filter((c) => {
     const h = c.credIdHash || c.id;
     return h !== credIdHash && h !== _replaceHash;
@@ -4046,6 +4058,7 @@ export async function addCredentialOnThisDevice(password, userDisplayName, opts 
     credIdHash,
     name: userDisplayName,
     addedAt: new Date().toISOString(),
+    ...(_newStore ? { store: _newStore } : {}),
   });
   // saveVault は本体 c を再暗号化するので、上の変更を反映するため
   // newEnvelope を一旦差し戻してから saveVault を通す
@@ -4158,7 +4171,7 @@ export async function changePasswordUI(newPassword, recoveryString, userDisplayN
   } finally {
     _wipePrf(prfOutput);   // 今のパスキーの PRF はここで使い終わり (2026-11-13)
   }
-  let updatedEnv, newCredentialId, newPrfOutput, newCredIdHash, newUserId;
+  let updatedEnv, newCredentialId, newPrfOutput, newCredIdHash, newUserId, _newStore = null;
   try {   // 新しいパスキーの PRF は、 自動入力に渡したあと (失敗したときも) 最後に消す
   const _dispName = (typeof userDisplayName === "string" && userDisplayName.trim())
     ? userDisplayName.trim() : "Arpass";
@@ -4183,6 +4196,7 @@ export async function changePasswordUI(newPassword, recoveryString, userDisplayN
     const _created = await createPasskey(newUserId, _dispName, { requireResidentKey: true });
     newCredentialId = _created.credentialId;
     newPrfOutput = _created.prfOutput;
+    _newStore = _created.store || null;
     newCredIdHash = await credentialIdToHash(newCredentialId);
     updatedEnv = await changePassword(
       _session.lastEnvelope, mekForReWrap, newCredIdHash,
@@ -4202,6 +4216,7 @@ export async function changePasswordUI(newPassword, recoveryString, userDisplayN
     );
     _session.vault.credentials.push({
       credIdHash: newCredIdHash, name: _dispName, addedAt: new Date().toISOString(),
+      ...(_newStore ? { store: _newStore } : {}),
     });
   }
 
