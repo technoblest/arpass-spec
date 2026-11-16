@@ -43,7 +43,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ## Signature
 
-The list is signed with a release key that lives on the release machine, outside GitHub and Cloudflare. The signature is served at `/.well-known/build-hashes.sig` and covers every non-comment line of `build-hashes.txt`, sorted by byte order (the header with its timestamp is not signed). The public key is in [`web/.well-known/build-hashes-signers`](./web/.well-known/build-hashes-signers); pin it rather than fetching it each time.
+The list is signed with a release key that lives on the release machine, outside GitHub and Cloudflare. The signature is served at `/.well-known/build-hashes.sig` and covers every non-comment line of `build-hashes.txt`, sorted by byte order (the header with its timestamp is not signed). The public key is the line below (the same line is in `web/.well-known/build-hashes-signers` in the source repository); save it once and keep it rather than fetching it from the site you are checking.
+
+```bash
+printf '%s\n' 'build-hashes@arpass.io namespaces="arpass-build-hashes@arpass.io,arpass-build-hashes@staging.arpass.io" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFidEdCPmOoJV9Wqf9mWDu47YVxFx9lpxybII3rfosDp arpass-release-mac-2026-11-16' > build-hashes-signers
+```
 
 ```bash
 curl -s https://arpass.io/.well-known/build-hashes.txt | awk '!/^#/ && NF' | LC_ALL=C sort > body.txt
@@ -55,7 +59,7 @@ A list without a valid signature means the deployment did not come from the rele
 
 ---
 
-**Generated**: 2026-11-16T11:34:34.939Z
+**Generated**: 2026-11-16T11:36:55.862Z
 **Files**: 260
 
 | SHA-256 | Bytes | Path |
