@@ -41,16 +41,29 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 **Practical guidance**: Run hash verification on **JS files** (`lib/*.js`), the **i18n JSON files** (`i18n/*.json`), and the **published hash list itself** (`/.well-known/build-hashes.txt`). These are the files that matter for the security boundary.
 
+## Signature
+
+The list is signed with a release key that lives on the release machine, outside GitHub and Cloudflare. The signature is served at `/.well-known/build-hashes.sig` and covers every non-comment line of `build-hashes.txt`, sorted by byte order (the header with its timestamp is not signed). The public key is in [`web/.well-known/build-hashes-signers`](./web/.well-known/build-hashes-signers); pin it rather than fetching it each time.
+
+```bash
+curl -s https://arpass.io/.well-known/build-hashes.txt | awk '!/^#/ && NF' | LC_ALL=C sort > body.txt
+curl -s https://arpass.io/.well-known/build-hashes.sig > body.sig
+ssh-keygen -Y verify -f build-hashes-signers -I build-hashes@arpass.io -n arpass-build-hashes@arpass.io -s body.sig < body.txt
+```
+
+A list without a valid signature means the deployment did not come from the release machine (or was not signed yet; signing follows a release within minutes).
+
 ---
 
-**Generated**: 2026-11-16T07:01:00.333Z
-**Files**: 259
+**Generated**: 2026-11-16T11:34:34.939Z
+**Files**: 260
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
-| `53f3d8402e3f5e7bc465c45febfe59701879c66f22afec421f9939c07c4c5b29` | 14019 | `_headers` |
+| `a199c2c1c0635a19442cf0d7428a61e07bdd4ecb48adae4b11086d1500bb10e8` | 14372 | `_headers` |
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
+| `7ef3aeb3a59bb414267bc2983d1586bfce8ca7a94d4c61ccfde8e578e7eb14d3` | 215 | `.well-known/build-hashes-signers` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
 | `3dfcda2b5df75aeab302aab57339647eca12cca0cefe76d869be03681cb7df49` | 200461 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |

@@ -86,8 +86,12 @@ A divergence is **not necessarily malicious** (deploy lag, CDN edge variance, et
 Since 2026-11-16 the list is also **signed with a release key that never leaves the release machine** (it is not stored in GitHub or Cloudflare). The release machine rebuilds the list from the commit it pushed and signs it only if it matches the list GitHub Actions produced; the signature follows each release within minutes.
 
 - Signature: [`/.well-known/build-hashes.sig`](https://arpass.io/.well-known/build-hashes.sig) (an SSH signature, `ssh-keygen -Y`)
-- Public key: [`web/.well-known/build-hashes-signers`](./web/.well-known/build-hashes-signers) — pin it; do not fetch it from the site you are checking
+- Public key: the line below (the same line is in `web/.well-known/build-hashes-signers` in the source repository). Save it once and keep it; do not fetch it from the site you are checking
 - What is signed: every non-comment line of `build-hashes.txt`, sorted by byte order (the header, which carries a timestamp, is not signed)
+
+```bash
+printf '%s\n' 'build-hashes@arpass.io namespaces="arpass-build-hashes@arpass.io,arpass-build-hashes@staging.arpass.io" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFidEdCPmOoJV9Wqf9mWDu47YVxFx9lpxybII3rfosDp arpass-release-mac-2026-11-16' > build-hashes-signers
+```
 
 ```bash
 curl -s https://arpass.io/.well-known/build-hashes.txt | awk '!/^#/ && NF' | LC_ALL=C sort > body.txt
