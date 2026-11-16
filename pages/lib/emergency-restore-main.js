@@ -50,7 +50,7 @@ import {
 import {
   authenticateWithPasskey,
 } from "./vault-client.js?v=fa427493";
-import { generateOtpauthQrSvg } from "./qr.js?v=8b48bac3";
+import { generateOtpauthQrSvg } from "./qr.js?v=0a65c9a6";
 // 2026-11-08: マスターがダイスの言葉 (8 語。2026-11-09 に 7 語から変えた) のときは、各国語の語でも英語の語でも受け付ける。
 //   単語表と照合の決まりは Web と同じもの (dicewords.js + wordlist/)。設計書 6.3 節・5 章。
 import { mountMasterInput } from "./dicewords-ui.js?v=5456cad4";
