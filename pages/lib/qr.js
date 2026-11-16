@@ -208,6 +208,11 @@ export async function scanQrFromCamera(videoEl, opts = {}) {
     signal.addEventListener("abort", cleanup, { once: true });
   }
 
+  // 映像が出始めた (= 許可の窓が閉じた) ことを呼び出し側に知らせる。 状態の文を「枠内に映して」に変えるため
+  if (typeof opts.onStarted === "function") {
+    try { opts.onStarted(); } catch { /* 呼び出し側の失敗で読み取りは止めない */ }
+  }
+
   // ---- 1) BarcodeDetector ネイティブパス ----
   if ("BarcodeDetector" in globalThis) {
     try {
