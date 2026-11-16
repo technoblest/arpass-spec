@@ -87,6 +87,10 @@ const FALLBACK_EN = {
   "app.dice.qr_not_master": "This QR is not an Arpass Master.",
   "app.dice.qr_newer": "This QR was made by a newer version of Arpass. Reload the page (or update the app) and try again.",
   "app.dice.qr_invalid": "This QR could not be read as a Master. Type the Master instead.",
+  // 2026-11-16: 作る画面の「📸 画像で保存」と、 確認の「📷 QR を読み取る」
+  "app.master_paper.btn_image": "📸 Save image",
+  "app.dice.image_failed": "Could not make the image. Please try again.",
+  "app.dice.qr_other_master": "This QR is for a different Master from the one you just made. It may be from a memo you printed before.",
   "app.dice.memo_printed": "Printed",
   "app.dice.memo_not_alone": "This paper alone cannot open your drive. Keep it in a different place from your Recovery kit.",
   "app.dice.memo_qr_caption": "QR of this Master. On the unlock screen, press “📷 Read QR” to enter it.",
@@ -290,6 +294,12 @@ function tx(T, tag, attrs, key) {
   return e;
 }
 function setTx(T, e, key) { e.setAttribute("data-i18n", key); e.textContent = T(key); }
+// 知らせの行 (.dw-status) に文を出す。 err なら赤、 そうでなければ緑。 空なら消す
+function setStatusEl(e, msg, err = false) {
+  e.textContent = msg;
+  e.classList.toggle("dw-err", !!msg && err);
+  e.classList.toggle("dw-done", !!msg && !err);
+}
 
 function langSelect(current, onChange) {
   const sel = el("select", { "aria-label": "language" });
@@ -782,8 +792,16 @@ export function mountMasterInput(pwInput, opts = {}) {
  * @param {{ tr?: Function, uiLang?: string, introKey?: string,
  *           onConfirmed: (master:string)=>void, onInvalidate?: ()=>void,
  *           makeQrSvg?: (master:string)=>Promise<string>,
- *           beforePrint?: ()=>boolean, print?: ()=>void }} opts
+ *           beforePrint?: ()=>boolean, print?: ()=>void,
+ *           makeImage?: (master:string, lang:string)=>Promise<Blob>, saveImage?: (png:Blob)=>void,
+ *           scanQr?: () => Promise<string|null> }} opts
  *   print: what the memo's print button calls instead of window.print() once the paper is ready (2026-11-16).
+ *   makeImage / saveImage (2026-11-16): 両方を渡されたら、 8 語の画面に「📸 画像で保存」を出す。 makeImage は今の 8 語と紙の
+ *     言語から画像 (PNG) を作り (設定の「マスターを見る」と同じ画像)、 saveImage はそれを共有シートかダウンロードで渡す。
+ *     画像は語が変わるたびに少し待ってから前もって作り、 押した処理の中ですぐ saveImage を呼ぶ (iPhone の共有シートは、
+ *     押してから時間がたつと開けない)。
+ *   scanQr (2026-11-16): 渡されたら、 確認の画面の 8 つの欄の上に「📷 QR を読み取る」を出す (mountMasterInput と同じ。
+ *     読んだ文字列だけが来る)。 いま作ったマスターの QR なら欄を埋め、 打ったときと同じく確かめる。
  */
 export function mountMasterCreate(container, opts = {}) {
   ensureCss();
@@ -811,6 +829,9 @@ export function mountMasterCreate(container, opts = {}) {
   const regenBtn = tx(T, "button", { type: "button", class: "dw-btn" }, "app.dice.regenerate");
   const modeBtn = el("button", { type: "button", class: "dw-link" });
   const printBtn = tx(T, "button", { type: "button", class: "dw-btn" }, "app.dice.print_btn");
+  // 2026-11-16: 八巻さん「新規作成の時、印刷だけできますよね。ここで画像で保存もできていいのでは？」
+  const imageBtn = opts.makeImage && opts.saveImage
+    ? tx(T, "button", { type: "button", class: "dw-btn" }, "app.master_paper.btn_image") : null;
   const nextBtn = tx(T, "button", { type: "button", class: "dw-btn dw-btn-primary" }, "app.dice.written_btn");
   const strengthEl = tx(T, "div", { class: "dw-strength" }, "app.dice.strength");
   const arrangeHint = tx(T, "p", { class: "dw-hint" }, "app.dice.arrange_hint");
@@ -826,7 +847,7 @@ export function mountMasterCreate(container, opts = {}) {
     el("div", { class: "dw-actions" }, regenBtn, modeBtn),
     tx(T, "p", { class: "dw-hint" }, "app.dice.copy_hint"),
     tx(T, "div", { class: "dw-warn" }, "app.dice.separate_warn"),
-    el("div", { class: "dw-actions" }, printBtn, nextBtn),
+    el("div", { class: "dw-actions" }, printBtn, imageBtn, nextBtn),
     status,
   );
 
@@ -1051,6 +1072,7 @@ export function mountMasterCreate(container, opts = {}) {
     invalidate();
     if (render) renderWords();
     printBtn.disabled = !indices;
+    if (imageBtn) imageBtn.disabled = !indices;
     nextBtn.disabled = !indices;
   }
 
@@ -1082,6 +1104,7 @@ export function mountMasterCreate(container, opts = {}) {
       renderWords();
       if (useDice) readDice();
       if (confirmInput) confirmInput.setLang(lang);
+      prepareImage();   // 画像の語は紙の言語で書く
     } catch (e) {
       status.textContent = T("app.dice.load_failed");
       status.classList.add("dw-err");
@@ -1094,11 +1117,40 @@ export function mountMasterCreate(container, opts = {}) {
     stepB.style.display = "none";
     stepA.style.display = "";
     opts.onInvalidate?.();
+    prepareImage();   // 語が変わった (並べ替え・差し替え・引き直し・サイコロ) → 今の語で作り直す
+  }
+
+  // 「📸 画像で保存」の画像。 語が変わるたびに 300ms 待ってから前もって作る (押した処理の中で共有シートを開くため)。
+  //   img.key (紙の言語と英語の 8 語) が今の語と違えば使わない。 紙に書き終えたら (確認へ進んだら) 手放す
+  let img = null;       // { key, blob, failed, p }
+  let imgTimer = 0;
+  function curMaster() { return indices && matcher ? masterFromIndices(indices, matcher.english) : null; }
+  function imgKey() { const m = curMaster(); return m ? lang + " " + m : ""; }
+  function dropImage() { clearTimeout(imgTimer); imgTimer = 0; img = null; }
+  function prepareImage() {
+    dropImage();
+    if (imageBtn && imgKey()) imgTimer = setTimeout(makeImage, 300);
+  }
+  function makeImage() {
+    clearTimeout(imgTimer);
+    imgTimer = 0;
+    const m = curMaster();
+    if (!imageBtn || !m) return null;
+    const rec = { key: imgKey(), blob: null, failed: false, p: null };
+    rec.p = (async () => {
+      try { rec.blob = (await opts.makeImage(m, lang)) || null; }
+      catch (e) { console.warn("[dicewords] master image failed:", e?.message || e); }
+      rec.failed = !rec.blob;
+      return rec.blob;
+    })();
+    img = rec;
+    return rec;
   }
 
   function toConfirm() {
     if (!indices) return;
     clearMasterMemo();   // 紙に書き終えたので、 印刷用の紙も消す
+    dropImage();         // 画像も手放す (8 語の画面に戻ったら作り直す)
     stepA.style.display = "none";
     stepB.style.display = "";
     stepB.textContent = "";
@@ -1108,11 +1160,24 @@ export function mountMasterCreate(container, opts = {}) {
       if (confirmInput) { confirmInput.destroy(); confirmInput = null; }
       stepB.style.display = "none"; stepA.style.display = "";
       opts.onInvalidate?.();
+      prepareImage();
     });
-    stepB.append(tx(T, "p", { class: "dw-hint" }, "app.dice.confirm_intro"));
-    const holder = el("div");
-    stepB.append(holder, cStatus, el("div", { class: "dw-actions" }, back));
     const want = indices.slice();
+    stepB.append(tx(T, "p", { class: "dw-hint" }, "app.dice.confirm_intro"));
+    // 2026-11-16: 「📷 QR を読み取る」。 八巻さん「紙に書いたの次の入力でやはりQRの読み込みボタンをつけると楽です」。
+    //   読み取りの画面は解錠と同じ (opts.scanQr。 カメラが無くても「画像から読む」が使える)。 確認そのものは省かない:
+    //   QR は紙 (か保存した画像) から読み、 いま作ったマスター (want) と同じときだけ欄を埋める。 あとは打ったときと同じ
+    //   (欄の onChange が「✓ 紙のメモと一致しました」を出す)
+    const qrStatus = el("div", { class: "dw-status dw-qrstatus", role: "status", "aria-live": "polite" });
+    if (opts.scanQr) {
+      const qrBtn = tx(T, "button", { type: "button", class: "dw-qrbtn",
+        title: T("app.dice.scan_qr_title"), "data-i18n-title": "app.dice.scan_qr_title" }, "app.dice.scan_qr");
+      qrBtn.addEventListener("click", () => scanToConfirm(want, qrStatus));
+      stepB.append(el("div", { class: "dw-tabrow" }, qrBtn), qrStatus);
+    }
+    const holder = el("div");
+    holder.addEventListener("input", () => setStatusEl(qrStatus, ""));   // 打ち始めたら、 QR の知らせは消す
+    stepB.append(holder, cStatus, el("div", { class: "dw-actions" }, back));
     confirmInput = mountDiceInput(holder, {
       tr: opts.tr, lang,
       onChange: (v, m) => {
@@ -1130,6 +1195,40 @@ export function mountMasterCreate(container, opts = {}) {
     });
     confirmInput.ready.then(() => confirmInput?.focus());
   }
+
+  // 確認の画面の「📷 QR を読み取る」。 読んでいる間に画面が変わったら (戻る・語を変えた) 何もしない
+  async function scanToConfirm(want, qrStatus) {
+    const ci = confirmInput;
+    setStatusEl(qrStatus, "");
+    let raw;
+    try { raw = await opts.scanQr(); } catch { return; }
+    if (raw == null || !ci || ci !== confirmInput) return;
+    const r = await parseMasterQr(raw).catch(() => ({ error: "invalid" }));
+    if (ci !== confirmInput) return;
+    // Recovery の QR・マスターでない QR・読めない QR は、 解錠と同じ文
+    if (r.error) { setStatusEl(qrStatus, T("app.dice.qr_" + r.error), true); return; }
+    // マスターの QR でも、 いま作ったマスターと違う (前に印刷した紙など)。 欄には入れない
+    if (r.kind !== "dice" || r.indices.length !== want.length || r.indices.some((x, k) => x !== want[k])) {
+      setStatusEl(qrStatus, T("app.dice.qr_other_master"), true);
+      return;
+    }
+    if (!(await ci.setIndices(r.indices))) setStatusEl(qrStatus, T("app.dice.qr_invalid"), true);
+  }
+
+  // 「📸 画像で保存」: 用意した画像があれば、 押した処理の中ですぐ渡す。 まだなら (語を変えた直後) できるのを待ってから渡す
+  imageBtn?.addEventListener("click", async () => {
+    if (!indices || !matcher) return;
+    status.classList.remove("dw-err");
+    if (status.textContent === T("app.dice.image_failed")) status.textContent = "";
+    const key = imgKey();
+    const rec = img && img.key === key && !img.failed ? img : makeImage();
+    if (!rec) return;
+    if (rec.blob) { opts.saveImage(rec.blob); return; }
+    const png = await rec.p;
+    if (img !== rec || imgKey() !== key) return;   // 待つ間に語が変わった
+    if (!png) { status.textContent = T("app.dice.image_failed"); status.classList.add("dw-err"); return; }
+    opts.saveImage(png);
+  });
 
   regenBtn.addEventListener("click", generate);
   modeBtn.addEventListener("click", () => setMode(!useDice));
@@ -1157,12 +1256,13 @@ export function mountMasterCreate(container, opts = {}) {
       clearMasterMemo();
       indices = null;
       slots = null;
+      dropImage();
       words.textContent = "";
       for (const d of diceInputs) { d.inp.value = ""; d.out.textContent = ""; }
       invalidate();
       setMode(false);
     },
-    destroy() { clearMasterMemo(); indices = null; invalidate(); root.remove(); },
+    destroy() { clearMasterMemo(); indices = null; invalidate(); dropImage(); root.remove(); },
   };
 }
 

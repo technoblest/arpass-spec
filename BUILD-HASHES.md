@@ -43,7 +43,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 
 ---
 
-**Generated**: 2026-11-16T00:14:20.597Z
+**Generated**: 2026-11-16T01:18:19.049Z
 **Files**: 259
 
 | SHA-256 | Bytes | Path |
@@ -52,11 +52,11 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `322bb043cefecf44444d22ece3c08932f9b7af3f5e5a72321867df46770262c9` | 124 | `.well-known/apple-app-site-association` |
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `f0d7707f3753a2bf928a2e733fd3ce8cc1b673ee4da99e7378ac8bf639b9944c` | 199631 | `app.html` |
+| `cd77f258b4169ab6279e2c29bd3f9aacc60bd3392c3757407eb093c9ed869068` | 199631 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |
 | `993787a841b31bdbb670455be683d22d0bee6e86dffa70ecd2fc783ff8b239a9` | 87847 | `ar/help.html` |
 | `9a02ee50665f9e266a174309eb6e763ac50ee30abfb7eb1b99da7935175d3dfd` | 100017 | `ar/index.html` |
-| `3c1ad7e951d466f865cb211153401db8afeb33ae19ad89fa6aab49d7ca5f2c61` | 14991 | `arpass-emergency-restore.html` |
+| `2825ec547d3df80e443f6b872e06095c35cda0eabefefd48f93fa873f3031732` | 14991 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `f47c46f51fe6630f11e1287763f31092ced8c5642a53c822dcfc98535120817d` | 6322 | `de/download.html` |
@@ -216,14 +216,14 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `7ef8aea9b9279783d172474ccfbd62134959f9cc05f7e761e530f0c9bad5f6ad` | 72791 | `ko/help.html` |
 | `a3433e2ca55c8f36438aa86435ecf58264836d8800d8d51da053cfba7b8341ad` | 92958 | `ko/index.html` |
 | `2cacebce1437c3c168f3f1d46869693245178b40777e09928a3c9469949ceeb7` | 12790 | `lib/android-autofill-setup.js` |
-| `ec39010af8ce6559cb76c989dde3bd5dd274424269e0e45221574e7712558fda` | 616420 | `lib/app-main.js` |
+| `2b2ea0727c3303496065665bbeb99fa298984c7cac602a9d78a3959ab794bb5d` | 617392 | `lib/app-main.js` |
 | `8b3d50daa7b3b0ac17a9dc407ea3e6a63948cdc3a842d19617ba154abd1430f6` | 53246 | `lib/client-auth.js` |
 | `b99b7097f89f1978fdb158b005654286e66ba0734aad6f80fe0db9efa676843b` | 18046 | `lib/csv-import.js` |
-| `5456cad47a1addf10c40fd2e59d2e9393e8123631389bba47ba0bab266e7d619` | 72508 | `lib/dicewords-ui.js` |
+| `adc60b01d0f6f4ee08d1b150639f4bd602f6ede7b91c055f1fdb85e8d002f577` | 72175 | `lib/dicewords-ui.js` |
 | `2b44ba4654b9516804890899dbc0c996826715d9cd3980fb01470614c7c12a34` | 23833 | `lib/dicewords.js` |
 | `54b0d6fdeb01bb8bfb35285f8809fddae1b441bb8f269b97614d2dc45f0d6b67` | 626 | `lib/download-main.js` |
 | `d44eb2a8b45e132405ef9ed38fa8f697ab3b30a72bd90ce3b27049a54e558343` | 12100 | `lib/emergency-recover-purejs.js` |
-| `f48ae109957381ead2f91b8ddbae28ba5d53a1b8dd9c99e5ead4c015aef08a0f` | 41104 | `lib/emergency-restore-main.js` |
+| `56c3f7438b755479ff73d4ba6959e162e3ca03cb76db53d99545c780ca119e27` | 41104 | `lib/emergency-restore-main.js` |
 | `1a1f069ce210e29a8d7e3288ec70a1716c0d138ff0f61a2278f6b38b49b4c648` | 2657 | `lib/help-main.js` |
 | `e28daf5a58671268fc966355ba5c082dfafb1c932db361996bdaefd05d000e49` | 17941 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -292,7 +292,7 @@ Additionally, `Content-Security-Policy: form-action 'self'` (defined in `web/_he
 | `cecb9dcb7d39b5849fe0227439a6fdd05ac58d9d868369366fdf9061d0a646a3` | 108755 | `ru/index.html` |
 | `32787760776d3417ed68d69b1c91bac499ce3236bc53b14e1a844e76270bb3c3` | 31810 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
-| `d01b0ebf0dee7c2b5d07ee3f1537f86376f551298446c6113ca8077d2ad986eb` | 7427 | `sw.js` |
+| `c2fc09197e659ca015daf6937bdbe2893f45db210024e39b68aebd0ab296b1c8` | 7427 | `sw.js` |
 | `33f6731adcb76de32e27d75df1cf954b32cc062b8ef411fb896553bfd8feb0ad` | 19037 | `terms.html` |
 | `ed8d9d2782dabb39f15fafe78789507c6e60067f2103d0b0ee58a532b3b4d193` | 12930 | `tokushoho.html` |
 | `ebe9b8e778eb0a447c4cc495845a7604e690302b40f1d052ff4e3f770cf9dc5e` | 6290 | `tr/download.html` |
