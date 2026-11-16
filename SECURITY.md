@@ -81,9 +81,30 @@ grep "lib/vault-crypto.js" BUILD-HASHES.md
 
 A divergence is **not necessarily malicious** (deploy lag, CDN edge variance, etc.), but it is something to investigate. Open a [security advisory](https://github.com/technoblest/arpass-spec/security/advisories/new) if confirmed.
 
+### Signed hash list
+
+Since 2026-11-16 the list is also **signed with a release key that never leaves the release machine** (it is not stored in GitHub or Cloudflare). The release machine rebuilds the list from the commit it pushed and signs it only if it matches the list GitHub Actions produced; the signature follows each release within minutes.
+
+- Signature: [`/.well-known/build-hashes.sig`](https://arpass.io/.well-known/build-hashes.sig) (an SSH signature, `ssh-keygen -Y`)
+- Public key: [`web/.well-known/build-hashes-signers`](./web/.well-known/build-hashes-signers) — pin it; do not fetch it from the site you are checking
+- What is signed: every non-comment line of `build-hashes.txt`, sorted by byte order (the header, which carries a timestamp, is not signed)
+
+```bash
+curl -s https://arpass.io/.well-known/build-hashes.txt | awk '!/^#/ && NF' | LC_ALL=C sort > body.txt
+curl -s https://arpass.io/.well-known/build-hashes.sig > body.sig
+ssh-keygen -Y verify -f build-hashes-signers -I build-hashes@arpass.io \
+  -n arpass-build-hashes@arpass.io -s body.sig < body.txt
+# Good "arpass-build-hashes@arpass.io" signature for build-hashes@arpass.io with ED25519 key SHA256:tEOwxbUCMjTpYLLsLJJDrkZ/YZSdoAT9pJXLzCU+Sps
+# → the list came from the release machine
+```
+
+Staging is signed with the same key under the namespace `arpass-build-hashes@staging.arpass.io`, so a staging list cannot pass as production.
+
+The release machine checks every hour, with the public key pinned locally, that arpass.io serves a list with a valid signature, that it is the list it signed last, and that every JS, JSON, WASM and CSS file matches it. The GitHub Actions monitor runs the same checks with the key in the repository.
+
 ### What this does NOT protect against
 
-- A compromise of the GitHub repository itself (the hashes are committed by GitHub Actions, so an attacker with repo write access can rewrite both the code and the hashes in the same commit).
+- A compromise of the GitHub repository alone is **detected** (a list rebuilt by an attacker has no valid signature), but not prevented: the bundle is served until someone acts on the alert. A compromise of the release machine itself defeats the signature.
 - A first-visit attack where the attacker has held the bundle modified for less than the time between deploy and your visit, then reverted (window-of-vulnerability attack).
 
 For the strongest protection, install a future browser-extension version (planned, see roadmap), where the bundle is signed and updated through the Web Store review process.
