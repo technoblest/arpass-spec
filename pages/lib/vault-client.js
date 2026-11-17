@@ -130,6 +130,7 @@ import {
   quListApi,
   quRevokeApi,
   quRevokeAllApi,
+  quRenameApi,
 } from "./quick-unlock.js?v=2c75833e";
 // 2026-11-17: 登録されている端末の一覧に、 パスキーの保管場所 (AAGUID など) を出すための部品
 import { passkeyStoreInfo, registrationEnv } from "./passkey-stores.js?v=41371abe";
@@ -1762,9 +1763,13 @@ async function _quLabelKey() {
 //   labelEnc はサーバーで 512 文字 (b64url) まで → 平文は 356 バイトまで。 余裕を見て 320 バイトに収める。
 const QU_LABEL_PK_SEP = "\npk:";
 const QU_LABEL_MAX_BYTES = 320;
+const QU_LABEL_MAX_CHARS = 120;
+function _quCleanName(label) {
+  return String(label || "").replace(/[\r\n]+/g, " ").trim();
+}
 function _quLabelPlain(label, credIdHash) {
   const tail = (typeof credIdHash === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(credIdHash)) ? QU_LABEL_PK_SEP + credIdHash : "";
-  let name = String(label || "").replace(/[\r\n]+/g, " ").trim().slice(0, 120);
+  let name = _quCleanName(label).slice(0, QU_LABEL_MAX_CHARS);
   const enc = new TextEncoder();
   while (name && enc.encode(name + tail).length > QU_LABEL_MAX_BYTES) name = name.slice(0, -1);
   return name || tail ? name + tail : "";
@@ -2244,6 +2249,18 @@ export async function disableQuickUnlockHere() {
   return { ok: true };
 }
 
+// 2026-11-17: 名前を変えた直後に、 サーバーがまだ前の名前 (変える前に読んだ labelEnc) を返したときだけ、 手元で変えた
+//   名前を出す (KV は最大 1 分ほど古い値を返すことがある)。 変えたあとに読み直した一覧で、 前の名前に戻って見えないように。
+//   サーバーが別の値 (変えた名前、 または ほかの端末がそのあと変えた名前) を返したら、 そちらを出して控えは捨てる。
+const QU_RENAMED_HOLD_MS = 2 * 60 * 1000;
+const _quRenamed = new Map();   // id → { before, labelEnc, at }
+function _quRenamedLabelEnc(d, now = Date.now()) {
+  const r = _quRenamed.get(d.id);
+  if (!r) return d.labelEnc;
+  if (now - r.at >= QU_RENAMED_HOLD_MS || d.labelEnc !== r.before) { _quRenamed.delete(d.id); return d.labelEnc; }
+  return r.labelEnc;
+}
+
 // 2026-11-13: KV の list は、 書き足しや削除を最大 1 分ほど遅れて返すことがある。 「外す」の直後に一覧を読み直すと、
 //   外した行がまだ出ることがある。 この画面で外した id は、 しばらく一覧から除く (「すべて外す」は、 サーバーが
 //   epoch で除くので要らない)。 ON にした直後の行は、 サーバーが ?self= で直接確かめて足す (list.js)。
@@ -2278,8 +2295,9 @@ export async function listQuickUnlockDevices() {
   const wrapHashes = Array.isArray(wb) ? new Set(wb.map((w) => w?.h).filter(Boolean)) : null;
   const devices = [];
   const now = Date.now();
-  for (const d of r.devices || []) {
-    if (_quHiddenAsRemoved(d, now)) continue;
+  for (const d0 of r.devices || []) {
+    if (_quHiddenAsRemoved(d0, now)) continue;
+    const d = { ...d0, labelEnc: _quRenamedLabelEnc(d0, now) };
     const info = _quParseLabel(await _quDecryptLabel(d.labelEnc));
     const isThisDevice = d.id === myId;
     // この端末の行は、 手元の登録 (blob と一緒に控えた credIdHash) で分かる (前の版で登録した行も)
@@ -2287,6 +2305,42 @@ export async function listQuickUnlockDevices() {
     devices.push({ ...d, label: info.label, isThisDevice, passkey: _quPasskeyBinding(pkHash, credentials, wrapHashes) });
   }
   return { epoch: r.epoch, limit: r.limit, devices };
+}
+
+/**
+ * 行の名前を変える (2026-11-17)。 この端末の行も、 ほかの端末の行も。 例: 「会社の VM」「自宅の Mac」。
+ *   同期パスキーは何台もの端末で同じものなので、 行をパスキーの名前にすると外したい端末を見分けられない。
+ *   そのため名前は利用者が付け、 パスキーは「Passkey: …」の行で別に出す。
+ * - 名前は今までどおり labelEnc (MEK 由来の鍵で暗号化) で預ける。 サーバーには平文を出さない。
+ * - 今の labelEnc を読み、 末尾の印 ("\npk:<credIdHash>" = 結び付いたパスキー) をそのまま残す。
+ *   印の無い古い行は名前だけ (印を足さない)。
+ * - 空の名前は送らない (code qu_name_empty)。 長い名前は enroll と同じく 120 字・印と合わせて 320 バイトまでに切る。
+ * - 結び付いたパスキーがドライブから外された行 (もう開けない) は変えない (code qu_passkey_removed)。
+ *   外した (取り消した) 行・使えない行はサーバーが 404 (code not_found) を返す。
+ * @returns {Promise<{ok:true, label:string, cut:boolean}>} label は預けた名前 (切ったときは cut: true)
+ */
+export async function renameQuickUnlockDevice(id, label) {
+  if (!_session?.signingState) throw new Error("locked — unlock first");
+  const name = _quCleanName(label);
+  if (!name) { const e = new Error("quick unlock: empty name"); e.code = "qu_name_empty"; throw e; }
+  // 一覧から今の labelEnc を読む (self= で、 KV の list にまだ出ない行もサーバーが直接確かめる)
+  const r = await quListApi(_session.signingState, { self: id });
+  const d0 = (r.devices || []).find((x) => x.id === id);
+  if (!d0 || _quHiddenAsRemoved(d0)) { const e = new Error("quick unlock: not found"); e.code = "not_found"; throw e; }
+  const info = _quParseLabel(await _quDecryptLabel(_quRenamedLabelEnc(d0)));
+  const enr = readQuState().enrollment || null;
+  const pkHash = (d0.id === enr?.id && enr?.credIdHash) || info.credIdHash || null;
+  const credentials = Array.isArray(_session?.vault?.credentials) ? _session.vault.credentials : [];
+  const wb = _session?.lastEnvelope?.w?.b;
+  const wrapHashes = Array.isArray(wb) ? new Set(wb.map((w) => w?.h).filter(Boolean)) : null;
+  if (_quPasskeyBinding(pkHash, credentials, wrapHashes).state === "removed") {
+    const e = new Error("quick unlock: passkey removed"); e.code = "qu_passkey_removed"; throw e;
+  }
+  const labelEnc = await _quEncryptLabel(name, info.credIdHash);
+  await quRenameApi(_session.signingState, id, labelEnc);
+  _quRenamed.set(id, { before: d0.labelEnc ?? null, labelEnc, at: Date.now() });
+  const saved = _quParseLabel(_quLabelPlain(name, info.credIdHash)).label || "";
+  return { ok: true, label: saved, cut: saved !== name };
 }
 
 /** 1 台を外す。 この端末なら blob も消す。 */
