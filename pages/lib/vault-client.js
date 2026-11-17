@@ -1756,8 +1756,30 @@ async function _quLabelKey() {
   if (!base || typeof base.hkdf_derive_mek !== "function") throw new Error("quick unlock: MEK handle 必須");
   return base.hkdf_derive_mek(new TextEncoder().encode("arpass-qu-label-v1"), new TextEncoder().encode("label"));
 }
-async function _quEncryptLabel(label) {
-  const text = String(label || "").slice(0, 120);
+// 2026-11-17: 端末名と一緒に、 その素早い解錠が使うパスキーの credIdHash も入れる (一覧に「Passkey: …」を出すため)。
+//   サーバーには読めない (labelEnc の中)。 前の版の画面は中身をそのまま名前として出すので、 名前を先に置き、
+//   改行のあとに "pk:<credIdHash>" を続ける (前の版では、 名前のあとに pk:… が続いて見えるだけ。 一覧は 1 行で切れる)。
+//   labelEnc はサーバーで 512 文字 (b64url) まで → 平文は 356 バイトまで。 余裕を見て 320 バイトに収める。
+const QU_LABEL_PK_SEP = "\npk:";
+const QU_LABEL_MAX_BYTES = 320;
+function _quLabelPlain(label, credIdHash) {
+  const tail = (typeof credIdHash === "string" && /^[A-Za-z0-9_-]{8,64}$/.test(credIdHash)) ? QU_LABEL_PK_SEP + credIdHash : "";
+  let name = String(label || "").replace(/[\r\n]+/g, " ").trim().slice(0, 120);
+  const enc = new TextEncoder();
+  while (name && enc.encode(name + tail).length > QU_LABEL_MAX_BYTES) name = name.slice(0, -1);
+  return name || tail ? name + tail : "";
+}
+function _quParseLabel(text) {
+  if (typeof text !== "string") return { label: null, credIdHash: null };
+  const i = text.lastIndexOf(QU_LABEL_PK_SEP);
+  if (i >= 0) {
+    const h = text.slice(i + QU_LABEL_PK_SEP.length);
+    if (/^[A-Za-z0-9_-]{8,64}$/.test(h)) return { label: text.slice(0, i) || null, credIdHash: h };
+  }
+  return { label: text || null, credIdHash: null };
+}
+async function _quEncryptLabel(label, credIdHash = null) {
+  const text = _quLabelPlain(label, credIdHash);
   if (!text) return null;
   const key = await _quLabelKey();
   try {
@@ -2104,7 +2126,7 @@ export async function enrollQuickUnlock({ label, auto = false } = {}) {
   let y = null;
   try {
     const Q = await quPublicKey(p.prfOutput, idBytes);
-    const labelEnc = await _quEncryptLabel(label);
+    const labelEnc = await _quEncryptLabel(label, p.credIdHash);
     let res;
     try {
       res = await quEnrollApi(_session.signingState, { id, Q: b64uEncode(Q), kind, labelEnc });
@@ -2233,16 +2255,36 @@ function _quHiddenAsRemoved(d, now = Date.now()) {
   return t != null && now - t < QU_REMOVED_HIDE_MS;
 }
 
-/** 一覧 (端末名は端末側で戻す)。 */
+// 素早い解錠の行が使うパスキー (2026-11-17)。 名前は金庫の「登録されている端末」(vault.credentials) から引く。
+//   今の版の包み (envelope の w.b) にそのパスキーが無ければ、 ドライブから外されている。 素早い解錠は
+//   マスター + そのパスキー (AB) で開くので、 外されたパスキーの素早い解錠はもう開けない。
+//   state: "ok" | "removed" | "unknown" (前の版で登録した、 ほかの端末の行)
+function _quPasskeyBinding(credIdHash, credentials, wrapHashes) {
+  if (!credIdHash) return { state: "unknown", credIdHash: null, name: null };
+  const row = credentials.find((c) => (c?.credIdHash || c?.id) === credIdHash) || null;
+  const name = typeof row?.name === "string" && row.name ? row.name : null;
+  if (wrapHashes && !wrapHashes.has(credIdHash)) return { state: "removed", credIdHash, name };
+  return { state: "ok", credIdHash, name };
+}
+
+/** 一覧 (端末名は端末側で戻す)。 各行に、 その素早い解錠が使うパスキー (passkey) も付ける。 */
 export async function listQuickUnlockDevices() {
   if (!_session?.signingState) throw new Error("locked — unlock first");
-  const myId = readQuState().enrollment?.id ?? null;
+  const enr = readQuState().enrollment || null;
+  const myId = enr?.id ?? null;
   const r = await quListApi(_session.signingState, { self: myId });
+  const credentials = Array.isArray(_session?.vault?.credentials) ? _session.vault.credentials : [];
+  const wb = _session?.lastEnvelope?.w?.b;
+  const wrapHashes = Array.isArray(wb) ? new Set(wb.map((w) => w?.h).filter(Boolean)) : null;
   const devices = [];
   const now = Date.now();
   for (const d of r.devices || []) {
     if (_quHiddenAsRemoved(d, now)) continue;
-    devices.push({ ...d, label: await _quDecryptLabel(d.labelEnc), isThisDevice: d.id === myId });
+    const info = _quParseLabel(await _quDecryptLabel(d.labelEnc));
+    const isThisDevice = d.id === myId;
+    // この端末の行は、 手元の登録 (blob と一緒に控えた credIdHash) で分かる (前の版で登録した行も)
+    const pkHash = (isThisDevice && enr?.credIdHash) || info.credIdHash || null;
+    devices.push({ ...d, label: info.label, isThisDevice, passkey: _quPasskeyBinding(pkHash, credentials, wrapHashes) });
   }
   return { epoch: r.epoch, limit: r.limit, devices };
 }

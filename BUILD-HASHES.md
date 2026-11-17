@@ -59,8 +59,8 @@ A list without a valid signature means the deployment did not come from the rele
 
 ---
 
-**Generated**: 2026-11-16T23:26:44.187Z
-**Files**: 261
+**Generated**: 2026-11-17T00:29:35.624Z
+**Files**: 262
 
 | SHA-256 | Bytes | Path |
 |---|---|---|
@@ -69,11 +69,11 @@ A list without a valid signature means the deployment did not come from the rele
 | `3f8beb570b36974b4562f475aa49a29b5b3525faaa65961358d16fd790eb7a9c` | 881 | `.well-known/assetlinks.json` |
 | `7ef3aeb3a59bb414267bc2983d1586bfce8ca7a94d4c61ccfde8e578e7eb14d3` | 215 | `.well-known/build-hashes-signers` |
 | `978fa78812d00a1b16159a21658da01a4a701454a4028089b2fd2ca3a7254582` | 505 | `.well-known/security.txt` |
-| `cac65b9c758d44e01476546227e6ea32bd9de5d827fa80ef46a8df7ef3bf65f1` | 200615 | `app.html` |
+| `194c133488172787e6f628ffb00e840c54321689c3f3a854dbc5aa8cfd017f2f` | 200615 | `app.html` |
 | `414bacdb4b69cf837f3696b142ccffd64bb58441ac31f4596c72c7fd6b87ed70` | 6643 | `ar/download.html` |
 | `09c0ddbf3960e70859b86fb66fb580afa78b6e82c3743ea7275493150698752b` | 88216 | `ar/help.html` |
 | `9a02ee50665f9e266a174309eb6e763ac50ee30abfb7eb1b99da7935175d3dfd` | 100017 | `ar/index.html` |
-| `7fbc53c66c23e3cf3f7becdc35864de435ea0a69c88b9a4b694cbe0830b2a9c5` | 14991 | `arpass-emergency-restore.html` |
+| `03709b4bd3894b35d6155ed48093c14484efbdde45ffbad15c4502fd221240c2` | 14991 | `arpass-emergency-restore.html` |
 | `1e852fb57a76a006193b3009c92f6b48d242ef50698f0ec217d336436c12e32e` | 66067 | `arpass-image.png` |
 | `578c43b2fcee11a4ea1ddc8f3ff0b3c19cb77d819f8eb49a271a5ab42d0bf80e` | 58254 | `arpass-image.webp` |
 | `f47c46f51fe6630f11e1287763f31092ced8c5642a53c822dcfc98535120817d` | 6322 | `de/download.html` |
@@ -201,23 +201,23 @@ A list without a valid signature means the deployment did not come from the rele
 | `473e43994df05b1fd0517cc91e30e38d4017c16cb7da81ff0c029fc9f4a763bf` | 7479 | `hi/download.html` |
 | `a654d6cace80e624f00eef4392a3bd995dbe76f5ac626b2cc676a30168e65ee6` | 115151 | `hi/help.html` |
 | `31e5bc4696855321da9cb2a7f2346d072dba5563e424caf016bca932d7f790bd` | 120555 | `hi/index.html` |
-| `63174f802a66cbb9e727afee3d59754a4aedd048ac02fd88f1c27752d7837679` | 325092 | `i18n/ar.json` |
-| `1b3d9be2129a06ed0c5a10d9ef2c4bc91c5fc5d43bd1d9db4ba9e3e02c8d35a6` | 276800 | `i18n/de.json` |
-| `18ff2e571fa004445fc5ddcd46da1ebde11d14e4cffa895be9c0a0b1cd023d8b` | 244361 | `i18n/en.json` |
-| `1afee080c106d206f32c59a57f0bd475b8ca3b1e96633d00fa03be6d47ef1bb0` | 266620 | `i18n/es.json` |
-| `198e78487291c3a99863365128b93e0b401fb5f62b5a72a3e43e0a47b1483f2f` | 277869 | `i18n/fr.json` |
-| `6e8b652d0de6f4aa18a028778c9674f8861cfbf40e30808cbdeb3e3232e3df80` | 441863 | `i18n/hi.json` |
-| `10759336b326aeb2913369c0dac1fcd7dd728addc7f80ef67021fce348a0e3d0` | 255242 | `i18n/id.json` |
-| `6e08496a55a32176ecbb254c8dd0a9838951ee0160e091cbdce6eb35892a1d32` | 264545 | `i18n/it.json` |
-| `9638072eaeccde0530066a1539b351703661c5f2ecc850ebd0de933fcd695aa5` | 293366 | `i18n/ja.json` |
-| `4024095381f419e214da1710e4e4f020a8da9af5d9d9fd155b5d017c0902dab6` | 273567 | `i18n/ko.json` |
-| `a9de7e05f550b051f890614942f0190a87485c58d40a2481557881a32b8fd32b` | 262498 | `i18n/pt-BR.json` |
+| `c8913d5b30703abd03a2334977dd4f39a65f81b38ef96183045b891dae75ec36` | 327155 | `i18n/ar.json` |
+| `51d2c746b4a0228699186a891d9915f8f36d4fd05a0d4fc7508d253ac3af9eed` | 278696 | `i18n/de.json` |
+| `e9bd984d9702f48a3e4a93d85e41484169f36ed65aede94a7b433d16ce855c25` | 245918 | `i18n/en.json` |
+| `5901ccc12132b90bba41aecb828c576a5f6f9b0f0df440718eaf6b9af8cf92d7` | 268354 | `i18n/es.json` |
+| `802ef0781507196906ff0426b196333db4af94863cdc1bfd4326eaf83568fcb9` | 279722 | `i18n/fr.json` |
+| `bf0454040dc046a9c9674a07906f0f961fafa7fcdee22bbc2e90e5d747d4aa1c` | 444776 | `i18n/hi.json` |
+| `6229216c3cad8d62be1b2c8a816a3e013c5f026cdfcc4b5f374b6db3567c7fb9` | 256864 | `i18n/id.json` |
+| `87832e13166fd148c11cf337c88ee3fbb20d2438382787c982a5812fc9101bbf` | 266228 | `i18n/it.json` |
+| `ba077409219327ebbc15d169acc54fbbd2d27c1e76a12cccfb39d910f6705cb4` | 295415 | `i18n/ja.json` |
+| `f7d52f329e33b6a9886df2fbbae5fd4b93eda20062c80ec69ef2843a3c031fa6` | 275324 | `i18n/ko.json` |
+| `450e7ef6fcc4c7b71f1d65c8ead973b2cbd898f3a087cd3d00ef3d8985c29af2` | 264193 | `i18n/pt-BR.json` |
 | `1ac7e524599d01e0150eb208a6ec9aff1c88f78c12df1119fab8e63dfa779579` | 5733 | `i18n/README.md` |
-| `49592017a2531a0a21b59ddb9f7f14a6037cefa4cdbb7bf59c318bc743984fae` | 377231 | `i18n/ru.json` |
-| `7442477b7af11fa1118d4a3cc1a0aefaf7467608d42160fec3b03d659c9cb0d7` | 263468 | `i18n/tr.json` |
-| `9630199593bcebb52369509ef03591db0e9e24150002dbdf1b149a75c28b7973` | 284129 | `i18n/vi.json` |
-| `f9c3bdcfb03a0acb0924e7d4eface30712cf05c0132a56fe7097e811141c55ec` | 235438 | `i18n/zh-CN.json` |
-| `3e7b64958d3d2c2f34392880a2ed04c0ece01f60d4cc0b87d3d400004dad3203` | 235782 | `i18n/zh-TW.json` |
+| `e006731fc94186d07b76ca73fa226cf0f9546607170c6cef7b41312907feea8e` | 379835 | `i18n/ru.json` |
+| `8dc269553e4e89442ef6946ada1d508d0258daf53173121aa8765f32258217d4` | 265078 | `i18n/tr.json` |
+| `a78a5d63782dadfc26489909ee7155134616ff7dd3618fecb3a0b6e5554ebbfb` | 285958 | `i18n/vi.json` |
+| `29931424596d82c7c2878c4994756eadf644c535764e869682d3af67b2f18c9c` | 236910 | `i18n/zh-CN.json` |
+| `cf709bf059eb9ffd06f3b94253b7f7f4d803a5a906833d9c73f2cd1c0648449a` | 237273 | `i18n/zh-TW.json` |
 | `aea87aec25c4698322f5a7ca7f43ca2070244ddddcc4c1ba3294de9d0635a183` | 356859 | `icon-1024.png` |
 | `97e38260b98141784e8a5a21971c0f97073a5805eedfb7c78affa5dd27ae1ee5` | 23939 | `icon-192.png` |
 | `5136b72cc1f12355947aacf4fd7a9d98fceae3ba5209210be5826b5399c5b2dd` | 122358 | `icon-512.png` |
@@ -233,14 +233,14 @@ A list without a valid signature means the deployment did not come from the rele
 | `59f4dda32838fbd15e3a4fef67e6c164f34031e00a3ab55a825b33855bce04a9` | 73047 | `ko/help.html` |
 | `a3433e2ca55c8f36438aa86435ecf58264836d8800d8d51da053cfba7b8341ad` | 92958 | `ko/index.html` |
 | `2cacebce1437c3c168f3f1d46869693245178b40777e09928a3c9469949ceeb7` | 12790 | `lib/android-autofill-setup.js` |
-| `b8a2fa0cf1db5f0d139506f90e78571520f855cd790e3527cc8bb67303eb3ae6` | 619942 | `lib/app-main.js` |
+| `b3c81e03d24aafea703fc1eb7d9ffe6f58159ac084f8f43ee24eb41b04a5704f` | 624498 | `lib/app-main.js` |
 | `8b3d50daa7b3b0ac17a9dc407ea3e6a63948cdc3a842d19617ba154abd1430f6` | 53246 | `lib/client-auth.js` |
 | `b99b7097f89f1978fdb158b005654286e66ba0734aad6f80fe0db9efa676843b` | 18046 | `lib/csv-import.js` |
 | `c8acdf1eeb7f28d7995889a62ed8541bfacae9df8a1b79c857305c953f6e683f` | 78868 | `lib/dicewords-ui.js` |
 | `2b44ba4654b9516804890899dbc0c996826715d9cd3980fb01470614c7c12a34` | 23833 | `lib/dicewords.js` |
 | `54b0d6fdeb01bb8bfb35285f8809fddae1b441bb8f269b97614d2dc45f0d6b67` | 626 | `lib/download-main.js` |
 | `d44eb2a8b45e132405ef9ed38fa8f697ab3b30a72bd90ce3b27049a54e558343` | 12100 | `lib/emergency-recover-purejs.js` |
-| `320b5b8472b9c2a78ae8bf9dd13c4f4c05e5292ec5328a633c16dccd4fce444f` | 41104 | `lib/emergency-restore-main.js` |
+| `9417e9a09008ac8e071adecf8d20e574e5c4b9eba700c4963681131efd7a9a69` | 41104 | `lib/emergency-restore-main.js` |
 | `1a1f069ce210e29a8d7e3288ec70a1716c0d138ff0f61a2278f6b38b49b4c648` | 2657 | `lib/help-main.js` |
 | `e28daf5a58671268fc966355ba5c082dfafb1c932db361996bdaefd05d000e49` | 17941 | `lib/i18n.js` |
 | `ea255434dfdb2c5365493abe25715164300b0883c64b81601ef292588ce2a2f6` | 5748 | `lib/idb-cache.js` |
@@ -249,6 +249,7 @@ A list without a valid signature means the deployment did not come from the rele
 | `d713a5429233d4489a3edd9f795189b54229cc3f93e8435d41daebf11ec2a594` | 10097 | `lib/local-cache.js` |
 | `c632a26949e09216ea5d9f21aafac78f0ec6c551a2e8bde216f72251bb62352f` | 9940 | `lib/lp-pricing.js` |
 | `08f6235eee2b83d01cc9e419fb644d8ce7710ded5d21d210e802c7c3f3e4898b` | 12565 | `lib/ocr-vision.js` |
+| `0a276abcb1711f860621fb7f80819178f0198ec9b89949aac4c9c326d5b4c3d3` | 5853 | `lib/passkey-followup-ui.js` |
 | `41371abe4025dad08de363fc5df9cd350e535ea815f1b62636a0d6558b287301` | 16572 | `lib/passkey-stores.js` |
 | `2edd7410d86986f0658251500473e07cc5ba22cfe5bad6f40cc12c4fe38b24ee` | 659 | `lib/pay-cancel-main.js` |
 | `d5b80baa47b7993fe395a6752933e2f6364657054c88f9483928357cfdaf7fc3` | 1087 | `lib/pay-success-main.js` |
@@ -263,7 +264,7 @@ A list without a valid signature means the deployment did not come from the rele
 | `0700d8a98ce4cd75f7f51653ee0fc519b660d38d9e1d662bba64e6ae46aff04d` | 15267 | `lib/save-debounce.js` |
 | `907f5ce3bf5908037010821d9973e66ce607b62ab86a2cad3f1a1ea2147bfb28` | 663 | `lib/security-main.js` |
 | `3c789b7feb40a662640a5fe78e32e78f3acca61d3de339ed9ee374b7a3740fa4` | 14530 | `lib/totp.js` |
-| `a5b693500bd6665b5d0b5919fb342623784d4c6c40fe8c4fbf765ef9ad674e4f` | 349914 | `lib/vault-client.js` |
+| `7deebe979599402779254745845bf55c199b6151e0ee0a52840953663a5fda4a` | 352390 | `lib/vault-client.js` |
 | `7166e7b6da66d93602b642cea126f56fedd885e120b310882ac3a9cc561aac34` | 170709 | `lib/vault-crypto.js` |
 | `bc40c8a15196236b2314db0856f72ca0b49980cd5413b8c852a7349f5fee0859` | 256885 | `lib/vendor/jsqr.js` |
 | `c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08` | 11358 | `lib/vendor/LICENSE-jsqr` |
@@ -310,7 +311,7 @@ A list without a valid signature means the deployment did not come from the rele
 | `cecb9dcb7d39b5849fe0227439a6fdd05ac58d9d868369366fdf9061d0a646a3` | 108755 | `ru/index.html` |
 | `32787760776d3417ed68d69b1c91bac499ce3236bc53b14e1a844e76270bb3c3` | 31810 | `security.html` |
 | `7d442b6357bcf026f66e112025e912f79d98b3302690e39e4455e5c91cc4232e` | 249314 | `sitemap.xml` |
-| `71870fd66b9f80900bc5edc0fddef4734cfba131de08d461efc046ea4a2507eb` | 7427 | `sw.js` |
+| `c43953c1ff726840dbdb2ff69060b1851ef1d4b2e55c8e99c8d89e612fb83b07` | 7427 | `sw.js` |
 | `33f6731adcb76de32e27d75df1cf954b32cc062b8ef411fb896553bfd8feb0ad` | 19037 | `terms.html` |
 | `ed8d9d2782dabb39f15fafe78789507c6e60067f2103d0b0ee58a532b3b4d193` | 12930 | `tokushoho.html` |
 | `ebe9b8e778eb0a447c4cc495845a7604e690302b40f1d052ff4e3f770cf9dc5e` | 6290 | `tr/download.html` |
