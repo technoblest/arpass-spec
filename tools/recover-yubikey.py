@@ -351,43 +351,114 @@ def print_entries(vault: dict, show_pw: bool = False) -> int:
 # ---------------------------------------------------------------------------
 # Records / attachments recovery
 # ---------------------------------------------------------------------------
+def _recover_record_files(rec: dict, mek: bytes, chunk_key, out_dir: str) -> int:
+    """Decrypt and save the attachments of one record. Archived (v4) records have their
+    file keys wrapped with the archive's chunk key (encryption.wrappedBy == "chunk")."""
+    saved = 0
+    if not isinstance(rec, dict):
+        return 0
+    for att in (rec.get("attachments") or []):
+        if not isinstance(att, dict):
+            continue
+        enc = att.get("encryption") or {}
+        txid = att.get("txId")
+        fname = sanitize_filename(att.get("filename"))
+        if not (txid and enc.get("wrappedBEK") and enc.get("wrapIv") and enc.get("dataIv")):
+            print("    ! skipping attachment (missing metadata): %s" % fname)
+            continue
+        wrap_key = chunk_key if enc.get("wrappedBy") == "chunk" else mek
+        if wrap_key is None:
+            print("    ! skipping attachment (archive key not available): %s" % fname)
+            continue
+        try:
+            # MEK, chunk key and BEK are used DIRECTLY as raw AES-256 keys (no extra HKDF).
+            bek = aes_gcm_decrypt(wrap_key, b64u_decode(enc["wrapIv"]), b64u_decode(enc["wrappedBEK"]))
+            blob = fetch_blob(txid)  # raw ciphertext; dataIv is separate metadata
+            plain = aes_gcm_decrypt(bek, b64u_decode(enc["dataIv"]), blob)
+        except Exception as e:  # noqa: BLE001
+            print("    ! failed to recover file %s: %s" % (fname, e))
+            continue
+        path = os.path.join(out_dir, fname)
+        base, ext = os.path.splitext(path)
+        n = 1
+        while os.path.exists(path):
+            path = "%s_%d%s" % (base, n, ext)
+            n += 1
+        with open(path, "wb") as fh:
+            fh.write(plain)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        print("    Saved file: %s (%d bytes)" % (path, len(plain)))
+        saved += 1
+    return saved
+
+
+def recover_archives(vault: dict, mek: bytes, out_dir: str, skip_ids=None) -> int:
+    """Archived records (records.chunks): each archive is a separate Arweave tx.
+    encryption.wrappedCEK is a 32-byte key wrapped with the MEK (AES-256-GCM, no AAD):
+      - schemaVersion 4: the "chunk key"; it also wraps the file keys of the records inside
+        (encryption.wrappedBy == "chunk").
+      - older archives (v3): the CEK; the file keys inside are wrapped with the MEK of the time.
+    The archive itself is AES-256-GCM(key, dataIv) of JSON { items: [records], sealedAt, schemaVersion }.
+    Writes archived-records.json and returns the number of recovered files."""
+    chunks = (vault.get("records") or {}).get("chunks") or []
+    if not chunks:
+        return 0
+    print("\n  Archives (records.chunks): %d" % len(chunks))
+    seen = set(skip_ids or [])
+    archived = []
+    saved = 0
+    for ch in chunks:
+        if not isinstance(ch, dict):
+            continue
+        enc = ch.get("encryption") or {}
+        cid = ch.get("id")
+        if not (ch.get("txId") and enc.get("wrappedCEK") and enc.get("wrapIv") and enc.get("dataIv")):
+            print("    ! skipping archive (missing key or metadata): %s" % cid)
+            continue
+        try:
+            key = aes_gcm_decrypt(mek, b64u_decode(enc["wrapIv"]), b64u_decode(enc["wrappedCEK"]))
+            blob = fetch_blob(ch["txId"])
+            data = json.loads(aes_gcm_decrypt(key, b64u_decode(enc["dataIv"]), blob).decode("utf-8"))
+            items = data.get("items")
+            if not isinstance(items, list):
+                raise ValueError("archive has no items[]")
+        except Exception as e:  # noqa: BLE001
+            print("    ! failed to open archive %s: %s" % (cid, e))
+            continue
+        archived.append({
+            "id": cid, "txId": ch.get("txId"), "range": ch.get("range"),
+            "sealedAt": data.get("sealedAt") or ch.get("sealedAt"),
+            "schemaVersion": ch.get("schemaVersion") or 3, "items": items,
+        })
+        print("    Opened archive %s (%d records)" % (cid, len(items)))
+        for rec in items:
+            if not isinstance(rec, dict) or rec.get("id") in seen:
+                continue
+            seen.add(rec.get("id"))
+            saved += _recover_record_files(rec, mek, key, out_dir)
+    if archived:
+        path = os.path.join(out_dir, "archived-records.json")
+        with open(path, "w", encoding="utf-8") as fh:
+            json.dump(archived, fh, ensure_ascii=False, indent=2)
+        try:
+            os.chmod(path, 0o600)
+        except OSError:
+            pass
+        print("    Saved archived records: %s" % path)
+    return saved
+
+
 def recover_files(vault: dict, mek: bytes, out_dir: str) -> int:
     records = (vault.get("records") or {}).get("active") or []
     saved = 0
     for rec in records:
-        if not isinstance(rec, dict):
-            continue
-        for att in (rec.get("attachments") or []):
-            if not isinstance(att, dict):
-                continue
-            enc = att.get("encryption") or {}
-            txid = att.get("txId")
-            fname = sanitize_filename(att.get("filename"))
-            if not (txid and enc.get("wrappedBEK") and enc.get("wrapIv") and enc.get("dataIv")):
-                print("    ! skipping attachment (missing metadata): %s" % fname)
-                continue
-            try:
-                # MEK and BEK are used DIRECTLY as raw AES-256 keys (no extra HKDF).
-                bek = aes_gcm_decrypt(mek, b64u_decode(enc["wrapIv"]), b64u_decode(enc["wrappedBEK"]))
-                blob = fetch_blob(txid)  # raw ciphertext; dataIv is separate metadata
-                plain = aes_gcm_decrypt(bek, b64u_decode(enc["dataIv"]), blob)
-            except Exception as e:  # noqa: BLE001
-                print("    ! failed to recover file %s: %s" % (fname, e))
-                continue
-            path = os.path.join(out_dir, fname)
-            base, ext = os.path.splitext(path)
-            n = 1
-            while os.path.exists(path):
-                path = "%s_%d%s" % (base, n, ext)
-                n += 1
-            with open(path, "wb") as fh:
-                fh.write(plain)
-            try:
-                os.chmod(path, 0o600)
-            except OSError:
-                pass
-            print("    Saved file: %s (%d bytes)" % (path, len(plain)))
-            saved += 1
+        saved += _recover_record_files(rec, mek, None, out_dir)
+    # 2026-11-19: archived records (records.chunks) and their files
+    active_ids = [r.get("id") for r in records if isinstance(r, dict)]
+    saved += recover_archives(vault, mek, out_dir, skip_ids=active_ids)
     return saved
 
 

@@ -108,6 +108,7 @@ import {
   writeEnvelope,
   writeRecordFile,
   fetchRecordFileBytes,
+  getTxStatus,                 // 2026-11-19: アーカイブが Arweave で確定したかを見る
   writeKeyslot,
   fetchKeyslotBlob,
   lookupKeyslotTxid,
@@ -131,7 +132,7 @@ import {
   quRevokeApi,
   quRevokeAllApi,
   quRenameApi,
-} from "./quick-unlock.js?v=2c75833e";
+} from "./quick-unlock.js?v=8990bd40";
 // 2026-11-17: 登録されている端末の一覧に、 パスキーの保管場所 (AAGUID など) を出すための部品
 import { passkeyStoreInfo, registrationEnv } from "./passkey-stores.js?v=41371abe";
 
@@ -142,7 +143,24 @@ import {
   decryptWithBekHandle,
   wrapBekWithMekHandle,
   unwrapBekWithMekHandle,
+  generateChunkKeyHandle,      // 2026-11-19: Records のアーカイブ (v4) のチャンク鍵
 } from "./vault-crypto.js?v=7166e7b6";
+// 2026-11-19: Records のアーカイブ (records.chunks) の暗号。 v3 / v4 の違いと、 包み直しとの関係は records-chunk.js の説明。
+import {
+  CHUNK_SCHEMA_V4,
+  CHUNK_PENDING_GIVE_UP_MS,
+  isPendingChunk,
+  chunkKeyMissing,
+  sealChunkV4,
+  decryptChunk,
+  unwrapArchivedBek,
+  classifyChunkLoadError,
+  prepareArchivesForKeyChange,
+  legacyChunksNeedingCheck,
+  readChunkVerified,
+  chunksWaitingForK1,
+  widenChunkRange,
+} from "./records-chunk.js?v=2a9518a8";
 
 // ---------------------------------------------------------------------------
 // セッション (in-memory secrets, lockSession で消える)
@@ -321,6 +339,7 @@ export async function retryLatestForRestoredSession() {
 /** メモリ上の秘密を全消去。localStorage の meta は残す (秘密値は含まない — appNameTag 等)。 */
 export function lockSession() {
   _wipeQuPending();  // 素早い解錠の登録待ちの値 (pMat / userIdKek / PRF) も消す
+  if (_session) _session.archive = null;   // 2026-11-19: 読み込んだアーカイブの記録 (平文) も捨てる
   _quCreateHold = null;   // 作成直後の値づくりが終わっていなくても、 ロックしたら提案しない (session が無いので持たない)
   if (_session) {
     // Stage 2 Phase B: MEK は handle のみ (_session.mek は常に null)。
@@ -4518,7 +4537,7 @@ export async function reissueRecovery_caseA(password) {
   return { newRecovery, txid: writeResult.txid, oldCredIdHash: _session.currentCredIdHash };
 }
 
-export async function reissueRecovery_caseB(password) {
+export async function reissueRecovery_caseB(password, opts = {}) {
   if (!_session) throw new Error("locked — unlock first");
   if (!_session.lastEnvelope) throw new Error("session に直近 envelope がありません");
   if (!_session.currentCredIdHash) {
@@ -4540,17 +4559,47 @@ export async function reissueRecovery_caseB(password) {
   }
   // 2026-11-13: 書き込めないなら、 パスキーを求める前に止める (epoch を上げない)
   await _assertCanWriteOrThrow();
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=7166e7b6");
+  // 2026-11-19: アーカイブ (records.chunks) の確かめ。 v3 の chunk の中のファイル鍵は封をしたときの MEK のままなので、
+  //   今の MEK でほどける記録を active に戻してから包み直す (それはパスキーの後、 下でその時点の vault に対して行う)。
+  //   ここ (パスキーを求める前・epoch を上げる前) では確かめと利用者への確認だけをする:
+  //   一時的に読めなければ止める (archive_transient、 少し待ってやり直す)。 開けない (lost) ・今は読めない (missing)
+  //   アーカイブは、 確かめてから (opts.confirmUnreadableArchives) 進める。 答えが無ければやめる。
+  const _archCheck = await _prepareArchivesForKeyChange(_session.vault, { markLostKeys: true });
+  if (_archCheck.unreadable.length) {
+    const ok = typeof opts.confirmUnreadableArchives === "function"
+      ? (await opts.confirmUnreadableArchives(_archCheck.unreadable)) === true : false;
+    if (!ok) {
+      const err = new Error("Case B cancelled: some archives cannot be opened");
+      err.code = "archive_unreadable_cancelled";
+      err.archives = _archCheck.unreadable;
+      throw err;
+    }
+  }
+  const _archAgreed = new Set(_archCheck.unreadable.map((a) => a.id + "|" + a.kind));
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
   const newRecovery = generateRecoverySecret();
   const newRMat = deriveRMat(newRecovery);
   const credIdHint = readMeta()?.credentialId ? b64uDecode(readMeta().credentialId) : null;
   const { prfOutput } = await authenticateWithPasskey(credIdHint);
   let oldMekForRotation = null;
   let result;
+  let _caseBVault = null;
   try {
     // Stage 2 A-3: 旧 MEK は Master + Passkey (AB) で handle として開き直す。 新 MEK は
     //   changeRecovery_caseB が WASM 内で生成する。 新旧とも生 MEK を JS heap に出さない。
     oldMekForRotation = await _deriveTransientSecretHandle({ password, prfOutput, credIdHash: _session.currentCredIdHash });
+    // 2026-11-19: パスキーを待つ間に vault が変わっている (記録の追加が終わるなど) ことがあるので、 その時点の
+    //   _session.vault でもう一度準備する (読んだ chunk は手元の写しにある)。 1 回目に確かめていない問題が新しく
+    //   出たら止める。 アーカイブで変えることが無ければ、 今までどおり _session.vault をそのまま渡す。
+    const _arch = await _prepareArchivesForKeyChange(_session.vault, { markLostKeys: true });
+    const _archNew = _arch.unreadable.filter((a) => !_archAgreed.has(a.id + "|" + a.kind));
+    if (_archNew.length) {
+      const err = new Error("archives changed while waiting for the passkey — try again");
+      err.code = "archive_changed";
+      err.archives = _archNew;
+      throw err;
+    }
+    _caseBVault = _arch.changed ? _arch.vault : _session.vault;
     // 2026-11-09 素早い解錠 (設計書 §3.6): Case B は署名鍵 (pkHash) が変わるので、 古い鍵のうちに epoch を上げる。
     //   上げられなければ止める (fail-closed)。 /api/vault/migrate も epoch と一覧を新しい pkHash へ移す。
     await _quBumpEpochOrThrow("recovery_reissue");
@@ -4561,7 +4610,7 @@ export async function reissueRecovery_caseB(password) {
     const _masterCopy = (_mcBase && _session.vault.masterCopyOff !== true)
       ? { lang: await _masterCopyLang(_mcBase) } : null;
     result = await changeRecovery_caseB(
-      _session.lastEnvelope, oldMekForRotation, _session.vault, password,
+      _session.lastEnvelope, oldMekForRotation, _caseBVault, password,
       _session.currentCredIdHash, prfOutput, newRMat, newRecovery, _masterCopy
     );
   } finally {
@@ -4606,6 +4655,7 @@ export async function reissueRecovery_caseB(password) {
     if (!(k in result.vault)) delete _session.vault[k];
   }
   Object.assign(_session.vault, result.vault);
+  _session.archive = null;             // 2026-11-19: アーカイブの控えは読み直す (v3 は active に戻した)
   _session.masterCopyPending = null;   // 旧 MEK で包んだ値は使えない
   _session.outerKeyBytes = result.newOuterKeyBytes;
   _session.appNameTag = result.newAppNameTag;
@@ -4913,6 +4963,18 @@ export async function fetchRecordFileUI(recordId, attachmentIdx = 0) {
   const dataIv = b64uDecode(att.encryption.dataIv);
 
   let bytes;
+  // 2026-11-19: アーカイブした記録 (archivedIn)。 v4 はチャンク鍵で、 v3 は封をしたときの MEK でファイル鍵をほどく。
+  if (record.archivedIn) {
+    const ref = (_session.vault.records?.chunks ?? []).find((c) => c.id === record.archivedIn);
+    if (!ref) throw new Error(`archive not found: ${record.archivedIn}`);
+    let bekHandle = null;
+    try {
+      bekHandle = await unwrapArchivedBek(ref, att, _mekForVersionFn());
+      bytes = await decryptWithBekHandle(bekHandle, dataIv, ciphertext);
+    } finally {
+      if (bekHandle && typeof bekHandle.free === "function") { try { bekHandle.free(); } catch (_) {} }
+    }
+  } else {
   // Stage 2c Stage G5 (2026-06-06): Rust handle 経路を優先 (= raw bytes JS 露出ゼロ)。
   //   Personal mode + _session.mekHandle 利用可能なら handle path、 業務 mode or
   //   rust-crypto 未ロード時は既存 CryptoKey path に fallback。
@@ -4931,6 +4993,7 @@ export async function fetchRecordFileUI(recordId, attachmentIdx = 0) {
     }
   } else {
     throw new Error("fetchRecordFileUI: Rust crypto core (MekKey/BekKey handle) 必須");
+  }
   }
 
   // 4) 改ざん検知 (sha256 突合)
@@ -5019,6 +5082,14 @@ export async function correctRecordUI(recordId, updates, reason) {
     correctedAt: new Date().toISOString(),
   };
   vault.records.corrections.push(correction);
+  // 2026-11-19: アーカイブの記録の日付を訂正したら、 その chunk の range を広げる (日付で絞ったときに読むように)。
+  //   確定待ちの chunk (記録はまだ active にある) も、 確定すると active から外れるので同じく広げる。
+  if ("date" in cleaned) {
+    for (const ref of vault.records.chunks ?? []) {
+      const holds = ref.id === current.archivedIn || (isPendingChunk(ref) && Array.isArray(ref.itemIds) && ref.itemIds.includes(recordId));
+      if (holds) widenChunkRange(ref, cleaned.date);
+    }
+  }
 
   // audit log
   vault.recordHistory.push({
@@ -5113,7 +5184,7 @@ export function getDeletedRecords() {
     if (!cur || (c.version ?? 1) > (cur.version ?? 1)) correctionMap.set(c.id, c);
   }
   return tombs.map(t => {
-    const orig = (vault.records.active ?? []).find(r => r.id === t.id);
+    const orig = _withArchivedRecords(vault, vault.records.active ?? []).find(r => r.id === t.id);
     const correction = correctionMap.get(t.id);
     return {
       id: t.id,
@@ -5135,26 +5206,29 @@ export function getDeletedRecords() {
 //   chunk は別 Arweave file として encrypted upload。vault 本体は chunk
 //   reference (txId + range hint + wrapped CEK) のみ保持する。
 //
-// 検索 (Phase 7.0f filter): デフォルトは active のみ scan = 高速。
-//   chunks の range hint (dateFrom/dateTo) を使い、必要時のみ loadChunkUI で
-//   lazy fetch + decrypt。記録が少ない user は chunk 走査ゼロで完結。
+// 検索 (Phase 7.0f filter): 2026-11-19 から、 Records の一覧を開くと要る chunk を loadArchivedRecordsUI で
+//   読み込み (日付で絞っているときは range hint が重なるものだけ)、 getCurrentRecords が active と合わせて返す。
 //
-// セキュリティ:
-//   chunk ciphertext は CEK (Chunk Encryption Key) で暗号化。
-//   CEK は MEK で wrap → vault.records.chunks[].encryption に保存。
-//   MEK が消えれば chunk も decrypt 不能。Recovery Case A/B でも
-//   MEK 復元できれば chunk 復号も追従。
+// セキュリティ (2026-11-19、 v4。 詳しくは records-chunk.js):
+//   chunk ごとのチャンク鍵 (MekKey) で中身を暗号化し、 中の各ファイル鍵もチャンク鍵で包み直す。
+//   チャンク鍵は MEK で包んで vault.records.chunks[].encryption.wrappedCEK に置く。 Case B / K1 移行は
+//   本体の wrappedCEK だけ包み直せばよい (Arweave の上の chunk は書き換えない)。
+//   v3 (それまでの形) は中のファイル鍵が封をしたときの MEK のままなので、 鍵を変える前に
+//   _prepareArchivesForKeyChange で active に戻す。
 
 const DEFAULT_CHUNK_THRESHOLD = 500;  // active が 500 件超えたら sealing 推奨
 const DEFAULT_CHUNK_KEEP      = 100;  // 直近 100 件は active に残す (UI 即応性)
 
 /**
- * Phase 7.0i: active[] が threshold を超えていれば古い分を chunk に sealing。
- *   1) active を date desc sort
- *   2) 直近 keepRecent 件を active に残す
- *   3) 残りを CEK で encrypt → Arweave に書込み (records と同じ /api/write)
- *   4) chunk reference を vault.records.chunks に append、active は recent のみに
- *   5) recordHistory に "chunk_sealed" entry
+ * Phase 7.0i → 2026-11-19 (v4): active[] が threshold を超えていれば、 古い分を 1 つのアーカイブ (chunk) に封をする。
+ *   1) 確定待ちの chunk に入っている記録を除いて、 active を日付の新しい順に並べる
+ *   2) 直近 keepRecent 件を残し、 残りを封をする (records-chunk.js の sealChunkV4: チャンク鍵で暗号化し、
+ *      中の各ファイル鍵もチャンク鍵で包み直す。 チャンク鍵は今の MEK で包んで wrappedCEK に置く)
+ *   3) Arweave に書く (records のファイルと同じ /api/write)
+ *   4) chunkRef を vault.records.chunks に足す。 **items は active から外さない** (pending: true)。
+ *      bundle が落ちると (functions/api/admin/bundle-dropped.js は返金するだけ) データは戻らないので、
+ *      Arweave で確定して読み戻せたら settlePendingChunksUI が active から外す。 一覧は id で重複を除く。
+ *   5) recordHistory に "chunk_sealed"
  *
  * @param {Object} [opts]
  * @param {number} [opts.threshold=500]   sealing 開始 threshold
@@ -5165,83 +5239,64 @@ export async function sealOldestChunkUI({ threshold = DEFAULT_CHUNK_THRESHOLD, k
   if (!_session) throw new Error("locked");
   const vault = _session.vault;
   if (!vault?.records) throw new Error("no records container");
+  if (!Array.isArray(vault.records.chunks)) vault.records.chunks = [];
 
-  const active = vault.records.active ?? [];
+  // 確定待ちの chunk に入っている記録は、 もう一度封をしない (確定するまで active に残しているだけ)
+  const pendingIds = _pendingChunkItemIds(vault);
+  const active = (vault.records.active ?? []).filter((r) => !pendingIds.has(r.id));
   if (active.length <= threshold) {
     return { chunkRef: null, sealed: 0 };
   }
 
   // date desc sort (新しい順) — keepRecent 件を残し、残りを sealing 対象に
   const sorted = [...active].sort((a, b) => (b.date ?? "").localeCompare(a.date ?? ""));
-  const recent = sorted.slice(0, keepRecent);
   const toSeal = sorted.slice(keepRecent);
   if (toSeal.length === 0) return { chunkRef: null, sealed: 0 };
 
-  // 1) Chunk plaintext: items + sealedAt
-  const chunkPlaintext = JSON.stringify({
-    items: toSeal,
-    sealedAt: new Date().toISOString(),
-    schemaVersion: 3,
-  });
-  const chunkBytes = new TextEncoder().encode(chunkPlaintext);
-
-  // 2)+3) CEK 生成 → encrypt + wrap (Stage 2c Stage G6: Rust handle 経路を優先)
-  //   Personal mode + _session.mekHandle 利用可能なら Rust path、 業務 mode は既存 path。
-  let ciphertext, dataIv, wrappedCEK, wrapIv;
-  // handle 化: _session.mekKey (handle) で CEK を BekKey 経路に統一。
-  const _cekWrapMek = _session.mekKey;
-  if (_cekWrapMek && typeof _cekWrapMek.wrap_bek === "function") {
-    let cekHandle = null;
-    try {
-      cekHandle = await generateBekHandleViaRust();  // CEK は BEK と同じ AES-256 鍵
-      if (!cekHandle) throw new Error("Rust BekKey.generate() unavailable");
-      dataIv = crypto.getRandomValues(new Uint8Array(12));
-      ciphertext = await encryptWithBekHandle(cekHandle, dataIv, chunkBytes);
-      const w = await wrapBekWithMekHandle(_cekWrapMek, cekHandle);
-      wrappedCEK = w.wrapped;
-      wrapIv = w.iv;
-    } finally {
-      if (cekHandle && typeof cekHandle.free === "function") {
-        try { cekHandle.free(); } catch (_) {}
-      }
-    }
-  } else {
-    throw new Error("chunk write: Rust crypto core (MekKey/BekKey handle) 必須");
+  const currentMek = _session.mekKey;
+  if (!currentMek || typeof currentMek.wrap_mek !== "function") {
+    throw new Error("chunk write: Rust crypto core (MekKey handle) 必須");
   }
+  const k1Version = (currentVaultMode() === "business" && _session?.k1Version != null) ? _session.k1Version : null;
+  const sealed = await sealChunkV4({
+    items: toSeal,
+    mekForVersion: _mekForVersionFn(),
+    currentMek,
+    generateKey: generateChunkKeyHandle,
+    k1Version,
+  });
 
-  // 4) Arweave に書込み (records ファイルと同じ経路)
-  const writeRes = await writeRecordFile(ciphertext, _session.signingState);
+  // Arweave に書込み (records ファイルと同じ経路)。 書いた直後 (配信前) でも読めるよう、 手元にも置く。
+  const writeRes = await writeRecordFile(sealed.ciphertext, _session.signingState);
+  await setRecordFileCache(writeRes.txid, sealed.ciphertext).catch(() => {});
 
   // Phase 7.1-Y: chunk file 書込みでも session の vault-only latestTxId を
   // 変更しない (= record file と同じ理由、Phase 7.1-M 以降は不要)。
 
-  // 5) Range hint (filter で chunk を skip 判定するための meta)
-  const dates = toSeal.map(r => r.date).filter(Boolean).sort();
+  // Range hint (filter で chunk を skip 判定するための meta)。 日付を訂正した記録は、 訂正後の日付も入れる
+  //   (封をしたときの元の日付だけだと、 日付で絞ったときにその chunk を読まない)。
+  const effDate = new Map(getCurrentRecords(vault).map((r) => [r.id, r.date]));
+  const dates = toSeal.flatMap((r) => [r.date, effDate.get(r.id)]).filter(Boolean).sort();
   const chunkRef = {
     id: b64uEncode(crypto.getRandomValues(new Uint8Array(16))),
     txId: writeRes.txid,
-    sealedAt: new Date().toISOString(),
+    sealedAt: sealed.sealedAt,
     count: toSeal.length,
     range: {
       dateFrom: dates[0] ?? null,
       dateTo:   dates[dates.length - 1] ?? null,
     },
-    onChainBytes: writeRes.size_bytes ?? ciphertext.length,
+    onChainBytes: writeRes.size_bytes ?? sealed.ciphertext.length,
     consumedUsdMicro: writeRes.consumedUsdMicro ?? null,
     referenceUsdMicro: writeRes.referenceUsdMicro ?? null,   // trial 参考額 (請求なし)
-    encryption: {
-      algorithm: "AES-GCM-256",
-      wrappedCEK: b64uEncode(wrappedCEK),
-      // Phase 7.2-B v2.4: business mode は K1 version 記録
-      ...(currentVaultMode() === "business" && _session?.k1Version != null ? { k1Version: _session.k1Version } : {}),
-      wrapIv: b64uEncode(wrapIv),
-      dataIv: b64uEncode(dataIv),
-    },
+    schemaVersion: CHUNK_SCHEMA_V4,
+    pending: true,                                  // Arweave で確定するまで items は active にも残す
+    itemIds: toSeal.map((r) => r.id),               // 確定したら active から外す記録 (確定待ちの間は二重に封をしない)
+    encryption: sealed.encryption,                  // { algorithm, wrappedCEK (= MEK で包んだチャンク鍵), wrapIv, dataIv, k1Version? }
   };
 
-  // 6) vault state 更新 (memory のみ、saveVault は呼出側 scheduleSave)
+  // vault state 更新 (memory のみ、saveVault は呼出側 scheduleSave)
   vault.records.chunks.push(chunkRef);
-  vault.records.active = recent;
   vault.recordHistory.push({
     id: chunkRef.id,
     action: "chunk_sealed",
@@ -5249,61 +5304,274 @@ export async function sealOldestChunkUI({ threshold = DEFAULT_CHUNK_THRESHOLD, k
     count: toSeal.length,
     range: chunkRef.range,
   });
+  // 封をした中身は手元にあるので、 読み直さずに控える (一覧は active と id で重複を除く)
+  _archiveState().items.set(chunkRef.id, _annotateArchived(sealed.items, chunkRef.id));
 
   return { chunkRef, sealed: toSeal.length };
 }
 
+// ---------------------------------------------------------------------------
+// 2026-11-19: アーカイブした記録を読む側。 読み込んだ chunk の記録はセッションの中だけに控え
+//   (_session.archive)、 vault には入れない (保存されない)。 getCurrentRecords が active と合わせて返す。
+// ---------------------------------------------------------------------------
+function _archiveState() {
+  if (!_session) throw new Error("locked");
+  if (!_session.archive) _session.archive = { items: new Map(), errors: new Map(), loading: new Map() };
+  return _session.archive;
+}
+function _annotateArchived(items, chunkId) {
+  return (Array.isArray(items) ? items : []).map((it) => ({ ...it, archivedIn: chunkId }));
+}
+function _pendingChunkItemIds(vault) {
+  const ids = new Set();
+  for (const c of vault?.records?.chunks ?? []) {
+    if (isPendingChunk(c)) for (const id of (Array.isArray(c.itemIds) ? c.itemIds : [])) ids.add(id);
+  }
+  return ids;
+}
+// ファイル鍵・チャンク鍵を包んでいる MEK (個人は今の MEK、 業務は記録した K1 版の real_MEK)。 free しない。
+function _mekForVersionFn() {
+  return (v) => _getMekKeyForVersion(v);
+}
+async function _fetchChunkCiphertext(chunk, { fresh = false } = {}) {
+  if (!fresh) {
+    try { const c = await getRecordFileCache(chunk.txId); if (c) return c; } catch (_) { /* fallthrough */ }
+  }
+  let ct;
+  try {
+    ct = await fetchRecordFileBytes(chunk.txId);
+  } catch (e) {
+    if (/not yet available/.test(e?.message || "")) {
+      const err = new Error(e.message);
+      err.code = "chunk_missing";
+      throw err;
+    }
+    throw e;
+  }
+  setRecordFileCache(chunk.txId, ct).catch(() => {});   // 取り直したら手元の写しも入れ替える (壊れた写しを残さない)
+  return ct;
+}
+/** active に、 読み込み済みのアーカイブの記録を足す (同じ id は active を使う)。
+ *  控えはセッションに結び付け、 渡された vault の chunks の id で引く (chunk の id は 16 バイトの乱数)。
+ *  画面の state.vault と session の vault が別のオブジェクトになっていても (保存や最新の取り込みのあと)、
+ *  黙って消えないように、 vault のオブジェクトが同じかどうかは見ない。 */
+function _withArchivedRecords(vault, active) {
+  const st = _session?.archive;
+  if (!st || !st.items.size) return active;
+  const out = [...active];
+  const seen = new Set(active.map((r) => r?.id));
+  for (const c of vault.records?.chunks ?? []) {
+    const items = st.items.get(c.id);
+    if (!items) continue;
+    for (const it of items) {
+      if (it?.id && !seen.has(it.id)) { seen.add(it.id); out.push(it); }
+    }
+  }
+  return out;
+}
+
 /**
- * Phase 7.0i: 既存 chunk を Arweave から fetch + decrypt。
- * 検索や履歴閲覧時の lazy load 用。
- *
+ * Phase 7.0i → 2026-11-19: 既存 chunk を Arweave から fetch + decrypt して控える (v3 / v4 とも)。
  * @param {string} chunkId
- * @returns {Promise<{items: Array, sealedAt: string}>}
+ * @param {{fresh?: boolean}} [opts]  fresh: 手元の控えを使わずゲートウェイから読む (確定の確かめ)
+ * @returns {Promise<{items: Array, sealedAt: string, schemaVersion?: number}>}
  */
-export async function loadChunkUI(chunkId) {
+export async function loadChunkUI(chunkId, { fresh = false } = {}) {
   if (!_session) throw new Error("locked");
   const vault = _session.vault;
   const chunk = (vault?.records?.chunks ?? []).find(c => c.id === chunkId);
   if (!chunk) throw new Error(`chunk not found: ${chunkId}`);
+  // 手元の写しで開けなければネットワークから取り直す (壊れた写しだけで「開けない」としない)
+  const json = fresh
+    ? await decryptChunk(chunk, await _fetchChunkCiphertext(chunk, { fresh: true }), _mekForVersionFn())
+    : await readChunkVerified(chunk, _mekForVersionFn(), (ref, o) => _fetchChunkCiphertext(ref, o));
+  _archiveState().items.set(chunk.id, _annotateArchived(json.items, chunk.id));
+  return json;
+}
 
-  // 1) ciphertext fetch (Records ファイルと同じ経路、cache-friendly)
-  let ciphertext = null;
-  try {
-    ciphertext = await getRecordFileCache(chunk.txId);
-  } catch { /* fallthrough */ }
-  if (!ciphertext) {
-    ciphertext = await fetchRecordFileBytes(chunk.txId);
-    setRecordFileCache(chunk.txId, ciphertext).catch(() => {});
-  }
+/**
+ * 2026-11-19: Records の一覧・検索・CSV のために、 要るアーカイブを読み込む。 日付で絞っているときは、
+ *   範囲が重なるものだけ (chunkRangeOverlaps)。 確定待ちのもの (items は active にある) と、 前に読めなかった
+ *   もの (retry のときを除く) は読まない。
+ * @returns {Promise<object>} archivedRecordsStatus と同じ形 + loadedNow
+ */
+// 日付の絞り込みでどの chunk を読むか。 訂正で日付が変わった記録のうち、 本体にも読み込み済みのアーカイブにも
+//   無いもの (どの chunk に入っているか分からない) の新しい日付が範囲に入るなら、 全部の chunk を読む
+//   (訂正のときに range を広げているが、 2026-11-19 より前の訂正の保険)。
+function _archiveFilterFor(vault, dateFrom, dateTo) {
+  const filter = { dateFrom: dateFrom || null, dateTo: dateTo || null };
+  if (!filter.dateFrom && !filter.dateTo) return filter;
+  const known = new Set((vault?.records?.active ?? []).map((r) => r?.id));
+  for (const items of (_session?.archive?.items?.values() ?? [])) for (const it of items) known.add(it?.id);
+  const inRange = (d) => typeof d === "string" && (!filter.dateFrom || d >= filter.dateFrom) && (!filter.dateTo || d <= filter.dateTo);
+  const orphan = (vault?.records?.corrections ?? []).some((c) => c && "date" in c && !known.has(c.id) && inRange(c.date));
+  return orphan ? { dateFrom: null, dateTo: null } : filter;
+}
 
-  // 2)+3) CEK unwrap + decrypt (Stage 2c Stage G6: Rust handle 経路を優先)
-  const wrappedCEK = b64uDecode(chunk.encryption.wrappedCEK);
-  const wrapIv = b64uDecode(chunk.encryption.wrapIv);  // v2.5 hotfix 5: 復元漏れ
-  const dataIv = b64uDecode(chunk.encryption.dataIv);
-
-  let bytes;
-  // handle 化: 該当 version の MekKey handle で CEK を BekKey unwrap に統一 (既存 chunk 互換)。
-  const _cekUnwrapMek = await _getMekKeyForVersion(chunk.encryption.k1Version);
-  if (_cekUnwrapMek && typeof _cekUnwrapMek.unwrap_bek === "function") {
-    let cekHandle = null;
-    try {
-      cekHandle = await unwrapBekWithMekHandle(_cekUnwrapMek, wrappedCEK, wrapIv);
-      bytes = await decryptWithBekHandle(cekHandle, dataIv, ciphertext);
-    } finally {
-      if (cekHandle && typeof cekHandle.free === "function") {
-        try { cekHandle.free(); } catch (_) {}
+export async function loadArchivedRecordsUI({ dateFrom = "", dateTo = "", retry = false } = {}) {
+  if (!_session) throw new Error("locked");
+  const st = _archiveState();
+  const filter = _archiveFilterFor(_session.vault, dateFrom, dateTo);
+  const targets = (_session.vault?.records?.chunks ?? []).filter((c) =>
+    !isPendingChunk(c) && !st.items.has(c.id) && chunkRangeOverlaps(c, filter) && (retry || !st.errors.has(c.id)));
+  const queue = targets.slice();
+  let loadedNow = 0;
+  const worker = async () => {
+    while (queue.length) {
+      const c = queue.shift();
+      if (chunkKeyMissing(c)) {   // 以前に「開けない」と分かって鍵を外したもの
+        st.errors.set(c.id, { code: "chunk_key_unwrap_failed", kind: "lost" });
+        continue;
+      }
+      let p = st.loading.get(c.id);
+      if (!p) { p = loadChunkUI(c.id); st.loading.set(c.id, p); }
+      try {
+        await p;
+        st.errors.delete(c.id);
+        loadedNow++;
+      } catch (e) {
+        st.errors.set(c.id, { code: e?.code || "chunk_load_failed", kind: classifyChunkLoadError(e), message: e?.message || String(e) });
+        console.warn("[archive] chunk load failed:", c.id, e?.message || e);
+      } finally {
+        st.loading.delete(c.id);
       }
     }
-  } else {
-    throw new Error("loadChunkUI: Rust crypto core (MekKey/BekKey handle) 必須");
-  }
+  };
+  await Promise.all([worker(), worker()]);
+  return { ...archivedRecordsStatus({ dateFrom, dateTo }), loadedNow };
+}
 
-  // 4) JSON parse
-  const json = JSON.parse(new TextDecoder().decode(bytes));
-  if (!Array.isArray(json?.items)) {
-    throw new Error("chunk JSON malformed (no items[])");
+/**
+ * 2026-11-19: アーカイブの読み込みの状況 (日付の絞り込みに重なるものだけ数える。 確定待ちは別に数える)。
+ * @returns {{chunks:number, pending:number, loaded:number, failed:number, failedPermanent:number, unloaded:number, loading:number, unloadedCount:number}}
+ */
+export function archivedRecordsStatus({ dateFrom = "", dateTo = "" } = {}) {
+  const out = { chunks: 0, pending: 0, loaded: 0, failed: 0, failedPermanent: 0, unloaded: 0, loading: 0, unloadedCount: 0 };
+  if (!_session?.vault?.records) return out;
+  const st = _session.archive || { items: new Map(), errors: new Map(), loading: new Map() };
+  const filter = _archiveFilterFor(_session.vault, dateFrom, dateTo);
+  for (const c of _session.vault.records.chunks ?? []) {
+    if (isPendingChunk(c)) { out.pending++; continue; }
+    if (!chunkRangeOverlaps(c, filter)) continue;
+    out.chunks++;
+    if (st.items.has(c.id)) out.loaded++;
+    else if (st.errors.has(c.id)) {
+      out.failed++;
+      if (st.errors.get(c.id)?.kind === "lost") out.failedPermanent++;
+    } else {
+      out.unloaded++;
+      out.unloadedCount += Number(c.count) || 0;
+      if (st.loading.has(c.id)) out.loading++;
+    }
   }
-  return json;
+  return out;
+}
+
+/**
+ * 2026-11-19: 確定待ちのアーカイブ (pending) を片付ける。
+ *   - Arweave で確定 (getTxStatus が "confirmed") していて、 ゲートウェイから読み戻して開け、 封をした記録が
+ *     そろっていれば、 その記録を active から外す (pending と itemIds を消し、 confirmedAt を付ける)。
+ *   - 封をしてから 14 日たっても確定しなければ、 落ちたものとみなして chunkRef を外す (items は active にある)。
+ *   どちらかがあれば changed: true (呼び出し側が保存する)。
+ */
+// 確定したのに読み戻して開けない (鍵がほどけない・取り直しても復号できない・id が合わない) が、 この回数・この時間
+//   続いたら、 その chunkRef を外す (items は active にあるので失わない)。 一時的な失敗 (通信・404) は数えない。
+const CHUNK_SETTLE_FAIL_LIMIT = 3;
+const CHUNK_SETTLE_FAIL_SPAN_MS = 10 * 60 * 1000;
+function _dropPendingChunk(vault, c, now, reason) {
+  vault.records.chunks = (vault.records.chunks ?? []).filter((x) => x !== c);
+  _session.archive?.items.delete(c.id);
+  _session.archive?.settleFails?.delete(c.id);
+  vault.recordHistory.push({ id: c.id, action: "chunk_dropped", at: new Date(now).toISOString(), count: c.count ?? null, reason });
+}
+
+export async function settlePendingChunksUI({ getStatus = getTxStatus, now = Date.now() } = {}) {
+  if (!_session?.vault?.records) return { settled: 0, dropped: 0, changed: false };
+  const vault = _session.vault;
+  const st = _archiveState();
+  if (!st.settleFails) st.settleFails = new Map();   // chunk id → { n, first } (セッションの中だけ)
+  let settled = 0, dropped = 0;
+  for (const c of [...(vault.records.chunks ?? [])]) {
+    if (!isPendingChunk(c)) continue;
+    let status = null;
+    try { status = await getStatus(c.txId); } catch (_) { status = null; }
+    if (status?.state === "confirmed") {
+      const noteFail = (why) => {
+        const f = st.settleFails.get(c.id) || { n: 0, first: now };
+        f.n++;
+        st.settleFails.set(c.id, f);
+        console.warn("[archive] confirmed chunk is not readable:", c.id, why, f.n);
+        if (f.n >= CHUNK_SETTLE_FAIL_LIMIT && now - f.first >= CHUNK_SETTLE_FAIL_SPAN_MS) {
+          _dropPendingChunk(vault, c, now, "unreadable");
+          dropped++;
+        }
+      };
+      let json;
+      try {
+        json = await decryptChunk(c, await _fetchChunkCiphertext(c, { fresh: true }), _mekForVersionFn());
+      } catch (e) {
+        // 鍵がほどけない・取り直しても復号できない → 数える。 通信・404・鍵を取りに行けない → 待つ
+        if (classifyChunkLoadError(e) === "lost") noteFail(e?.code);
+        else console.warn("[archive] confirmed chunk could not be read back yet:", c.id, e?.message || e);
+        continue;
+      }
+      const ids = new Set(json.items.map((it) => it?.id).filter(Boolean));
+      const expected = Array.isArray(c.itemIds) ? c.itemIds : [...ids];
+      if (!expected.every((id) => ids.has(id))) {
+        noteFail("ids_mismatch");
+        continue;
+      }
+      st.settleFails.delete(c.id);
+      vault.records.active = (vault.records.active ?? []).filter((r) => !ids.has(r.id));
+      delete c.pending;
+      delete c.itemIds;
+      c.confirmedAt = new Date(now).toISOString();
+      _archiveState().items.set(c.id, _annotateArchived(json.items, c.id));
+      vault.recordHistory.push({ id: c.id, action: "chunk_confirmed", at: c.confirmedAt, count: ids.size });
+      settled++;
+    } else {
+      const t = Date.parse(c.sealedAt || "");
+      if (Number.isFinite(t) && now - t > CHUNK_PENDING_GIVE_UP_MS) {
+        _dropPendingChunk(vault, c, now, "not_confirmed");
+        dropped++;
+      }
+    }
+  }
+  return { settled, dropped, changed: settled + dropped > 0 };
+}
+
+/**
+ * 2026-11-19: 鍵を包み直す前 (Recovery の Case B、 業務の K1 移行) のアーカイブの準備。 vault の写しを返す
+ *   (元の vault は変えない。 包み直しが途中で止まっても手元は変わらない)。
+ *   - どの chunk も、 チャンク鍵 (v3 は CEK) が今の鍵でほどけるかを確かめる。 ほどけないと包み直しの走査が
+ *     止まるので、 markLostKeys のときは wrappedCEK を wrappedCEKUnopenable に移す (chunk の参照は残す)。
+ *   - v3 の chunk は中身を読み、 今の鍵でファイル鍵が全部ほどける記録だけ active に戻す (ほかの記録と一緒に
+ *     包み直される。 Arweave への書き込みはなし)。 全部戻せたら chunk の参照を外す。 ほどけない記録は chunk に残す。
+ *   - v4 の chunk は触らない (チャンク鍵を包んだ wrappedCEK だけが、 走査で包み直される)。
+ *   - 一時的に読めない (通信・5xx・封をしてまもない 404) v3 の chunk があれば、 何も変えずに止める (code archive_transient)。
+ *   - 開けない chunk (鍵がほどけない・復号できない・恒久的に無い) は unreadable に入れて返す (進めても失うものは増えない)。
+ * @returns {Promise<{vault: object, moved: number, unreadable: Array, changed: boolean}>}
+ */
+async function _prepareArchivesForKeyChange(vault, { markLostKeys = false, now = Date.now() } = {}) {
+  return prepareArchivesForKeyChange(vault, {
+    mekForVersion: _mekForVersionFn(),
+    fetchCiphertext: (ref, o) => _fetchChunkCiphertext(ref, o),
+    markLostKeys,
+    now,
+  });
+}
+
+/** v3 の chunk で、 まだ鍵の包み直しの前の確かめをしていないものの数 (業務の K1 移行のお知らせに足す)。 */
+function _legacyChunksNeedingCheck(vault) {
+  return legacyChunksNeedingCheck(vault);
+}
+
+/** session の vault を、 同じオブジェクトのまま中身だけ入れ替える (画面側の state.vault が同じものを見ている)。 */
+function _replaceSessionVaultContents(next) {
+  for (const k of Object.keys(_session.vault)) {
+    if (!(k in next)) delete _session.vault[k];
+  }
+  Object.assign(_session.vault, next);
 }
 
 /**
@@ -5418,7 +5686,8 @@ export function migrateVaultSchema(vault) {
 }
 
 /** Phase 7.0c: 現在 active な records を取得 (corrections + tombstones 適用後)。
- *  chunks は別途 lazy load (Phase 7.0i)。MVP では active のみ。 */
+ *  2026-11-19: 読み込み済みのアーカイブ (loadArchivedRecordsUI) の記録も含める (archivedIn: chunk id 付き)。
+ *  訂正・削除は id で当たる。 同じ id が active にあれば active を使う (確定待ちの間など)。 */
 export function getCurrentRecords(vault) {
   if (!vault?.records) return [];
   const { active, corrections, tombstones } = vault.records;
@@ -5430,8 +5699,8 @@ export function getCurrentRecords(vault) {
     const cur = correctionMap.get(c.id);
     if (!cur || (c.version ?? 1) > (cur.version ?? 1)) correctionMap.set(c.id, c);
   }
-  // active に対して corrections を override + tombstones で除外
-  return (active ?? [])
+  // active (+ 読み込み済みのアーカイブの記録、 2026-11-19) に対して corrections を override + tombstones で除外
+  return _withArchivedRecords(vault, active ?? [])
     .filter(r => !tombSet.has(r.id))
     .map(r => {
       const correction = correctionMap.get(r.id);
@@ -6611,7 +6880,10 @@ export function countRecordsNeedingK1Migration() {
   if (currentVaultMode() !== "business") return 0;
   const curVer = _session.k1Version;
   if (curVer == null) return 0;
-  return countBusinessSecretsNeedingK1Migration(_session.vault, curVer);
+  // 2026-11-19: v3 のアーカイブ (中のファイル鍵が古い K1 版のままかもしれない) も、 確かめるまで数える
+  //   K1 の版がサーバーに無くて待っている chunk (k1Unavailable) は数えない (お知らせが消えなくなるため)
+  return Math.max(0, countBusinessSecretsNeedingK1Migration(_session.vault, curVer) - chunksWaitingForK1(_session.vault, curVer))
+    + _legacyChunksNeedingCheck(_session.vault);
 }
 
 /**
@@ -6630,15 +6902,24 @@ export async function migrateAllRecordsToCurrentK1() {
   // Phase 7.3-A.9 part 2 → Stage 2 A-3: 現行 real_MEK は MekKey handle (_session.mekKey) のみ。
   const newRealMek = _session.mekKey;
   if (!newRealMek) throw new Error("session に mekKey が無い");
+  // 2026-11-19: v3 のアーカイブの記録のうち、 記録した K1 版でファイル鍵がほどけるものを active に戻す
+  //   (その版がサーバーから消えると開けなくなるため。 戻したものはこのあと現行 K1 で包み直される)。
+  //   一時的に読めなければ止める (archive_transient)。
+  //   チャンク鍵がほどけない chunk (lost) は wrappedCEKUnopenable に移し、 お知らせに数え続けないようにする。
+  const prep = await _prepareArchivesForKeyChange(_session.vault, { markLostKeys: true });
+  if (prep.changed) {
+    _replaceSessionVaultContents(prep.vault);
+    _session.archive = null;
+  }
   const r = await rewrapBusinessSecretsToCurrentK1(
     _session.vault, curVer, (v) => _getRealMekForVersion(v), newRealMek);
   const migrated = r.counts.bek + r.counts.cek + r.counts.totp;
   const { total, skipped } = r;
 
-  if (migrated > 0) {
+  if (migrated > 0 || prep.changed) {
     await saveVault(_session.vault);
   }
-  return { migrated, total, skipped };
+  return { migrated, total, skipped, unsealed: prep.moved };
 }
 
 

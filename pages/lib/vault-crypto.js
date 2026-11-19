@@ -796,6 +796,12 @@ export async function generateBekHandleViaRust() {
   return rc.BekKey.generate();
 }
 
+/** 2026-11-19: Records のアーカイブ (v4) のチャンク鍵。 MekKey として WASM 内で作る (BEK を包めるように)。
+ *  生鍵は JS に出ない。 呼び出し側が free する。 records-chunk.js の説明を参照。 */
+export async function generateChunkKeyHandle() {
+  return _generateMekHandle("records chunk key");
+}
+
 /** Stage G4 v2: BekKey handle で AES-GCM encrypt (= file 暗号化)。 */
 export async function encryptWithBekHandle(bekHandle, iv, plaintext, aad = new Uint8Array(0)) {
   if (!bekHandle) throw new Error("encryptWithBekHandle: bekHandle required");
