@@ -549,7 +549,53 @@ if (!entry) return 404;  // not registered
 9. localStorage 更新
 
 → publicKey 変わる、サーバ KV migration 必要
-→ 古い envelope の中身は古い MEK を持たない人には永久に読めない
+→ 新しい envelope は、古い Recovery や古い MEK だけでは読めない (Master は変わらない)
+→ 古い envelope は Arweave に残り、古い組 (古い Recovery + Master、古い Passkey + Master など) で
+  古い MEK を取り出せるので読める (2026-11-20 訂正。以前は「古い MEK を持たない人には永久に読めない」と
+  書いていたが、古い MEK は古い組から取り出せるので言い過ぎだった)
+```
+
+### 8.5 全部入れ替える — 個人のふつうのドライブ (2026-11-20)
+
+Recovery やマスターが漏れたかもしれないとき・端末をなくしたとき。個人のふつうのドライブの設定は、これだけを出す
+(A と、マスターを残す B は出さない)。ビジネスは A だけ、管理者・YubiKey だけのドライブは A / B のまま。
+
+```
+1. 今の組で本人を確かめ、今の MEK を取り出す
+   (パスキーで開いた端末: 今の Master + 今の Passkey。パスキーなしで開いた端末: 今の Master + 今の Recovery)
+2. 新 Master (ダイスの言葉 8 語) と新 Recovery を画面で作り、保存してもらう (書き込みの前)
+3. この端末に新 Passkey を作る (user.id v8 = 新 Recovery の目印 + 新 outer 鍵 + 新 Master)
+4. 素早い解錠の epoch を上げる (古い登録は全部使えなくなる)
+5. 新 MEK・新 salt・今の KDF 設定。AC / AB / BC を新しく作る (Passkey は新しい 1 本だけ。古い wrap は持ち越さない)
+6. 本体・Records の鍵 (アーカイブも)・2 段階認証の秘密キー・encryptedRecovery・encryptedMaster を新 MEK で包み直す
+7. 新 outer 鍵・新保存場所で 1 回書き込む (旧署名鍵) → POST /api/migrate (Case B と同じ順)
+8. Secret Scanning のハッシュと userid-tag を登録し直す
+
+→ 新しい版は 新 Master + 新 Passkey / 新 Master + 新 Recovery / 新 Passkey + 新 Recovery だけで開く
+→ 古い組 (と、古いものと新しいものの混ぜ) では新しい版は開かない。古い MEK から作る署名鍵は新アカウントと違う
+→ 古い版は古い組で開けたまま (Arweave は消せない)。大事なサイトのパスワードを変えてもらう
+→ 途中で失敗: 書き込み前なら何も変わらない (新 Passkey が保管場所に残ったら消してもらう)。
+  書き込み後なら新しい組で開ける
+→ 古い Passkey は保管場所に残るので、名前と保管場所 (AAGUID) の一覧と消し方を出す。
+  WebAuthn Signal API (signalUnknownCredential / signalAllAcceptedCredentials) は使えるときだけ、
+  この端末の古い Passkey について送る (新 Passkey の credential ID・user.id は送らない)
+「今のマスターのまま」 (2026-11-20 追加): 2 の新 Master を今の Master にする (暗号の処理は同じ。新しい salt で包み直す)。
+  古い Recovery の紙を自分で焼ける人だけ。古い版は Master + 古い Recovery / Master + 古い Passkey / 古い Passkey +
+  古い Recovery で開くので、古い Recovery を焼き、古い Passkey を消せば、Master だけでは開かない。
+  Recovery が漏れているとき (漏れの知らせ) は、今の Master が漏れると入れ替える前の版が全部開くので、強い注意と確かめを出す
+  (止めはしない)。自分で決めた昔の Master (ダイスの言葉でない) なら、漏れた Recovery で古い版を相手に総当たりできるので、
+  ダイスの言葉をすすめる。
+書き込みのあとの口座の移し替え (2026-11-20、Case B も同じ):
+  - /api/vault/migrate は、通信エラー・時間切れ・5xx などで自動でやり直す。同じ移し先への 2 回目は ok (サーバーは
+    alreadyMigrated を返し、素早い解錠の epoch は上げない)。駄目なら新しい鍵を残して保留にし、「続きをやる」でやり直す。
+  - 書き込みの返事が無い・時間切れ・5xx のときは、古い pkHash の ?pk= の slots に新しい Recovery の目印の版があるかで
+    書き込み済みかを確かめる。確かめられなければ「確かめる」まで保留 (新しい紙も古い紙も捨てさせない・保存させない)。
+  - 許可証: 書く前に古い署名鍵で "arpass-migrate-voucher-v1\n古い pkHash\n新しい pkHash\n日時" に署名し、新しい版の
+    本体 (vault.migrationVoucher) に入れる。ページを閉じて移し替えが済まなかったときは、新しい組で開いて /api/balance が
+    not_registered になったところで、許可証を新しい鍵の署名で /api/vault/migrate-voucher に出す。サーバーは、署名した鍵の
+    pkHash = 許可証の新しい pkHash、許可証の署名が古い口座の publicKey で確かめられる、の両方を確かめて migrateAccount を流す。
+    古い鍵を持つ人は今でも /api/vault/migrate を呼べるので、できることは増えない。済んだら次の保存で本体から外す。
+検査: scripts/test-replace-all.mjs
 ```
 
 ---

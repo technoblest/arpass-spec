@@ -1733,7 +1733,7 @@ export async function changeRecovery_caseA(envelope, secretToWrap, password, cur
  *   newMekKey / newMekHkdfKey は新 MEK の handle (caller が session に載せ、 lockSession で free)。
  *   newSigningKey で /api/migrate を呼んで旧 KV エントリから新 KV エントリへ credit を移送する。
  */
-export async function changeRecovery_caseB(envelope, oldMek, vault, password, currentCredIdHash, currentPrfOutput, newRecoveryMaterial, newRecoverySecret = null, masterCopy = null) {
+export async function changeRecovery_caseB(envelope, oldMek, vault, password, currentCredIdHash, currentPrfOutput, newRecoveryMaterial, newRecoverySecret = null, masterCopy = null, opts = {}) {
   if (!(oldMek && typeof oldMek.unwrap_bek === "function"))
     throw new Error("changeRecovery_caseB: 旧 MEK は MekKey handle 必須 (生 MEK は受け付けない)");
   const newMekKey = await _generateMekHandle("changeRecovery_caseB");  // 生 MEK は JS に出ない
@@ -1781,6 +1781,11 @@ export async function changeRecovery_caseB(envelope, oldMek, vault, password, cu
     } else {
       delete newVault.encryptedMaster;
     }
+    // 2026-11-20: 新しい署名鍵 (新しい pkHash) が決まってから本体に足すもの (口座の移し替えの許可証)。 opts.addToVault
+    const newSigningKey = await deriveSigningKeyFromHkdf(newMekKey);
+    if (typeof opts?.addToVault === "function") {
+      newVault = { ...newVault, ...(await opts.addToVault(newSigningKey.publicKeyRaw)) };
+    }
 
     // 新 MEK で本体再暗号化
     const ivBody = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
@@ -1812,7 +1817,7 @@ export async function changeRecovery_caseB(envelope, oldMek, vault, password, cu
       newMekHkdfKey: newMekKey.duplicate(),  // session の mekHkdfKey 用 (別 handle、 二重 free 回避)
       newOuterKeyBytes: deriveOuterKeyBytes(newRMat),
       newAppNameTag: deriveAppNameTag(newRMat),
-      newSigningKey: await deriveSigningKeyFromHkdf(newMekKey),  // raw deriveSigningKey と bit-equiv
+      newSigningKey,  // raw deriveSigningKey と bit-equiv
       oldSigningKey,
     };
     done = true;
@@ -1820,6 +1825,104 @@ export async function changeRecovery_caseB(envelope, oldMek, vault, password, cu
   } finally {
     _freeHandles(kekPR, kekPK, kekKR);
     if (!done) _freeHandles(newMekKey);
+  }
+}
+
+/**
+ * 2026-11-20: 「全部入れ替える」 (個人のドライブ)。 Case B (新しい MEK・新しい Recovery) とマスターの変更と、 この端末の
+ *   新しいパスキーを 1 つにまとめて、 新しい envelope を 1 つ作る。 中身 (vault) は引き継ぐ。
+ *   - 新しい MEK を WASM 内で作り、 新しい salt と今の KDF の設定で新しいマスターから pMat を作る。
+ *   - 3 つの包み (AC = 新マスター + 新 Recovery、 AB / BC = 新しいパスキー) を新しく作る。 古いパスキーの包みは持ち越さない。
+ *   - 古い MEK で包んでいたファイルの鍵・アーカイブの鍵・2 段階認証の秘密キーを新しい MEK で包み直す
+ *     (rewrapVaultSecretsForNewMek。 1 つでも失敗したら例外)。 encryptedRecovery は新しい Recovery、 encryptedMaster は
+ *     新しいマスターで作り直す (masterCopy が無ければ入れない)。
+ *   過去の版を開けるのは「古いマスター + 古い Recovery」などの古い組だけになり、 今の版と新しいアカウント (署名鍵は新しい MEK
+ *   から作る) には届かない。
+ *
+ * @param {object} vault                 引き継ぐ中身 (credentials は呼び出し側が新しいパスキーだけにしておく)
+ * @param {object} oldMek                今の MEK (MekKey handle。 AB で確かめたもの)
+ * @param {string} newPassword           新しいマスター
+ * @param {Uint8Array} newRecoveryMaterial 新しい Recovery の rMat
+ * @param {string} newRecoverySecret     新しい Recovery の文字列 (encryptedRecovery 用)
+ * @param {string} newCredIdHash         新しいパスキーの credIdHash
+ * @param {Uint8Array} newPrfOutput      新しいパスキーの PRF
+ * @param {{masterCopy?: {lang?: string|null}|null}} [opts]
+ */
+export async function replaceAllKeys(vault, oldMek, newPassword, newRecoveryMaterial, newRecoverySecret, newCredIdHash, newPrfOutput, opts = {}) {
+  if (!(oldMek && typeof oldMek.unwrap_bek === "function"))
+    throw new Error("replaceAllKeys: 旧 MEK は MekKey handle 必須 (生 MEK は受け付けない)");
+  if (!newPassword) throw new Error("replaceAllKeys: new password required");
+  if (!(newPrfOutput instanceof Uint8Array) || newPrfOutput.length < 16) throw new Error("replaceAllKeys: new passkey PRF required");
+  if (!(newRecoveryMaterial instanceof Uint8Array) || newRecoveryMaterial.length < 32) throw new Error("replaceAllKeys: new recoveryMaterial required");
+  if (!newCredIdHash || typeof newCredIdHash !== "string") throw new Error("replaceAllKeys: newCredIdHash required");
+  if (typeof newRecoverySecret !== "string" || !newRecoverySecret) throw new Error("replaceAllKeys: new Recovery string required");
+
+  const newMekKey = await _generateMekHandle("replaceAllKeys");
+  let kekPR = null, kekPK = null, kekKR = null;
+  let pMat = null, kMat = null, rMat = null;
+  let done = false;
+  try {
+    const oldSigningKey = await deriveSigningKeyFromHkdf(oldMek);
+    const salt = crypto.getRandomValues(new Uint8Array(SALT_LEN_BYTES));
+    const kdfParams = getCurrentKdfParams();
+    pMat = await derivePMat(newPassword, salt, kdfParams);
+    kMat = deriveKMat(newPrfOutput);
+    rMat = newRecoveryMaterial.slice(0, 32);
+    kekPR = await deriveKEK(pMat, rMat, "kek_pr");
+    kekPK = await deriveKEK(pMat, kMat, "kek_pk");
+    kekKR = await deriveKEK(kMat, rMat, "kek_kr");
+    const ivA = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    const ivB = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    const ivC = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    const wrapA = await _wrapSecretWithKek(kekPR, ivA, newMekKey);
+    const wrapB = await _wrapSecretWithKek(kekPK, ivB, newMekKey);
+    const wrapC = await _wrapSecretWithKek(kekKR, ivC, newMekKey);
+
+    const _rewrapped = await rewrapVaultSecretsForNewMek(vault, oldMek, newMekKey);
+    let newVault = await injectEncryptedRecovery(_rewrapped.vault, newRecoverySecret, newMekKey);
+    if (opts?.masterCopy) {
+      newVault = { ...newVault, encryptedMaster: await encryptMasterWithMek(newPassword, opts.masterCopy.lang ?? null, newMekKey) };
+    } else {
+      delete newVault.encryptedMaster;   // 古い MEK で包んだ写しは新しい MEK では開けない (古いマスターの写しでもある)
+    }
+    // 2026-11-20: 新しい pkHash が決まってから本体に足すもの (口座の移し替えの許可証)。 opts.addToVault
+    const newSigningKey = await deriveSigningKeyFromHkdf(newMekKey);
+    if (typeof opts?.addToVault === "function") {
+      newVault = { ...newVault, ...(await opts.addToVault(newSigningKey.publicKeyRaw)) };
+    }
+
+    const ivBody = crypto.getRandomValues(new Uint8Array(AES_IV_LEN));
+    const padded = padPlaintext(enc.encode(JSON.stringify(newVault)));
+    const bodyCt = await aesGcmEncrypt(newMekKey, ivBody, padded);
+    const newEnvelope = {
+      v: VAULT_FORMAT_V5,
+      kdfParams,
+      s: b64uEncode(salt),
+      i: b64uEncode(ivBody),
+      c: b64uEncode(bodyCt),
+      w: {
+        a: { i: b64uEncode(ivA), c: b64uEncode(wrapA) },
+        b: [{ h: newCredIdHash, i: b64uEncode(ivB), c: b64uEncode(wrapB) }],
+        c: [{ h: newCredIdHash, i: b64uEncode(ivC), c: b64uEncode(wrapC) }],
+      },
+    };
+    const result = {
+      envelope: newEnvelope,
+      vault: newVault,
+      rewrapCounts: _rewrapped.counts,
+      newMekKey,
+      newMekHkdfKey: newMekKey.duplicate(),
+      newOuterKeyBytes: deriveOuterKeyBytes(rMat),
+      newAppNameTag: deriveAppNameTag(rMat),
+      newSigningKey,
+      oldSigningKey,
+    };
+    done = true;
+    return result;
+  } finally {
+    _freeHandles(kekPR, kekPK, kekKR);
+    if (!done) _freeHandles(newMekKey);
+    for (const b of [pMat, kMat, rMat]) { if (b instanceof Uint8Array) b.fill(0); }
   }
 }
 

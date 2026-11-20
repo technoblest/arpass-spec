@@ -41,6 +41,7 @@ import {
   changePassword,
   changeRecovery_caseA,
   changeRecovery_caseB,
+  replaceAllKeys,              // 2026-11-20: 「全部入れ替える」 (個人)
   encryptRecoveryWithMek,
   decryptRecoveryWithMek,
   encryptMasterWithMek,              // 2026-11-15: ドライブの中のマスターの写し
@@ -69,6 +70,7 @@ import {
   deriveRMat,
   recoveryStringToHashHex,
   hashPublicKey,
+  signRequest,
   credentialIdToHash,
   b64uEncode,
   b64uDecode,
@@ -338,6 +340,7 @@ export async function retryLatestForRestoredSession() {
 
 /** メモリ上の秘密を全消去。localStorage の meta は残す (秘密値は含まない — appNameTag 等)。 */
 export function lockSession() {
+  _dropPendingMigration();   // 2026-11-20: 口座の移し替え待ちは、 古い署名鍵と一緒に捨てる (ロックしたら続きはできない)
   _wipeQuPending();  // 素早い解錠の登録待ちの値 (pMat / userIdKek / PRF) も消す
   if (_session) _session.archive = null;   // 2026-11-19: 読み込んだアーカイブの記録 (平文) も捨てる
   _quCreateHold = null;   // 作成直後の値づくりが終わっていなくても、 ロックしたら提案しない (session が無いので持たない)
@@ -1545,6 +1548,50 @@ async function _registerRecoveryHash(newRecovery, oldRecovery, signingState) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// 2026-11-20: Recovery の漏れの知らせ (GitHub Secret Scanning)。 解錠のあと、 画面が 1 回だけ取りに行く。
+//   失敗しても解錠は止めない (null)。 「あとで」はこのセッションの間だけ隠す (サーバーには書かない)。
+//   消えるのは Recovery を完全に作り直したとき (Case B) だけ: pkHash が新しくなり、 新しいアカウントには知らせが無い。
+//   Case A (MEK を変えない) では消えない (漏れた Recovery と今のマスターで、 今と同じ MEK が取れるため。
+//   docs/crypto-2of3.md 8.3 節)。
+// ---------------------------------------------------------------------------
+/**
+ * @returns {Promise<{kind:string, detectedAt:string|null, source:string|null, url:string|null}|null>}
+ */
+export async function recoveryLeakNoticeForSession({ timeoutMs = 6000 } = {}) {
+  const s = _session;
+  if (!s?.signingState) return null;
+  if (s.leakNoticeDismissed) return null;
+  if (s.leakNotice !== undefined) return s.leakNotice;
+  if (!s.leakNoticePromise) {
+    s.leakNoticePromise = (async () => {
+      try {
+        const res = await signedFetch("/api/secret-scanning/notice", "GET", null, s.signingState, { timeoutMs });
+        if (!res.ok) return undefined;   // 取れなかった: 次に画面を出したときにもう一度
+        const j = await res.json().catch(() => null);
+        const n = j?.notice;
+        return n && n.kind === "recovery_secret_leak" ? n : null;
+      } catch (e) {
+        console.warn("[secret-scanning] notice fetch failed (non-fatal):", e?.message || e);
+        return undefined;
+      }
+    })().then((n) => {
+      s.leakNoticePromise = null;
+      if (n !== undefined) s.leakNotice = n;
+      return (s.leakNoticeDismissed ? null : (n ?? null));
+    });
+  }
+  return s.leakNoticePromise;
+}
+/** 「あとで」: このセッションの間だけ出さない。 */
+export function dismissRecoveryLeakNoticeForSession() {
+  if (_session) _session.leakNoticeDismissed = true;
+}
+/** このセッションで分かっている漏れの知らせ (「あとで」で隠していても返す)。 Case A を止めるのに使う。 */
+export function knownRecoveryLeakNotice() {
+  return _session?.leakNotice ?? null;
+}
+
 // ── iOS 本番アプリ (WKWebView) 連携: autofill 拡張への provisioning ───────────
 //   iOS 殻 (window.webkit.messageHandlers.arpassAutofill) でのみ発火。他環境は no-op。
 //   iOS の autofill 拡張は自前で WebAuthn assertion 不可 → 本体で得た PRF/userHandle を
@@ -2399,9 +2446,10 @@ export async function revokeAllQuickUnlock() {
 //   同じ code で止める (画面は登録料・お支払いの案内を出す)。 確かめられなかったとき (通信の失敗など) は
 //   止めずに進む — 書き込みでも同じ code で断られるので、 前と同じ動きになるだけ。
 async function _assertCanWriteOrThrow() {
+  _assertNoPendingMigration();
   let j = null;
   try {
-    j = await getBalance(_session.signingState);
+    j = await _getBalanceSettlingVoucher();
   } catch (e) {
     console.warn("[write-precheck] balance を確かめられなかった — そのまま進む:", e?.message);
     return;
@@ -3929,6 +3977,12 @@ async function resolveLatestTxIdForUnlock(meta) {
 
 export async function saveVault(updatedVault, opts = {}) {
   if (!_session) throw new Error("locked — unlock first");
+  _assertNoPendingMigration();   // 2026-11-20: 書き込み済み・移し替え待ちの間は、 古い鍵で書かない
+  // 2026-11-20: 移し替えが済んだら、 口座の移し替えの許可証は次の保存で本体から外す
+  if (_session.voucherSettled) {
+    if (updatedVault && typeof updatedVault === "object" && "migrationVoucher" in updatedVault) delete updatedVault.migrationVoucher;
+    if (_session.vault && "migrationVoucher" in _session.vault) delete _session.vault.migrationVoucher;
+  }
   if (!_session.lastEnvelope) throw new Error("session に直近 envelope がありません");
 
   // Fix1 (2026-07-17): history フォールバックで開いたセッションからの保存を安全化。
@@ -4526,6 +4580,7 @@ export async function reissueRecovery_caseA(password) {
     latestTxId: writeResult.txid,
   });
   // Secret Scanning: 新 Recovery を登録 (旧 index は同一 pkHash なので削除される)。
+  //   2026-11-20: 漏れの知らせは消さない (Case A では足りない。 知らせは Case B まで出し続ける)。
   await _registerRecoveryHash(newRecovery, _oldRecovery, _session.signingState);
   // 2026-11-08: 新しい目印も user.id の目印として登録 (この端末の Passkey は作り直しで新しい目印を持つ)。
   _registerUserIdTagOnce();
@@ -4535,6 +4590,273 @@ export async function reissueRecovery_caseA(password) {
   //   addCredentialOnThisDevice(..., { replaceCredIdHash: oldCredIdHash }) で作り直す。
   //   _session.recoveryMaterial (= 新 rMat) は作り直しに使うので、ここでは消さない。
   return { newRecovery, txid: writeResult.txid, oldCredIdHash: _session.currentCredIdHash };
+}
+
+// ---------------------------------------------------------------------------
+// 2026-11-20: 書き込みのあとの口座の移し替え (/api/vault/migrate) のやり直し (Case B と「全部入れ替える」。 八巻さん「頼む」)
+//   新しい組で envelope を書いたあと、 移し替えが通らないと、 ドライブは新しい組で開けるのに口座 (残高・登録料・
+//   latestVaultTxId・素早い解錠) が古い pkHash に残る。 移し替えには古い署名鍵が要り、 それはこのページの session にしか無い。
+//   - 通信エラー・時間切れ・5xx / 429 / 408 は、 少し間を空けて自動でやり直す。
+//   - 1 回目がサーバーで済んで返事だけ届かなかったときは、 2 回目が「同じ移し先へ移し済み」になる。 これは成功として扱う
+//     (新しいサーバーは ok で返す。 古いサーバーは 410 already_migrated と移し先を返す)。
+//   - それでも駄目なら、 新しい鍵 (MEK・署名鍵) と書いた結果を free せずに保留 (_pendingMigration) にし、 画面の
+//     「続きをやる」 (resumePendingMigrationUI) で同じ古い signingState からやり直す。 通ったら、 いつもの切り替えを同じ順で行う。
+//   - 保留の間は保存させない (古い鍵で書くと、 書き込み済みの新しい版と食い違う)。 ロックしたら保留は捨てる (古い鍵が無くなる)。
+// ---------------------------------------------------------------------------
+const _MIGRATE_RETRY_DELAYS_MS = [1500, 4000];
+let _pendingMigration = null;
+
+function _isTransientMigrateError(e) {
+  const st = e?.status;
+  if (typeof st !== "number") return true;   // 返事が無い (通信エラー・時間切れ)
+  return st >= 500 || st === 429 || st === 408;
+}
+
+async function _migrateWithRetry(oldSigningState, newPublicKeyRaw, delaysMs = _MIGRATE_RETRY_DELAYS_MS) {
+  const newPkHash = await hashPublicKey(newPublicKeyRaw);
+  let lastErr = null;
+  for (let i = 0; i <= delaysMs.length; i++) {
+    if (i > 0) await new Promise((r) => setTimeout(r, delaysMs[i - 1]));
+    try {
+      return await migrateAccount(oldSigningState, newPublicKeyRaw);
+    } catch (e) {
+      if (e?.code === "already_migrated" && (e.migratedTo === newPkHash || String(e.message || "").includes(newPkHash))) {
+        return { ok: true, alreadyMigrated: true };   // 前の 1 回で済んでいた (同じ移し先)
+      }
+      lastErr = e;
+      if (!_isTransientMigrateError(e)) break;
+    }
+  }
+  throw lastErr;
+}
+
+function _dropPendingMigration() {
+  const p = _pendingMigration;
+  _pendingMigration = null;
+  if (p && typeof p.free === "function") { try { p.free(); } catch (_) {} }
+}
+
+function _assertNoPendingMigration() {
+  if (!_pendingMigration) return;
+  const err = new Error("口座の移し替えが終わっていません (「続きをやる」を押してください)");
+  err.code = "migrate_pending";
+  throw err;
+}
+
+// 保留を作る (呼び出し側はこのあと例外を投げる)。 phase:
+//   "write_unknown" … 書き込みの返事が届かず、 書き込み済みかどうかを確かめられなかった (「確かめる」)
+//   "migrate"       … 書き込み済み・口座の移し替え待ち (「続きをやる」)
+//   ctx: { oldPkHash, newRMat, newPublicKeyRaw, writeResult, finish(writeResult), free(), decorate(err, stage) }
+function _holdPending(kind, phase, err, ctx) {
+  _dropPendingMigration();
+  _pendingMigration = {
+    ...ctx, kind, phase, session: _session, oldSigningState: _session.signingState,
+    attempts: 1, lastCode: err?.code || (typeof err?.status === "number" && err.status ? String(err.status) : "network"),
+  };
+  try {
+    err.pendingKind = kind;
+    if (phase === "migrate") err.migratePending = true;
+    if (phase === "write_unknown") err.writeUnknown = true;
+  } catch (_) {}
+}
+
+/** 書き込み済み・口座の移し替え待ちか、 書き込みを確かめる待ちがあるか (画面用。 秘密は返さない)。
+ *    { kind: "replace_all" | "case_b", phase: "migrate" | "write_unknown", attempts, lastCode } | null */
+export function pendingMigrationStatus() {
+  const p = _pendingMigration;
+  return p ? { kind: p.kind, phase: p.phase, attempts: p.attempts, lastCode: p.lastCode } : null;
+}
+
+// 2026-11-20 (八巻さん「両方」 B): 書き込みの失敗が、 はっきりした拒否でないか (返事が無い・時間切れ・5xx・429・408)。
+//   このときはサーバーで書き込みが済んで、 返事だけ届かなかったことがある。 409 version_conflict などは拒否 (書いていない)。
+function _isIndefiniteWriteError(e) {
+  const st = e?.status;
+  if (typeof st !== "number" || st === 0) return true;
+  return st >= 500 || st === 429 || st === 408;
+}
+
+// 古い pkHash の ?pk= の slots に、 新しい Recovery から作った目印 (App-Name) の版が載っているか。
+//   載っていれば書き込み済み (目印は新しい Recovery から作る新しい値で、 ほかの書き込みでは載らない)。
+//   { state: "landed", txid } / { state: "absent" } / { state: "unknown" } (確かめられなかった)
+async function _probeWriteLanded(oldPkHash, newRMat) {
+  const tags = new Set();
+  try { tags.add(deriveAppNameTag(newRMat)?.value); } catch (_) {}
+  try { tags.add(deriveAppNameTag(newRMat, null)?.value); } catch (_) {}
+  try { for (const t of Object.values(deriveAllAppNameTags(newRMat, null) || {})) tags.add(t?.value); } catch (_) {}
+  tags.delete(undefined); tags.delete(null);
+  let r;
+  try {
+    r = await fetch(`/api/vault/latest?pk=${encodeURIComponent(oldPkHash)}`, { signal: AbortSignal.timeout(8000) });
+  } catch (_) { return { state: "unknown" }; }
+  if (r.status === 404) return { state: "absent" };
+  if (!r.ok) return { state: "unknown" };
+  let j = null;
+  try { j = await r.json(); } catch (_) { j = null; }
+  if (!j?.ok || !j.slots || typeof j.slots !== "object") return { state: "unknown" };
+  for (const sl of Object.values(j.slots)) {
+    if (sl && typeof sl.appName === "string" && tags.has(sl.appName) && typeof sl.txid === "string" && sl.txid) {
+      return { state: "landed", txid: sl.txid };
+    }
+  }
+  return { state: "absent" };
+}
+
+// 新しい版を書き、 口座を移し、 切り替える (Case B と「全部入れ替える」の共通の後半)。
+//   write(): writeEnvelope を呼ぶ。 返事が無い・時間切れ・5xx などで失敗したら、 書き込み済みかを ?pk= で確かめる
+//   (済んでいれば slots の txid で続ける / 確かめられなければ保留 "write_unknown" / 載っていなければ書いていない)。
+async function _writeMigrateFinish(kind, ctx) {
+  let writeResult;
+  try {
+    writeResult = await ctx.write();
+  } catch (e) {
+    if (!_isIndefiniteWriteError(e)) { ctx.free(); ctx.decorate(e, "before_write"); throw e; }
+    const probe = await _probeWriteLanded(ctx.oldPkHash, ctx.newRMat);
+    if (probe.state === "absent") { ctx.free(); ctx.decorate(e, "before_write"); throw e; }
+    if (probe.state === "unknown") {
+      _holdPending(kind, "write_unknown", e, ctx);
+      ctx.decorate(e, "write_unknown");
+      throw e;
+    }
+    console.warn("[" + kind + "] write response was lost, but the new version is on the account (" + probe.txid + ") — continuing");
+    writeResult = { ok: true, txid: probe.txid, confirmedBy: "slots" };
+  }
+  return await _migrateThenFinish(kind, writeResult, ctx);
+}
+
+// 口座を移して (自動のやり直しつき) 切り替える。 移し替えが尽きたら保留 "migrate" にして投げる
+async function _migrateThenFinish(kind, writeResult, ctx) {
+  try {
+    await _migrateWithRetry(_session.signingState, ctx.newPublicKeyRaw);
+  } catch (e) {
+    _holdPending(kind, "migrate", e, { ...ctx, writeResult });
+    ctx.decorate(e, "migrate_pending");
+    throw e;
+  }
+  return await ctx.finish(writeResult);
+}
+
+/**
+ * 保留のやり直し (画面の「続きをやる」・「確かめる」)。 通ったら切り替えを済ませ、 元の関数と同じ結果を返す
+ *   (全部入れ替える: replaceAllCredentialsUI の返り値 / Case B: reissueRecovery_caseB の返り値)。
+ *   - phase "migrate": 同じ古い signingState で移し替えをやり直す。 通らなければ err.migratePending で投げる (保留は残る)。
+ *   - phase "write_unknown": 書き込み済みかをもう一度確かめる。 済んでいれば移し替えへ進む (通らなければ保留 "migrate")。
+ *       載っていなければ保留を捨て、 code "write_not_landed" (書いていない) で投げる。 まだ確かめられなければ
+ *       err.writeUnknown で投げる (保留は残る)。
+ */
+export async function resumePendingMigrationUI() {
+  const p = _pendingMigration;
+  if (!p) { const e = new Error("no pending account move"); e.code = "no_pending_migration"; throw e; }
+  if (!_session || _session !== p.session) {
+    _dropPendingMigration();
+    const e = new Error("the session changed — the account move can no longer be resumed here");
+    e.code = "session_changed";
+    throw e;
+  }
+  if (p.phase === "write_unknown") {
+    const probe = await _probeWriteLanded(p.oldPkHash, p.newRMat);
+    if (probe.state === "unknown") {
+      p.attempts++;
+      p.lastCode = "write_unknown";
+      const e = new Error("still cannot tell whether the new version was written (no connection to the server)");
+      e.code = "write_check_unknown";
+      e.writeUnknown = true;
+      e.pendingKind = p.kind;
+      p.decorate(e, "write_unknown");
+      throw e;
+    }
+    _pendingMigration = null;
+    if (probe.state === "absent") {
+      p.free();
+      const e = new Error("the new version was not written");
+      e.code = "write_not_landed";
+      e.pendingKind = p.kind;
+      p.decorate(e, "before_write");
+      throw e;
+    }
+    return await _migrateThenFinish(p.kind, { ok: true, txid: probe.txid, confirmedBy: "slots" }, p);
+  }
+  try {
+    await _migrateWithRetry(p.oldSigningState, p.newPublicKeyRaw, [1500]);
+  } catch (e) {
+    p.attempts++;
+    p.lastCode = e?.code || (typeof e?.status === "number" && e.status ? String(e.status) : "network");
+    try { e.migratePending = true; e.pendingKind = p.kind; } catch (_) {}
+    p.decorate(e, "migrate_pending");
+    throw e;
+  }
+  _pendingMigration = null;   // 新しい鍵は finish が session に入れる (free しない)
+  return await p.finish(p.writeResult);
+}
+
+// ---------------------------------------------------------------------------
+// 2026-11-20 (八巻さん「両方」 A): 口座の移し替えの許可証 (vault.migrationVoucher)。 仕組みは functions/_lib/migration-voucher.js。
+//   書く前に、 古い署名鍵で「arpass-migrate-voucher-v1 \n 古い pkHash \n 新しい pkHash \n 日時」に署名し、 新しい版の本体に入れる。
+//   ページを閉じて移し替えが済まなかったときは、 新しい組で開いて /api/balance が not_registered になったところで、
+//   許可証を新しい鍵の署名で /api/vault/migrate-voucher に出して済ませる。 済んだら次の保存で本体から外す。
+// ---------------------------------------------------------------------------
+const MIGRATION_VOUCHER_PREFIX = "arpass-migrate-voucher-v1";   // functions/_lib/migration-voucher.js と同じ
+let _voucherNotice = null;     // 画面に一度だけ知らせる ("done" | { failed: reason })
+let _voucherRedeemP = null;    // 同時に何度も出さない
+
+async function _makeMigrationVoucher(oldSigningState, newPublicKeyRaw) {
+  const from = await hashPublicKey(oldSigningState.publicKeyRaw);
+  const to = await hashPublicKey(newPublicKeyRaw);
+  const at = new Date().toISOString();
+  const sig = await signRequest(oldSigningState.signingPrivateKey, [MIGRATION_VOUCHER_PREFIX, from, to, at].join("\n"));
+  return { migrationVoucher: { v: 1, from, to, at, sig } };
+}
+
+function _isNotRegistered(e) {
+  return e?.status === 404 && e?.code === "not_registered";
+}
+
+async function _redeemMigrationVoucher(v) {
+  if (_voucherRedeemP) return _voucherRedeemP;
+  _voucherRedeemP = (async () => {
+    const r = await signedFetch("/api/vault/migrate-voucher", "POST", { voucher: v }, _session.signingState, { timeoutMs: 20000 });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok || !j.ok) {
+      const err = new Error(`migrate-voucher failed: ${j.error || r.status}`);
+      err.status = r.status;
+      if (j.code) err.code = j.code;
+      err.voucherFailed = true;
+      throw err;
+    }
+    return j;
+  })();
+  try { return await _voucherRedeemP; } finally { _voucherRedeemP = null; }
+}
+
+// /api/balance。 口座が見つからず (not_registered)、 開いた版に許可証があれば、 それを出して移し替えを済ませてから取り直す。
+//   口座があって許可証の移し先が今の鍵なら、 移し替えは済んでいる (次の保存で許可証を外す)。
+async function _getBalanceSettlingVoucher() {
+  const v = _session?.vault?.migrationVoucher;
+  try {
+    const j = await getBalance(_session.signingState);
+    if (v && !_session.voucherSettled) {
+      try { if (v.to === await hashPublicKey(_session.signingState.publicKeyRaw)) _session.voucherSettled = true; } catch (_) {}
+    }
+    return j;
+  } catch (e) {
+    if (!_isNotRegistered(e) || !v || typeof v !== "object") throw e;
+    try {
+      await _redeemMigrationVoucher(v);
+    } catch (e2) {
+      _voucherNotice = { failed: e2?.code || e2?.message || "?" };
+      throw e2;
+    }
+    if (_session) _session.voucherSettled = true;
+    _voucherNotice = "done";
+    invalidateBalanceCache();
+    return await getBalance(_session.signingState);
+  }
+}
+
+/** 許可証で移し替えを済ませた (または失敗した) ことを一度だけ返す (画面の知らせ用)。 "done" | { failed } | null */
+export function takeMigrationVoucherNotice() {
+  const n = _voucherNotice;
+  _voucherNotice = null;
+  return n;
 }
 
 export async function reissueRecovery_caseB(password, opts = {}) {
@@ -4609,33 +4931,49 @@ export async function reissueRecovery_caseB(password, opts = {}) {
     const _mcBase = _masterCopyBase();
     const _masterCopy = (_mcBase && _session.vault.masterCopyOff !== true)
       ? { lang: await _masterCopyLang(_mcBase) } : null;
+    // 2026-11-20: 口座の移し替えの許可証 (新しい pkHash が決まってから、 古い署名鍵で署名して本体に入れる)
     result = await changeRecovery_caseB(
       _session.lastEnvelope, oldMekForRotation, _caseBVault, password,
-      _session.currentCredIdHash, prfOutput, newRMat, newRecovery, _masterCopy
+      _session.currentCredIdHash, prfOutput, newRMat, newRecovery, _masterCopy,
+      { addToVault: (newPkRaw) => _makeMigrationVoucher(_session.signingState, newPkRaw) },
     );
   } finally {
     try { oldMekForRotation?.free(); } catch (_) {}
     _wipePrf(prfOutput);   // PRF はここで使い終わり (2026-11-13)
   }
-  const oldCredIdHash = _session.currentCredIdHash;
   const _freeNewKeys = () => {
     for (const h of [result.newMekKey, result.newMekHkdfKey, result.newSigningKey?.handle]) {
       if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
     }
   };
-  let writeResult;
-  try {
-    // 旧 signingState で書き込み (まだ credit 課金は旧アカウントで)
-    writeResult = await writeEnvelope(
+  try { result.oldSigningKey?.handle?.free?.(); } catch (_) {}   // 古い署名鍵は session のものを使う
+  const oldPkHash = await hashPublicKey(_session.signingState.publicKeyRaw);
+  // 2026-11-20: 書き込み → 口座の移し替え → 切り替え。 書き込みの返事が無ければ書き込み済みかを確かめ (B)、
+  //   移し替えが通らなければ保留にして画面の「続きをやる」でやり直す。 新しい Recovery は、 書き込み済みか分からない・
+  //   移し替え待ちのとき err.newRecovery で渡す (新しい版を開くのに要るので、 画面はすぐ見せて保存してもらう)。
+  return await _writeMigrateFinish("case_b", {
+    // 旧 signingState で書き込み (まだ credit 課金は旧アカウントで)。 sec-2026-07 報告3: 楽観ロック必須化
+    write: () => writeEnvelope(
       result.envelope, result.newOuterKeyBytes, result.newAppNameTag, _session.signingState,
-      { expectedLatestTxId: _session.latestTxId, tier: _resolveCurrentTier() }  // sec-2026-07 報告3: 楽観ロック必須化（stale session からの credential-rotation 巻き戻し防止）
-    );
-    // サーバ migration: 旧 KV[H(oldPK)] → 新 KV[H(newPK)] へ残高移送
-    await migrateAccount(_session.signingState, result.newSigningKey.publicKeyRaw);
-  } catch (e) {
-    _freeNewKeys();
-    throw e;
-  }
+      { expectedLatestTxId: _session.latestTxId, tier: _resolveCurrentTier() }
+    ),
+    oldPkHash,
+    newRMat,
+    newPublicKeyRaw: result.newSigningKey.publicKeyRaw,
+    finish: (writeResult) => _finishCaseB(result, writeResult, newRMat, newRecovery),
+    free: _freeNewKeys,
+    decorate: (e, stage) => {
+      try {
+        e.caseBStage = stage;
+        if (stage === "write_unknown" || stage === "migrate_pending") e.newRecovery = newRecovery;
+      } catch (_) {}
+    },
+  });
+}
+
+// Case B の切り替え (移し替えが済んだあと。 「続きをやる」からも呼ぶ)
+async function _finishCaseB(result, writeResult, newRMat, newRecovery) {
+  const oldCredIdHash = _session.currentCredIdHash;   // この端末のパスキー (Case B では変えない。 呼出側が作り直す)
   // 新 identity に切替。 旧実装は _session.mek = 生の新 MEK を置き、 mekKey は旧 MEK の
   //   handle のままだった (= Case B 後の保存が旧 MEK で本体を暗号化し、 次回解錠で開けない)。
   const newSigningState = {
@@ -4687,11 +5025,312 @@ export async function reissueRecovery_caseB(password, opts = {}) {
   });
   // Secret Scanning: 新アカウント (新 pkHash) で新 Recovery を登録。
   await _registerRecoveryHash(newRecovery, null, _session.signingState);
+  // 2026-11-20: Case B で新しいアカウント (pkHash) になったので、 漏れの知らせは出さない (新しい鍵には知らせが無い)
+  _session.leakNotice = null;
+  _session.voucherSettled = true;   // 移し替えは済んだ (許可証は次の保存で本体から外す)
   // 2026-11-08: 新しい目印も user.id の目印として登録 (この端末の Passkey は作り直しで新しい目印を持つ)。
   _registerUserIdTagOnce();
   // oldCredIdHash: この端末の Passkey は user.id に旧 outer 鍵を持つため、パスワード＋Passkey では
   //   もう開けない。呼出側は addCredentialOnThisDevice(..., { replaceCredIdHash: oldCredIdHash }) で作り直す。
   return { newRecovery, txid: writeResult.txid, oldCredIdHash, rewrapCounts: result.rewrapCounts };
+}
+
+// ---------------------------------------------------------------------------
+// 2026-11-20: 「全部入れ替える」 (個人のドライブ)。 Case B とマスターの変更と、 この端末の新しいパスキーを 1 つにまとめる。
+//   過去の版を開くには、 当時の 3 つのうち 2 つ (古いマスター・古い Recovery・古いパスキー) が要る。 今の Case B はマスターを
+//   変えないので、 漏れた Recovery と今のマスターで作り直す前の版が全部開く。 全部を入れ替え、 古いパスキーを消し、 古い紙を
+//   捨てれば、 過去の版には「もう使わない古いマスター + 古い Recovery」の組しか残らない。
+//
+// 順番 (途中で失敗しても、 古い組か新しい組のどちらかで必ず開ける):
+//   0. 画面が新しいマスター (ダイスの言葉) と新しい Recovery (newReplacementRecovery) を見せ、 保存の確認を済ませてから呼ぶ。
+//   1. 書き込めるか・アーカイブの確かめ (パスキーを求める前)。
+//   2. 今のパスキー + 今のマスターで今の版を開き直す (今の MEK を AB で取る = 本人の確かめ)。
+//   3. その時点の vault でアーカイブの準備をもう一度 (Case B と同じ)。
+//   4. 新しい Recovery と新しいマスターから user.id (v8) を作り、 この端末で新しいパスキーを作る。
+//      (ここで失敗しても何も書いていない。 古い組のまま)
+//   5. 素早い解錠の epoch を上げる (fail-closed。 古い登録は全部使えなくなる。 端末ごとに登録し直す)。
+//   6. 新しい envelope を 1 つ作り (replaceAllKeys)、 古いアカウントの署名で 1 回書く。 アカウントを移す (残高・素早い解錠)。
+//      書いたあとに失敗しても、 新しい組 (新マスター + 新 Recovery / 新パスキー) で開ける。
+//   7. session を新しい鍵に切り替え、 Secret Scanning の照合の印・userid-tag・自動入力を登録し直す。
+// ---------------------------------------------------------------------------
+
+/** 「全部入れ替える」の新しい Recovery (画面が先に見せて保存してもらう)。 まだどこにも書かない。 */
+export async function newReplacementRecovery() {
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
+  return generateRecoverySecret();
+}
+
+/** このドライブで「全部入れ替える」が使えるか (個人の通常モードだけ。 ビジネス・管理者・YubiKey 専用は使わない)。 */
+export function canReplaceAllCredentials() {
+  if (!_session?.vault || !_session.lastEnvelope) return false;
+  if (readMeta()?.mode === "hwkey") return false;
+  const m = _session.lastEnvelope.m;
+  if (m === "business" || m === "hwkey") return false;
+  if (_session.k2Handle) return false;
+  return (_session.vault.mode ?? "personal") === "personal";
+}
+
+/**
+ * @param {string} currentPassword  今のマスター
+ * @param {string} newPassword      新しいマスター (画面で書き留めて確かめたもの)
+ * @param {string} newRecovery      newReplacementRecovery で作り、 画面で保存してもらったもの
+ * @param {object} [opts]  { masterLang, keepMaster, confirmUnreadableArchives, onFollowup, onFollowupDone, deviceName }
+ *   keepMaster: true のときは「今のマスターのまま」 (2026-11-20 八巻さん「足して」)。 newPassword は currentPassword と
+ *     同じでなければならない。 MEK・Recovery・パスキーは新しくし、 マスターだけ同じ (新しい salt で包み直す)。
+ *     古い Recovery を焼き、 古いパスキーを消せば、 マスターだけでは過去の版は開かない。
+ * @returns {Promise<{txid, oldPasskeys: Array, oldCredentialId: string|null, oldCredIdHash: string, oldUserHandle: string|null,
+ *                    newCredentialId: string, newUserHandle: string, rewrapCounts}>}
+ */
+export async function replaceAllCredentialsUI(currentPassword, newPassword, newRecovery, opts = {}) {
+  if (!_session) throw new Error("locked — unlock first");
+  if (!canReplaceAllCredentials()) {
+    const err = new Error("「全部入れ替える」は個人のドライブだけで使えます");
+    err.code = "replace_all_unsupported";
+    throw err;
+  }
+  if (!currentPassword || !newPassword) throw new Error("master required");
+  const keepMaster = opts.keepMaster === true;
+  if (keepMaster && newPassword !== currentPassword) {
+    const err = new Error("「今のマスターのまま」では、 新しいマスターに今のマスターを渡してください");
+    err.code = "keep_master_mismatch";
+    throw err;
+  }
+  if (!keepMaster && newPassword === currentPassword) {
+    const err = new Error("新しいマスターは今のマスターと違うものにしてください");
+    err.code = "same_master";
+    throw err;
+  }
+  if (typeof newRecovery !== "string" || !newRecovery) throw new Error("new Recovery required");
+  // 1) 書き込めるか・アーカイブ (パスキーを求める前)
+  await _assertCanWriteOrThrow();
+  const _archCheck = await _prepareArchivesForKeyChange(_session.vault, { markLostKeys: true });
+  if (_archCheck.unreadable.length) {
+    const ok = typeof opts.confirmUnreadableArchives === "function"
+      ? (await opts.confirmUnreadableArchives(_archCheck.unreadable)) === true : false;
+    if (!ok) {
+      const err = new Error("cancelled: some archives cannot be opened");
+      err.code = "archive_unreadable_cancelled";
+      err.archives = _archCheck.unreadable;
+      throw err;
+    }
+  }
+  const _archAgreed = new Set(_archCheck.unreadable.map((a) => a.id + "|" + a.kind));
+  // 入れ替えたあとの案内に出す、 古いパスキーの一覧 (名前と保管場所)
+  const oldPasskeys = (Array.isArray(_session.vault.credentials) ? _session.vault.credentials : [])
+    .map((c) => ({ credIdHash: c?.credIdHash ?? null, name: c?.name ?? null, addedAt: c?.addedAt ?? null, store: c?.store ?? null }));
+  const oldCredentialId = readMeta()?.credentialId ?? null;   // この端末の古いパスキー (b64url)
+  const oldCredIdHash = _session.currentCredIdHash;
+
+  // 今の組で本人を確かめる: パスキーで開いた端末は 今のマスター + 今のパスキー (AB)。 パスキーなしで開いた
+  //   (マスター + Recovery) 端末は 今のマスター + 今の Recovery (AC。 Recovery はセッションか vault の写しから)
+  let oldAuth = null, oldRMat = null;
+  if (_session.currentCredIdHash) {
+    const credIdHint = oldCredentialId ? b64uDecode(oldCredentialId) : null;
+    oldAuth = await authenticateWithPasskey(credIdHint);
+  } else {
+    let rs = typeof _session.recoverySecret === "string" ? _session.recoverySecret : null;
+    if (!rs) { try { rs = await getDecryptedRecoveryFromVault(); } catch (_) { rs = null; } }
+    if (!rs) {
+      const err = new Error("この端末にはパスキーが無く、 今の Recovery も取り出せません");
+      err.code = "replace_all_needs_passkey";
+      err.replaceAllStage = "before_passkey";
+      throw err;
+    }
+    oldRMat = deriveRMat(rs);
+  }
+  const oldUserHandle = oldAuth?.userHandle ? b64uEncode(oldAuth.userHandle) : null;
+  let oldMek = null, newPrf = null, result = null, prfKeep = null;
+  let created = null;
+  // 失敗したときの段階 (画面の案内を分ける): before_passkey = 何も変わっていない / passkey_created = 保管場所に
+  //   新しいパスキーだけができた (ドライブは今のまま) / written = 新しい組で書き込んだ (そのあとの手続きが失敗)
+  let stage = "before_passkey";
+  try {
+    // 2) 今のマスター + 今のパスキーで今の MEK を取る (本人の確かめ。 違えばここで止まる)
+    oldMek = oldAuth
+      ? await _deriveTransientSecretHandle({ password: currentPassword, prfOutput: oldAuth.prfOutput, credIdHash: _session.currentCredIdHash })
+      : await _deriveTransientSecretHandle({ password: currentPassword, recoveryMaterial: oldRMat });
+    if (oldAuth) _wipePrf(oldAuth.prfOutput);
+    if (oldRMat) { oldRMat.fill(0); oldRMat = null; }
+    // 3) その時点の vault でアーカイブの準備をもう一度
+    const _arch = await _prepareArchivesForKeyChange(_session.vault, { markLostKeys: true });
+    const _archNew = _arch.unreadable.filter((a) => !_archAgreed.has(a.id + "|" + a.kind));
+    if (_archNew.length) {
+      const err = new Error("archives changed while waiting for the passkey — try again");
+      err.code = "archive_changed";
+      err.archives = _archNew;
+      throw err;
+    }
+    // 4) 新しいパスキー (user.id は新しい Recovery と新しいマスターから)
+    const newRMat = deriveRMat(newRecovery);
+    const newTag = deriveAppNameTag(newRMat);
+    const newUserId = await encodeUserIdV8(newTag, deriveOuterKeyBytes(newRMat), newPassword);
+    const deviceName = opts.deviceName || "Arpass";
+    created = await createPasskey(newUserId, deviceName, {
+      requireResidentKey: true,
+      ..._followupOpts(opts),
+    });
+    newPrf = created.prfOutput;
+    stage = "passkey_created";
+    const newCredIdHash = await credentialIdToHash(created.credentialId);
+    // 5) 素早い解錠の epoch を上げる (古い登録は全部使えなくなる)
+    await _quBumpEpochOrThrow("recovery_reissue");
+    // 6) 新しい envelope (中身は引き継ぐ。 登録されている端末は新しいパスキーだけ)
+    const baseVault = _arch.changed ? _arch.vault : _session.vault;
+    const vaultForNew = { ...baseVault, credentials: [{
+      credIdHash: newCredIdHash, name: deviceName, addedAt: new Date().toISOString(),
+      ...(created.store ? { store: created.store } : {}),
+    }] };
+    // マスターの写しは新しい MEK で作り直す (消していれば入れない)。 今のマスターのままなら、 言語は今の写しから引き継ぐ
+    let _copyLang = opts.masterLang ?? null;
+    if (keepMaster && _copyLang == null && _session.vault.encryptedMaster) {
+      try {
+        const d = await decryptMasterWithMek(_session.vault.encryptedMaster, oldMek);
+        if (d?.master === currentPassword) _copyLang = d.lang ?? null;
+      } catch (_) { /* 読めない写しの言語は引き継がない */ }
+    }
+    const _masterCopy = (_session.vault.masterCopyOff !== true && _masterCopyEligible()) ? { lang: _copyLang } : null;
+    result = await replaceAllKeys(vaultForNew, oldMek, newPassword, newRMat, newRecovery, newCredIdHash, newPrf, {
+      masterCopy: _masterCopy,
+      // 2026-11-20: 口座の移し替えの許可証 (新しい pkHash が決まってから、 古い署名鍵で署名して本体に入れる)
+      addToVault: (newPkRaw) => _makeMigrationVoucher(_session.signingState, newPkRaw),
+    });
+    const _freeNewKeys = () => {
+      for (const h of [result.newMekKey, result.newMekHkdfKey, result.newSigningKey?.handle]) {
+        if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
+      }
+    };
+    try { result.oldSigningKey?.handle?.free?.(); } catch (_) {}   // 古い署名鍵は session のものを使う (こちらは捨てる)
+    const oldPkHash = await hashPublicKey(_session.signingState.publicKeyRaw);
+    prfKeep = newPrf instanceof Uint8Array ? newPrf.slice() : null;   // 自動入力の登録に使う (保留から続けたときも)
+    // 7) session を新しい鍵に切り替える (Case B と同じ。 移し替えが済んだあと。 「続きをやる」からも呼ぶ)
+    const _finish = async (writeResult) => {
+      stage = "written";
+      const newSigningState = {
+        signingPrivateKey: result.newSigningKey.handle,
+        signingPublicKey: null,
+        publicKeyRaw: result.newSigningKey.publicKeyRaw,
+        publicKeyJwk: result.newSigningKey.publicKeyJwk ?? null,
+      };
+      for (const h of [_session.mekKey, _session.mekHkdfKey]) {
+        if (h && typeof h.free === "function") { try { h.free(); } catch (_) {} }
+      }
+      _session.mekKey = result.newMekKey;
+      _session.mekHkdfKey = result.newMekHkdfKey;
+      for (const k of Object.keys(_session.vault)) {
+        if (!(k in result.vault)) delete _session.vault[k];
+      }
+      Object.assign(_session.vault, result.vault);
+      _session.archive = null;
+      _session.masterCopyPending = null;
+      _session.recoveryMaterial = newRMat;
+      try {
+        if (_session.rmat && typeof _session.rmat.free === "function") { try { _session.rmat.free(); } catch (_) {} }
+        _session.rmat = await importRMatAsHandle(newRMat);
+        if (_session.outerKeyHandle && typeof _session.outerKeyHandle.free === "function") {
+          try { _session.outerKeyHandle.free(); } catch (_) {}
+        }
+        _session.outerKeyHandle = await importOuterKeyAsHandle(result.newOuterKeyBytes);
+        _session.outerKey = null;
+        if (result.newOuterKeyBytes instanceof Uint8Array) result.newOuterKeyBytes.fill(0);
+        _session.outerKeyBytes = null;
+      } catch (e) { console.warn("[replace-all] outerKeyHandle re-derive failed:", e?.message); }
+      _session.appNameTag = result.newAppNameTag;
+      _session.recoverySecret = newRecovery;
+      _session.signingState = newSigningState;
+      _session.lastEnvelope = result.envelope;
+      _session.latestTxId = writeResult.txid;
+      _session.currentCredIdHash = newCredIdHash;
+      _session.currentCredentialId = created.credentialId;
+      _recordWrittenTxId(writeResult.txid);
+      writeMeta({
+        appNameTag: result.newAppNameTag,
+        credIdHash: newCredIdHash,
+        credentialId: b64uEncode(created.credentialId),
+        publicKeyHash: await hashPublicKey(newSigningState.publicKeyRaw),
+        latestTxId: writeResult.txid,
+      });
+      // 保存場所の tier つきの目印 (currentAppNameTag) は古い Recovery から作ったものなので捨て、 新しい Recovery から作り直す
+      //   (残すと、 このあとの保存が古い目印で書かれる)。
+      _session.currentAppNameTag = null;
+      try { await refreshTierQualifier(); } catch (e) { console.warn("[replace-all] tier tag refresh failed:", e?.message); }
+      stage = "done";
+      _session.voucherSettled = true;   // 移し替えは済んだ (許可証は次の保存で本体から外す)
+      _session.leakNotice = null;   // 新しいアカウント (pkHash) には漏れの知らせが無い
+      // ここから先は切り替えたあとの登録だけ。 失敗しても入れ替えは終わっているので、 投げない
+      try { await _registerRecoveryHash(newRecovery, null, _session.signingState); } catch (e) { console.warn("[replace-all] recovery hash register failed:", e?.message || e); }
+      try { _registerUserIdTagOnce(); } catch (e) { console.warn("[replace-all] userid-tag register failed:", e?.message || e); }
+      try { _provisionAutofillForNewPasskey({ prfOutput: prfKeep, userHandle: newUserId, credIdHash: newCredIdHash, credentialId: created.credentialId }); } catch (e) { console.warn("[replace-all] autofill provision failed:", e?.message || e); }
+      if (prfKeep) prfKeep.fill(0);
+      try { registerIosAutofillIdentities(_session.vault); } catch (_) {}
+      return {
+        txid: writeResult.txid,
+        oldPasskeys,
+        oldCredentialId,
+        oldCredIdHash,
+        oldUserHandle,
+        newCredentialId: b64uEncode(created.credentialId),
+        newUserHandle: b64uEncode(newUserId),
+        keptMaster: keepMaster,
+        rewrapCounts: result.rewrapCounts,
+      };
+    };   // _finish
+    // 6b) 書き込み → 口座の移し替え → 切り替え (Case B と共通)。 書き込みの返事が無ければ書き込み済みかを確かめ、
+    //   移し替えが通らなければ新しい鍵を残したまま保留にし、 画面の「続きをやる」・「確かめる」でやり直す
+    return await _writeMigrateFinish("replace_all", {
+      write: () => writeEnvelope(
+        result.envelope, result.newOuterKeyBytes, result.newAppNameTag, _session.signingState,
+        { expectedLatestTxId: _session.latestTxId, tier: _resolveCurrentTier() },
+      ),
+      oldPkHash,
+      newRMat,
+      newPublicKeyRaw: result.newSigningKey.publicKeyRaw,
+      finish: _finish,
+      free: () => { _freeNewKeys(); if (prfKeep) prfKeep.fill(0); },
+      decorate: (e, st) => { stage = st === "before_write" ? "passkey_created" : st; try { e.replaceAllStage = stage; } catch (_) {} },
+    });
+  } catch (e) {
+    if (e && typeof e === "object" && !e.replaceAllStage) {
+      try { e.replaceAllStage = stage; } catch (_) {}
+    }
+    throw e;
+  } finally {
+    try { oldMek?.free(); } catch (_) {}
+    if (oldAuth) _wipePrf(oldAuth.prfOutput);
+    if (oldRMat) oldRMat.fill(0);
+    _wipePrf(newPrf);
+  }
+}
+
+/**
+ * 入れ替えたあと、 古いパスキーを消すようパスワードマネージャーに伝える (WebAuthn の Signal API)。 使えるときだけ呼ぶ。
+ *   - signalUnknownCredential: この端末の古いパスキー (credential ID が分かるもの)
+ *   - signalAllAcceptedCredentials: 古い user.id には使えるパスキーが 1 つも無い、 と伝える
+ *   新しいパスキーは巻き込まない (credential ID と user.id が新しいものと同じなら送らない)。
+ *   効くかどうかはパスワードマネージャー次第。 画面は手で消す案内も必ず出す。
+ * @returns {Promise<{supported: {unknown: boolean, allAccepted: boolean}, sent: {unknown: number, allAccepted: number}}>}
+ */
+export async function signalOldPasskeysGone({ oldCredentialIds = [], oldUserHandles = [], newCredentialId = null, newUserHandle = null } = {}) {
+  const PKC = globalThis.PublicKeyCredential;
+  const supported = {
+    unknown: typeof PKC?.signalUnknownCredential === "function",
+    allAccepted: typeof PKC?.signalAllAcceptedCredentials === "function",
+  };
+  const sent = { unknown: 0, allAccepted: 0 };
+  if (supported.unknown) {
+    for (const id of new Set(oldCredentialIds.filter(Boolean))) {
+      if (id === newCredentialId) continue;
+      try { await PKC.signalUnknownCredential({ rpId: RP_ID, credentialId: id }); sent.unknown++; }
+      catch (e) { console.warn("[replace-all] signalUnknownCredential failed:", e?.message || e); }
+    }
+  }
+  if (supported.allAccepted) {
+    for (const uh of new Set(oldUserHandles.filter(Boolean))) {
+      if (uh === newUserHandle) continue;
+      try { await PKC.signalAllAcceptedCredentials({ rpId: RP_ID, userId: uh, allAcceptedCredentialIds: [] }); sent.allAccepted++; }
+      catch (e) { console.warn("[replace-all] signalAllAcceptedCredentials failed:", e?.message || e); }
+    }
+  }
+  return { supported, sent };
 }
 
 // ---------------------------------------------------------------------------
@@ -5732,7 +6371,7 @@ export async function getBalanceUI(opts = {}) {
   if (!opts.force && _balanceCache && now - _balanceCache.ts < _BALANCE_CACHE_MS) {
     return _balanceCache.promise;
   }
-  const p = getBalance(_session.signingState);
+  const p = _getBalanceSettlingVoucher();   // 2026-11-20: 口座が見つからず許可証があれば、 移し替えを済ませてから
   _balanceCache = { ts: now, promise: p };
   return p;
 }

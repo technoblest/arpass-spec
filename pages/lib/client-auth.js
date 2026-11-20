@@ -206,7 +206,13 @@ export async function getBalance(signingState) {
   //   遅さの根本 (ar-price 上流ハング) は server 側 4s timeout で解消済み。
   const r = await signedFetch("/api/balance", "GET", null, signingState);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`balance fetch failed: ${j.error || r.status}`);
+  if (!r.ok) {
+    // 2026-11-20: 口座が見つからない (404 not_registered) を見分けられるよう、 状態と code を付ける (移し替えの許可証)
+    const err = new Error(`balance fetch failed: ${j.error || r.status}`);
+    err.status = r.status;
+    if (j.code) err.code = j.code;
+    throw err;
+  }
   return j;  // { credits, totalSpent, totalAdded, latestTxId, ... }
 }
 
@@ -220,7 +226,14 @@ export async function migrateAccount(oldSigningState, newPublicKeyRaw) {
   const body = { newPublicKey: b64uEncode(newPublicKeyRaw) };
   const r = await signedFetch("/api/vault/migrate", "POST", body, oldSigningState);
   const j = await r.json().catch(() => ({}));
-  if (!r.ok || !j.ok) throw new Error(`migrate failed: ${j.error || r.status}`);
+  if (!r.ok || !j.ok) {
+    // 2026-11-20: やり直すかどうかを決められるよう、 HTTP の状態とサーバーの code (と別の移し先) を付ける
+    const err = new Error(`migrate failed: ${j.error || r.status}`);
+    err.status = r.status;
+    if (j.code) err.code = j.code;
+    if (j.migratedTo) err.migratedTo = j.migratedTo;
+    throw err;
+  }
   return j;  // { ok, oldKvKey, newKvKey, credits, migratedAt }
 }
 
