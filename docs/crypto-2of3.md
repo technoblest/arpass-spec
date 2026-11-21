@@ -512,6 +512,25 @@ if (!entry) return 404;  // not registered
 
 これは **手動の作業を強要しない設計**。普通に使っていてエラーが出たら Recovery を入れる、という自然なフロー。
 
+2026-11-21 の今の動き (八巻さん「作って」):
+
+```
+- changePassword は w.b (AB) を新しいパスキーの 1 つにし、w.a (AC) を新しいマスターで包み直す。w.c (BC = パスキー + Recovery)
+  はほかの端末のものも残す。だから、ほかの端末は「この端末のパスキー + Recovery」(unlockWithPasskeyAndRecovery) で最新の版を
+  開ける (何も消えない)。古いマスター + 古いパスキーは AB の履歴フォールバック (見るだけ・保存は止まる) になる。
+- 知らせ (AB と、この端末にパスキーがあるときの AC) に「Recovery とパスキーで開く」: ロックして読み込み直し、解錠の画面で
+  パスキー + Recovery の欄を開く (sessionStorage の印、1 回だけ)。古いマスターで最新を上書きする道は作らない。
+- パスキー + Recovery で開いたあと、写し (vault.encryptedMaster) があれば、先に「今のマスターを見て、この端末のパスキーを登録し直す」
+  を出す (マスターを変え直さない = ほかの端末に響かない)。写しが無い・断ったときは新しいマスターの案内。
+- 「マスターを見る」(revealMasterCopy) と「打って確かめる」(verifyCurrentMaster): この端末のパスキーに w.b が無く w.c だけがあれば、
+  Recovery (session の文字列か本体の写し) で確かめる。パスキー + Recovery で lastEnvelope が開くか (BC、パスキーの持ち主か)、
+  写しのマスター + Recovery で w.a が開くか (AC、今のマスターか)。rMat と pMat はその場で消し、何も持たない。履歴フォールバックの
+  セッションでは出さない (history)。個人の通常モードだけ。
+- 登録し直し (addCredentialOnThisDevice) のあとも、この端末の古いパスキーは w.c と一覧に残る (外さない・Signal API でも伝えない)。
+  古いパスキー + Recovery はまだ開く。
+検査: scripts/test-replace-all.mjs (K)、scripts/test-master-copy.mjs (H)
+```
+
 ### 8.3 Recovery 再発行 — ケース A (MEK 据え置き)
 
 「紙を紛失したが盗まれた可能性は低い」場合。
