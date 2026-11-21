@@ -610,6 +610,37 @@ Recovery やマスターが漏れたかもしれないとき・端末をなく�
 検査: scripts/test-replace-all.mjs
 ```
 
+### 8.6 使えなくなったパスキーの片付け — WebAuthn Signal API (2026-11-21)
+
+```
+v8 の user.id はパスキーごとに違う (一意化 nonce) ので、作り直したパスキーは古いものを上書きせず、保管場所に
+溜まる (Android の Google パスワードマネージャーで 127 個。allowCredentials を空にした選ぶ画面は 1 個あたり
+約 7.8 KB を binder で渡し、約 512 KB を超えると TransactionTooLargeException で落ちる)。使えなくなったものを、
+対応しているブラウザでは PublicKeyCredential.signalUnknownCredential (credential ID ごと) と
+signalAllAcceptedCredentials (古い user.id に空の一覧) でパスワードマネージャーに伝える。
+伝えるのは、書き込み (と口座の移し替え) が済み、新しい組で開けると決まったあとだけ:
+  - マスターの変更: AB の包み (w.b) は新しいパスキーの 1 つだけになるが、BC の包み (w.c、パスキー + Recovery) は
+    残る。ほかの端末のパスキーは Recovery と組めばまだ開けるので伝えない。この端末の古いパスキー (確かめに使った
+    credential ID と user.id) だけを伝える (新しいパスキーが AB も BC も持つ)。
+  - Recovery の作り直し A / B: 外側の鍵と Recovery が変わり、ほかの端末のパスキーはどの組でも最新を開けない。
+    この端末の古いパスキーは、作り直しが済むまで新しい Recovery と組めば開ける (Case A は w.c を古い PRF で作り直す)
+    ので、addCredentialOnThisDevice(replaceCredIdHash) の保存が済んだあとに、控えておいた古いパスキー
+    (この端末のもの + 行に credential ID が残っているほかの端末のもの) を伝える。控えは 1 回だけ使う。
+  - 全部入れ替える: 入れ替えが済んだら、この端末の古いパスキー + 行に credential ID が残っているもの。
+  - 端末を外す: 包みと本体の書き込みが済んだら、外した行の credential ID。
+  - パスキーを作ったあとで止まった操作 (2 回目の認証の失敗、PRF が返らない、YubiKey モードでほかの場所に
+    できた、全部入れ替えるの passkey_created / 「確かめる」で書いていないと分かった、マスターの変更・ドライブの
+    作成で書き込む前に止まった・書き込みがはっきり断られた): その新しいパスキーだけ。書いたか分からない
+    (返事が無い・5xx) とき、書いたとき (移し替え待ち) は伝えない。YubiKey の経路では伝えない。
+  - 新しくした行 (vault.credentials) には credentialId (b64url) を残す。前の行は、その端末のふだんの保存で補う
+    (credIdHash = credentialIdToHash(credentialId) を確かめてから)。行に無いほかの端末のパスキーは伝えられない。
+  - 守り: 新しいパスキー・残すもの・この端末で今使っているパスキー (meta と session の credentialId) は、渡されても
+    送らない。1 回ごとに 3 秒で区切る (iOS 26.0〜26.1 の Safari は signalAllAcceptedCredentials の約束が返らない)。
+効き方はパスワードマネージャー次第 (Chrome 132〜 / Android の Chrome 144〜、Google パスワードマネージャーは消さずに
+隠し、元に戻せる。Safari 26〜)。画面は、伝えたら「伝えました。消えていなければ手で」、伝えられなければ手で消す案内。
+検査: scripts/test-passkey-cleanup.mjs
+```
+
 ---
 
 ## 9. サーバ API 一覧 (v5)
