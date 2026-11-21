@@ -18,7 +18,7 @@ import {
   wrapEnvelopeOuter,
   b64uEncode,
   b64uDecode,
-} from "./vault-crypto.js?v=0bb9480a";
+} from "./vault-crypto.js?v=0972c87e";
 
 import {
   getEnvelopeCache,
@@ -367,8 +367,16 @@ export async function fetchServerVaultLatest(appNameTagValue) {
     //   失敗時は caller (resolveLatestTxIdForUnlock) が meta.latestTxId / GraphQL に fallback。
     const r = await fetch(`/api/vault/latest?app=${encodeURIComponent(appNameTagValue)}`,
       { signal: AbortSignal.timeout(5000) });
+    // 2026-11-21: 鍵を入れ替えた口座の古い目印は「入れ替え済み」(410 replaced) とだけ返る (新しい pkHash は返らない)
+    if (r.status === 410) {
+      const jr = await r.json().catch(() => ({}));
+      if (jr?.replaced) return { replaced: true };
+    }
     if (!r.ok) return null;
     const j = await r.json();
+    // 2026-11-21: 入れ替え済みの古い目印は、 ネイティブの自動入力のために 200 (前と同じ txid) + replaced で返ることがある。
+    //   web はステータスより本文の replaced を先に見て、 入れ替え済みとして扱う (txid は使わない)。
+    if (j?.replaced) return { replaced: true };
     if (!j.ok || !j.txid) return null;
     // 2026-11-08: fallback 応答 (= タグは一致しないが、 user.id の目印として登録済みなので今の保存先を
     //   返したもの) は使わない。 Web の呼び出し側は「一致したタグ」を次の書込み先 (matchedAppName) に
@@ -406,6 +414,11 @@ export async function fetchServerVaultSlots(pkHash) {
     // 2026-07-12: timeout 5s (fetchServerVaultLatest と同理由)。
     const r = await fetch(`/api/vault/latest?pk=${encodeURIComponent(pkHash)}`,
       { signal: AbortSignal.timeout(5000) });
+    // 2026-11-21: 鍵を入れ替えた (migratedTo がある) 口座は「入れ替え済み」(410 replaced) とだけ返る
+    if (r.status === 410) {
+      const jr = await r.json().catch(() => ({}));
+      if (jr?.replaced) return { replaced: true };
+    }
     if (!r.ok) return null;
     const j = await r.json();
     if (!j.ok || !j.slots) return null;

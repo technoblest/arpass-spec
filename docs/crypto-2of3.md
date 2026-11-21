@@ -580,8 +580,8 @@ Recovery やマスターが漏れたかもしれないとき・端末をなく�
   WebAuthn Signal API (signalUnknownCredential / signalAllAcceptedCredentials) は使えるときだけ、
   この端末の古い Passkey について送る (新 Passkey の credential ID・user.id は送らない)
 「今のマスターのまま」 (2026-11-20 追加): 2 の新 Master を今の Master にする (暗号の処理は同じ。新しい salt で包み直す)。
-  古い Recovery の紙を自分で焼ける人だけ。古い版は Master + 古い Recovery / Master + 古い Passkey / 古い Passkey +
-  古い Recovery で開くので、古い Recovery を焼き、古い Passkey を消せば、Master だけでは開かない。
+  古い Recovery の紙を自分で完全廃棄 (シュレッダーにかけるなど、誰にも読めない形にして捨てる) できる人だけ。古い版は Master + 古い Recovery / Master + 古い Passkey / 古い Passkey +
+  古い Recovery で開くので、古い Recovery を完全廃棄し、古い Passkey を消せば、Master だけでは開かない。
   Recovery が漏れているとき (漏れの知らせ) は、今の Master が漏れると入れ替える前の版が全部開くので、強い注意と確かめを出す
   (止めはしない)。自分で決めた昔の Master (ダイスの言葉でない) なら、漏れた Recovery で古い版を相手に総当たりできるので、
   ダイスの言葉をすすめる。
@@ -595,6 +595,18 @@ Recovery やマスターが漏れたかもしれないとき・端末をなく�
     not_registered になったところで、許可証を新しい鍵の署名で /api/vault/migrate-voucher に出す。サーバーは、署名した鍵の
     pkHash = 許可証の新しい pkHash、許可証の署名が古い口座の publicKey で確かめられる、の両方を確かめて migrateAccount を流す。
     古い鍵を持つ人は今でも /api/vault/migrate を呼べるので、できることは増えない。済んだら次の保存で本体から外す。
+さかのぼりと入れ替え検知 (2026-11-21):
+  - 古い組で古い版が開けるのは Arweave の性質 (緊急用ツールでもできる)。そのため AB と AC で扱いをそろえ、見るだけにする
+    (restoredFromHistory を立て、保存は fallback_write_blocked で止める)。
+  - AC: サーバーのヒントか meta の最新が、外側の封は開くのにこの組で開けなければ、同じタグの履歴 (10 件まで) を
+    さかのぼる (via "ac")。Arweave の候補の道で新しい候補を飛ばしたときも同じ。Argon2 は (salt, kdfParams) ごとに 1 回。
+  - 鍵を入れ替えた口座 (migratedTo がある = /api/vault/migrate と /api/vault/migrate-voucher の移し元) は、
+    /api/vault/latest の ?pk= は 410 { replaced: true } だけを返す (新しい pkHash は返さない)。古いタグの ?app= は、
+    前なら 200 だった答え (古い口座の slot に完全一致 / userid-tag の登録 → priority slot) なら同じ txid・古い pkHash の
+    まま replaced: true を足して 200 (iOS / Android の自動入力は今と同じく開けずに失敗する。410 にすると GraphQL の古い
+    タグの最新 = 入れ替える前の版に落ち、古いパスワードを黙って入れてしまう)。前なら 404 だったときだけ 410。web は本文の
+    replaced を先に見る。新しいタグの ?app= は移し先をたどって今の版を返す。クライアントは古いタグの履歴から、その組で開ける入れ替える前の版を
+    見るだけで開き (via "replaced")、開ける版が無ければ vault_replaced。古い組で開いたときは端末の meta を書き換えない。
 検査: scripts/test-replace-all.mjs
 ```
 

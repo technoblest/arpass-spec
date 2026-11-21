@@ -85,10 +85,10 @@ import {
   quOpen,
   quSign,
   quKdfParamsHash,
-} from "./vault-crypto.js?v=0bb9480a";
+} from "./vault-crypto.js?v=0972c87e";
 // 2026-07-12: 緊急パディングの singleton を app-main へ (ES module identity 罠回避のため
 //   vault-client 経由で公開。re-export 構文はローカル束縛を作らないため import + export)
-import { enableEmergencyPad, isEmergencyPadActive } from "./vault-crypto.js?v=0bb9480a";
+import { enableEmergencyPad, isEmergencyPadActive } from "./vault-crypto.js?v=0972c87e";
 export { enableEmergencyPad, isEmergencyPadActive };
 
 import {
@@ -114,7 +114,7 @@ import {
   writeKeyslot,
   fetchKeyslotBlob,
   lookupKeyslotTxid,
-} from "./client-auth.js?v=1d6bcdd2";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
+} from "./client-auth.js?v=74b1659d";  // sec-2026-07: 絶対パス化で cache-bust(?v=)対象にし、SW キャッシュに旧署名が残る罠を解消（app-main と同一モジュール実体に統一）
 
 import {
   setRecordFileCache,
@@ -134,7 +134,7 @@ import {
   quRevokeApi,
   quRevokeAllApi,
   quRenameApi,
-} from "./quick-unlock.js?v=b3f953b8";
+} from "./quick-unlock.js?v=9ddbc99e";
 // 2026-11-17: 登録されている端末の一覧に、 パスキーの保管場所 (AAGUID など) を出すための部品
 import { passkeyStoreInfo, registrationEnv } from "./passkey-stores.js?v=41371abe";
 
@@ -146,7 +146,7 @@ import {
   wrapBekWithMekHandle,
   unwrapBekWithMekHandle,
   generateChunkKeyHandle,      // 2026-11-19: Records のアーカイブ (v4) のチャンク鍵
-} from "./vault-crypto.js?v=0bb9480a";
+} from "./vault-crypto.js?v=0972c87e";
 // 2026-11-19: Records のアーカイブ (records.chunks) の暗号。 v3 / v4 の違いと、 包み直しとの関係は records-chunk.js の説明。
 import {
   CHUNK_SCHEMA_V4,
@@ -995,7 +995,9 @@ async function openSession({ vault, mek: _rawMekNotAccepted, mekKey, mekHkdfKey,
     publicKeyJwk: signingKeyFromResult.publicKeyJwk,
   };
   const publicKeyHash = await hashPublicKey(signingState.publicKeyRaw);
-  patchMeta({ publicKeyHash });
+  // 2026-11-21: 入れ替え済みのドライブを古い組で開いた (見るだけ) ときは、 古い pkHash を meta に書かない
+  //   (この端末の次の解錠が、 入れ替え済みの古い口座を見に行かないように)
+  if (restoredFromHistory?.via !== "replaced") patchMeta({ publicKeyHash });
   // Phase 7.3-A.8 part 2: rMat / outerKey の CryptoKey 派生を並行保持 (= 段階移行)。
   //   raw bytes は backward compat のため残置、 順次 caller を CryptoKey path に切替予定。
   let _rmatHandle = null;
@@ -1180,7 +1182,7 @@ export async function refreshTierQualifier() {
   let newTag;
   if (_session.rmat) {
     try {
-      const { deriveAppNameTagFromHkdf } = await import("./vault-crypto.js?v=0bb9480a");
+      const { deriveAppNameTagFromHkdf } = await import("./vault-crypto.js?v=0972c87e");
       newTag = await deriveAppNameTagFromHkdf(_session.rmat, useTier);
     } catch (e) {
       console.warn("[refreshTierQualifier] HKDF path failed, falling back to raw:", e?.message);
@@ -2489,7 +2491,7 @@ export async function createVault(password, userDisplayName, captchaToken = null
   const mode = opts.mode || "personal";
   const companyId = opts.companyId || null;
   // 1. Recovery Secret 生成 (画面に 1 度表示)
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0972c87e");
   const recoverySecret = generateRecoverySecret();
   const recoveryMaterial = deriveRMat(recoverySecret);
   const appNameTag = deriveAppNameTag(recoveryMaterial);  // {name,value}
@@ -3444,8 +3446,11 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
     throw new Error("この端末のパスキーは envelope v7 形式ではありません。「すでにアカウントがある」から復元してください");
   }
 
-  const txid = await resolveLatestTxIdForUnlock(hasMeta ? meta : { appNameTag });
-  if (!txid) throw new Error("Vault が Arweave 上に見つかりません (まだ書き込みなし？)");
+  // 2026-11-21: 入れ替え済み (鍵を入れ替えた口座) なら、 この組で開ける入れ替える前の版を、 見るだけで開く
+  const _res = await _resolveLatestForUnlock(hasMeta ? meta : { appNameTag });
+  const _replaced = !!_res.replaced;
+  const txid = _res.txid;
+  if (!txid) throw _replaced ? _replacedError() : new Error("Vault が Arweave 上に見つかりません (まだ書き込みなし？)");
   // Stage 2c Stage D3 + E: outer key を Rust OuterKey handle に wrap して
   //   fetchEnvelope に渡す。 Stage E では session にも保存し、 後続 writeEnvelope
   //   path でも handle 経由で再利用する (= raw bytes 1 回作成→ 多用)。
@@ -3463,6 +3468,7 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
     //   別端末で Master 変更後に古い Passkey を選んだ (envelope-v7-spec.md §14)。
     //   UI が「別の Passkey で開錠する」を案内できるよう専用 code を付ける。
     //   network / HTTP 失敗はそのまま投げる (原因を握り潰さない)。
+    if (_replaced) throw _replacedError(e);   // 入れ替え済みで、 入れ替える前の最後の版の封も開かない
     if (/Outer envelope decryption failed/.test(e?.message || "")) {
       console.error("[unlock-AB] outer decrypt failed (wrong Master or stale passkey after Master change)");
       const oErr = new Error("unlock_outer_failed_v7");
@@ -3545,12 +3551,17 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
       }
     } catch (_) { /* GraphQL 失敗 → フォールバック不可 */ }
     if (!_restoredTxid) {
+      if (_replaced) throw _replacedError(e);
       const retryErr = new Error("passkey_wrong_for_vault");
       retryErr.code = "passkey_wrong_for_vault";
       retryErr.original = e;
       throw retryErr;
     }
   }
+  // 見るだけの印: 履歴から戻した (この端末のパスキーが最新に無い) / 入れ替え済み (入れ替える前の版)
+  const _abRestored = _replaced
+    ? { restoredTxid: _restoredTxid ?? txid, latestTxid: null, via: "replaced" }
+    : (_restoredTxid ? { restoredTxid: _restoredTxid, latestTxid: txid } : null);
 
   // 復号成功 → この credentialId は確かに **この vault に登録済**と確認できた。
   //   既知端末: meta を patch。 新端末 (envelope v7): meta を新規作成。
@@ -3574,7 +3585,7 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
     credIdHash, credentialId,
     latestTxId: _restoredTxid ?? txid,
     lastEnvelope: _restoredEnvelope ?? envelope,
-    restoredFromHistory: _restoredTxid ? { restoredTxid: _restoredTxid, latestTxid: txid } : null,
+    restoredFromHistory: _abRestored,
     k2Handle: _r?.k2Handle ?? null,
     signingKey: _r?.signingKey ?? null,
     empPrivKey: _r?.empPrivKey ?? null,
@@ -3583,7 +3594,7 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
   });
   patchMeta({ latestTxId: txid });
   // マスターの写し: 最新の版を AB で開けたときだけ (履歴から戻した版では、 打ったマスターが今のものとは限らない)
-  if (path === "AB" && !_restoredTxid) await _masterCopyAfterTyped(password, options.masterLang);
+  if (path === "AB" && !_abRestored) await _masterCopyAfterTyped(password, options.masterLang);
 
   // iOS autofill: 解錠 secret(secret.bin) と entries(identity) を native へ。
   provisionIosAutofill({ prfOutput, userHandle, credIdHash });
@@ -3594,7 +3605,7 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
   // 素早い解錠: 最新の版を AB で開けたときだけ (履歴から戻した版や別の経路では、 値が古い。 設計書 §3.4 の 7)。
   _quHeld = _quMaybeHold({
     pMat: _quPMat, userIdKek: _quUserIdKek, prfOutput, credentialId, credIdHash, userHandle, uv,
-    envelope: _restoredEnvelope ?? envelope, path, restored: !!_restoredTxid,
+    envelope: _restoredEnvelope ?? envelope, path, restored: !!_abRestored,
   });
 
   return { vault, latestTxId: txid, path };
@@ -3607,8 +3618,20 @@ export async function unlockWithPasswordAndPasskey(password, options = {}) {
   }
 }
 
+// 2026-11-21: 要素の失敗でない (会社の鍵の配布待ちなど) ので、 さかのぼらずにそのまま投げる (AB と同じ)
+const _UNLOCK_PRESERVE_CODES = new Set([
+  "k1_pending", "k1_fetch_error", "fetch_error", "not_member", "revoked", "company_inactive",
+  "ecies_unwrap_failed", "w_emp_unwrap_failed",
+]);
+let _acArgon2Count = 0;   // 直近の AC 解錠で Argon2 (derivePMat) を回した数 (検査用)
+/** 検査用: 直近のマスター + Recovery の解錠で Argon2 を回した数 */
+export function _acUnlockArgon2CountForTest() { return _acArgon2Count; }
+
 /**
  * Path AC: Master + Recovery
+ *   2026-11-21 (八巻さん「さかのぼり＋入れ替え検知」): パスキー (AB) と同じく、 最新がこの組で開けなければ古い版に
+ *   さかのぼって見るだけで開く (restoredFromHistory via "ac"、 保存は止まる)。 鍵を入れ替えた口座なら、 入れ替える前の版を
+ *   見るだけで開く (via "replaced")。 Argon2 は (salt, kdfParams) ごとに 1 回だけ (打ち間違いでも時間はほぼ今と同じ)。
  */
 export async function unlockWithPasswordAndRecovery(password, recoveryString, opts = {}) {
   assertRustCryptoUsable();  // Stage 2 Phase C: WASM 不在なら WebAuthn 前に止める (同期、 await なし)
@@ -3639,9 +3662,24 @@ export async function unlockWithPasswordAndRecovery(password, recoveryString, op
   let envelope = null;
   let serverHintTxid = null;
   let _acFromCandidates = false;   // GraphQL の候補から選んだ (最新とは限らない)
+  let _acStale = null;             // 2026-11-21: より新しい候補を、 打った組では開けなかった (最新でない版で開いた)
+  let _acReplaced = false;         // 2026-11-21: サーバーが「入れ替え済み」と答えた (この Recovery の目印は入れ替える前のもの)
+  // pMat (Argon2) は (salt, kdfParams) ごとに 1 回だけ作り、 版を試すたびに使い回す
+  const _pmCache = new Map();
+  _acArgon2Count = 0;
+  const _acDecrypt = async (env) => {
+    const k = String(env?.s) + "|" + JSON.stringify(env?.kdfParams ?? null);
+    if (!_pmCache.has(k)) {
+      _acArgon2Count++;
+      _pmCache.set(k, await derivePMat(password, b64uDecode(env.s), env.kdfParams));
+    }
+    return await decryptVaultAuto(env, { pMat: _pmCache.get(k), recoveryMaterial });
+  };
+  try {
   for (const t of tagList) {
     if (!t?.value) continue;
     const hint = await fetchServerVaultLatest(t.value);
+    if (hint?.replaced) { _acReplaced = true; break; }
     if (hint?.txid) {
       serverHintTxid = hint.txid;
       console.log("[unlock-AC] server hint: latest is " + hint.txid + ", fetching with retry...");
@@ -3660,8 +3698,8 @@ export async function unlockWithPasswordAndRecovery(password, recoveryString, op
   if (serverHintTxid && !envelope) {
     throw new Error("Server は最新を " + serverHintTxid + " と認識していますが、 Arweave からまだ取得できません (= bundling 中)。 少し待ってから再試行してください。");
   }
-  // server hint 無し (= legacy vault) → meta fallback
-  if (!envelope) {
+  // server hint 無し (= legacy vault) → meta fallback (入れ替え済みなら候補から選ぶ)
+  if (!envelope && !_acReplaced) {
     const metaTxId = readMeta()?.latestTxId;
     if (metaTxId) {
       try {
@@ -3684,39 +3722,88 @@ export async function unlockWithPasswordAndRecovery(password, recoveryString, op
     if (!found?.txid) throw new Error("この Recovery に対応する vault が Arweave 上に見つかりません");
     const candidates = found.candidates || [{ txid: found.txid, appName: found.appName }];
     let lastErr = null;
+    // 2026-11-21 (八巻さん「出して」): 外側の封は開けた (fetchEnvelope が通った) のに、 打った組 (マスター + Recovery) では
+    //   中身を開けなかった、 いちばん新しい候補。 これより古い候補を選んだら「最新でない版で開いた」とみなし、 AB の履歴
+    //   フォールバックと同じく restoredFromHistory を立てて保存を止める (別の端末でマスターを変えたあと、 古いマスターを
+    //   打ったとき。 外側の鍵は Recovery から作るので変わらない)。 取得できなかっただけの候補 (phantom tx・配信待ち) は
+    //   数えない (候補を試す仕組みは、 もともとそのため)。
+    let _acNewestUnopened = null;
     for (const cand of candidates) {
+      let r = null;
       try {
-        const r = await fetchEnvelope(cand.txid, _acOuterKey ?? outerKeyBytes);
-        if (!r?.envelope) continue;
-        // 試しに decrypt して factors が通るか確認
-        const test = await decryptVaultAuto(r.envelope, { password, recoveryMaterial });
-        if (test) {
-          envelope = r.envelope;
-          txid = cand.txid;
-          matchedAppName = cand.appName;
-          _acFromCandidates = true;
-          console.log("[unlock-AC] selected candidate " + cand.txid + " (height=" + cand.height + ")");
-          // decryptVaultAuto は既に走ったので結果を再利用、 後段の decryptVaultAuto 呼出を skip
-          var _rAC_cached = test;
-          break;
-        }
+        r = await fetchEnvelope(cand.txid, _acOuterKey ?? outerKeyBytes);
       } catch (e) {
         lastErr = e;
-        console.warn("[unlock-AC] candidate " + cand.txid + " 失敗、 次へ:", e?.message);
+        console.warn("[unlock-AC] candidate " + cand.txid + " を取得できない、 次へ:", e?.message);
+        continue;
       }
+      if (!r?.envelope) continue;
+      let test = null;
+      try {
+        // 試しに decrypt して factors が通るか確認
+        test = await _acDecrypt(r.envelope);
+      } catch (e) {
+        lastErr = e;
+        console.warn("[unlock-AC] candidate " + cand.txid + " はこの組で開けない、 次へ:", e?.message);
+      }
+      if (!test) {
+        if (!_acNewestUnopened) _acNewestUnopened = cand.txid;
+        continue;
+      }
+      envelope = r.envelope;
+      txid = cand.txid;
+      matchedAppName = cand.appName;
+      _acFromCandidates = true;
+      if (_acReplaced) _acStale = { restoredTxid: cand.txid, latestTxid: null, via: "replaced" };
+      else if (_acNewestUnopened) _acStale = { restoredTxid: cand.txid, latestTxid: _acNewestUnopened, via: "ac" };
+      console.log("[unlock-AC] selected candidate " + cand.txid + " (height=" + cand.height + ")" + (_acStale ? " — newer " + _acNewestUnopened + " did not open with this set" : ""));
+      // decryptVaultAuto は既に走ったので結果を再利用、 後段の decryptVaultAuto 呼出を skip
+      var _rAC_cached = test;
+      break;
     }
-    if (!envelope) throw lastErr || new Error("どの candidate でも復号できませんでした");
+    if (!envelope) throw _acReplaced ? _replacedError(lastErr) : (lastErr || new Error("どの candidate でも復号できませんでした"));
   }
-  // candidates iteration で _rAC_cached が set されていれば使用、 さもなくば decryptVaultAuto 再呼出
-  const _rAC = (typeof _rAC_cached !== "undefined" && _rAC_cached) ? _rAC_cached : await decryptVaultAuto(envelope, {
-    password, recoveryMaterial,
-  });
+  // candidates iteration で _rAC_cached が set されていれば使用、 さもなくば復号する
+  let _rAC = (typeof _rAC_cached !== "undefined" && _rAC_cached) ? _rAC_cached : null;
+  let _acWalk = null;   // 2026-11-21: 最新がこの組で開けず、 さかのぼって開いた版 { txid, envelope }
+  if (!_rAC) {
+    try {
+      _rAC = await _acDecrypt(envelope);
+    } catch (e) {
+      if (e?.code && _UNLOCK_PRESERVE_CODES.has(e.code)) throw e;
+      // 最新 (サーバーのヒントか meta) の封は開いたのに、 この組では中身を開けない: 同じ目印の履歴をさかのぼる
+      //   (別の端末でマスターを変えたあと、 古いマスターを打ったなど)。 取得できない版は飛ばす。
+      let _hist = null;
+      try { _hist = await findVaultTxHistory(matchedAppName || bootstrapTag, 10); } catch (_) { _hist = null; }
+      for (const _old of (_hist || [])) {
+        if (!_old || _old === txid) continue;
+        let _r2 = null;
+        try { _r2 = await fetchEnvelope(_old, _acOuterKey ?? outerKeyBytes); } catch (_) { continue; }
+        if (!_r2?.envelope) continue;
+        try {
+          const _d = await _acDecrypt(_r2.envelope);
+          if (_d?.vault) { _rAC = _d; _acWalk = { txid: _old, envelope: _r2.envelope }; break; }
+        } catch (_) { /* この版も開けない → さらに古い版へ */ }
+      }
+      if (!_rAC) throw e;   // どの版も開けない = 今と同じエラー (打ち間違いなど)
+      console.warn("[unlock-AC] 最新 " + txid + " はこの組で開けず、 " + _acWalk.txid + " で開いた (見るだけ)");
+    }
+  }
   const { vault, path } = _rAC;
-  writeMeta({
-    appNameTag,            // legacy 固定 (後方互換)
-    currentAppNameTag: matchedAppName,  // 現実際の latest が居る tag
-    latestTxId: txid,
-  });
+  // 見るだけの印: さかのぼった (via ac) / 候補の道で新しい版を飛ばした (via ac) / 入れ替え済み (via replaced)
+  const _acRestored = _acWalk ? { restoredTxid: _acWalk.txid, latestTxid: txid, via: "ac" } : _acStale;
+  const _openedTxid = _acWalk ? _acWalk.txid : txid;
+  const _openedEnvelope = _acWalk ? _acWalk.envelope : envelope;
+  // 入れ替え済み (古い組) で開いたときは、 この端末の meta を古い目印で上書きしない (この端末が新しい組の meta を
+  //   持っていたら、 次のパスキーの解錠が古い目印を見てしまう)。 初めての端末なら meta を作らない。
+  if (!(_acRestored && _acRestored.via === "replaced")) {
+    writeMeta({
+      appNameTag,            // legacy 固定 (後方互換)
+      currentAppNameTag: matchedAppName,  // 現実際の latest が居る tag
+      // さかのぼったときも、 meta は本当の最新を指したまま (次も最新から試す)
+      latestTxId: (_acRestored && _acRestored.via === "ac" && _acRestored.latestTxid) ? _acRestored.latestTxid : txid,
+    });
+  }
   await openSession({
     vault, mekKey: _rAC?.mekKey,  // Phase 7.3-A.3
     mekHkdfKey: _rAC?.mekHkdfKey ?? null,  // Phase 7.3-A.7b
@@ -3726,8 +3813,9 @@ export async function unlockWithPasswordAndRecovery(password, recoveryString, op
     recoveryMaterial,
     recoverySecret: recoveryString,  // Phase 7.0w-AP: 文字列も session に保持
     credIdHash: null, credentialId: null,
-    latestTxId: txid,
-    lastEnvelope: envelope,
+    latestTxId: _openedTxid,
+    lastEnvelope: _openedEnvelope,
+    restoredFromHistory: _acRestored,   // 2026-11-21: 最新でない版・入れ替える前の版で開いたら保存を止める
     k2Handle: _rAC?.k2Handle ?? null,
     signingKey: _rAC?.signingKey ?? null,
     empPrivKey: _rAC?.empPrivKey ?? null,
@@ -3735,8 +3823,11 @@ export async function unlockWithPasswordAndRecovery(password, recoveryString, op
     k1Version: _rAC?.k1Version ?? null,
   });
   // マスターの写し: サーバが最新と言う版 (か、 この端末が最後に見た版) をマスター + Recovery で開けたとき
-  if ((path === "AC" || path === "AB") && !_acFromCandidates) await _masterCopyAfterTyped(password, opts.masterLang);
+  if ((path === "AC" || path === "AB") && !_acFromCandidates && !_acRestored) await _masterCopyAfterTyped(password, opts.masterLang);
   return { vault, latestTxId: txid, path };
+  } finally {
+    for (const _pm of _pmCache.values()) { try { _pm?.fill?.(0); } catch (_) {} }
+  }
 }
 
 /**
@@ -3916,7 +4007,8 @@ export async function unlockWithPasskeyAndRecovery(recoveryString, options = {})
 // 注: unlock 前は signingState がないので、localStorage hint と GraphQL のみ。
 // ---------------------------------------------------------------------------
 
-async function resolveLatestTxIdForUnlock(meta) {
+async function _resolveLatestForUnlock(meta) {
+  let replaced = false;   // 2026-11-21: サーバーが「入れ替え済み」と答えた (鍵を入れ替えた口座)
   // Phase 7.2-B (α): server vlatest を最優先 (= 楽観的ロックと同じ source、 multi-device 安全)
   //   v2.6 hotfix: currentAppNameTag (= tier 派生) と appNameTag (= legacy null tier)
   //   の **両方** を順に試行する。 旧コードは currentAppNameTag が存在すれば appNameTag を
@@ -3930,13 +4022,15 @@ async function resolveLatestTxIdForUnlock(meta) {
   if (meta?.publicKeyHash) {
     try {
       const slots = await fetchServerVaultSlots(meta.publicKeyHash);
-      if (slots) {
+      if (slots?.replaced) {
+        replaced = true;
+      } else if (slots) {
         const pick = (slots.priority && slots[slots.priority])
           ? slots[slots.priority]
           : (slots.corp || slots.paid || slots.free || null);
         if (pick?.txid) {
           console.log("[resolveLatest-PK] using pk-slot (= " + pick.txid + ", pk=" + meta.publicKeyHash + ")");
-          return pick.txid;
+          return { txid: pick.txid, replaced: false };
         }
       }
     } catch (e) {
@@ -3950,25 +4044,48 @@ async function resolveLatestTxIdForUnlock(meta) {
   if (meta?.appNameTag?.value && meta.appNameTag.value !== meta?.currentAppNameTag?.value) {
     tagValues.push(meta.appNameTag.value);
   }
-  for (const tagValue of tagValues) {
+  for (const tagValue of (replaced ? [] : tagValues)) {
     try {
       const hint = await fetchServerVaultLatest(tagValue);
+      if (hint?.replaced) { replaced = true; break; }
       if (hint?.txid) {
         console.log("[resolveLatest-AB] using server vlatest (= " + hint.txid + ", app=" + tagValue + ")");
-        return hint.txid;
+        return { txid: hint.txid, replaced: false };
       }
     } catch (e) {
       console.warn("[resolveLatest-AB] server vlatest fetch failed for app=" + tagValue + ":", e?.message);
     }
   }
+  // 入れ替え済み: この組の目印 (古い目印) の最新 = 入れ替える前の最後の版。 GraphQL を先に (meta は古いことがある)
+  if (replaced) {
+    let t = null;
+    try { if (meta?.currentAppNameTag) t = await findLatestVaultTx(meta.currentAppNameTag); } catch (_) {}
+    try { if (!t && meta?.appNameTag) t = await findLatestVaultTx(meta.appNameTag); } catch (_) {}
+    return { txid: t || meta?.latestTxId || null, replaced: true };
+  }
   // server hint 無し → meta fallback (= legacy or offline) → GraphQL
-  if (meta?.latestTxId) return meta.latestTxId;
+  if (meta?.latestTxId) return { txid: meta.latestTxId, replaced: false };
   if (meta?.currentAppNameTag) {
     const t = await findLatestVaultTx(meta.currentAppNameTag);
-    if (t) return t;
+    if (t) return { txid: t, replaced: false };
   }
-  if (meta?.appNameTag) return await findLatestVaultTx(meta.appNameTag);
-  return null;
+  if (meta?.appNameTag) return { txid: await findLatestVaultTx(meta.appNameTag), replaced: false };
+  return { txid: null, replaced: false };
+}
+
+// 2026-11-21: 入れ替え済みのドライブを、 その組では開けない (入れ替える前の版も開けない)
+function _replacedError(orig) {
+  const e = new Error("vault_replaced: this drive's keys were replaced; this set cannot open it");
+  e.code = "vault_replaced";
+  if (orig) e.original = orig;
+  return e;
+}
+
+// 入れ替え済みを扱わない呼び出し元 (素早い解錠・YubiKey 専用) 用: 入れ替え済みなら vault_replaced で止める
+async function resolveLatestTxIdForUnlock(meta) {
+  const r = await _resolveLatestForUnlock(meta);
+  if (r.replaced) throw _replacedError();
+  return r.txid;
 }
 
 // ---------------------------------------------------------------------------
@@ -4488,7 +4605,7 @@ export async function reissueRecovery_caseA(password) {
   }
   // 2026-11-13: 書き込めないなら、 パスキーを求める前に止める (epoch を上げない)
   await _assertCanWriteOrThrow();
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0972c87e");
   const newRecovery = generateRecoverySecret();
   const newRMat = deriveRMat(newRecovery);
   const credIdHint = readMeta()?.credentialId ? b64uDecode(readMeta().credentialId) : null;
@@ -4898,7 +5015,7 @@ export async function reissueRecovery_caseB(password, opts = {}) {
     }
   }
   const _archAgreed = new Set(_archCheck.unreadable.map((a) => a.id + "|" + a.kind));
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0972c87e");
   const newRecovery = generateRecoverySecret();
   const newRMat = deriveRMat(newRecovery);
   const credIdHint = readMeta()?.credentialId ? b64uDecode(readMeta().credentialId) : null;
@@ -5056,7 +5173,7 @@ async function _finishCaseB(result, writeResult, newRMat, newRecovery) {
 
 /** 「全部入れ替える」の新しい Recovery (画面が先に見せて保存してもらう)。 まだどこにも書かない。 */
 export async function newReplacementRecovery() {
-  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0bb9480a");
+  const { generateRecoverySecret } = await import("./vault-crypto.js?v=0972c87e");
   return generateRecoverySecret();
 }
 
@@ -6962,7 +7079,7 @@ export async function currentSigningPrivateKeyRaw() {
     console.warn("[currentSigningPrivateKeyRaw] session に HKDF base key が無い");
     return null;
   }
-  const { deriveSigningKeyFromHkdf } = await import("./vault-crypto.js?v=0bb9480a");
+  const { deriveSigningKeyFromHkdf } = await import("./vault-crypto.js?v=0972c87e");
   const sk = await deriveSigningKeyFromHkdf(hkdfBase);
   return sk.privateKeyRaw;  // 32-byte big-endian scalar
 }
@@ -7578,7 +7695,7 @@ import {
   unwrapTotpWithMekHandle,
   countBusinessSecretsNeedingK1Migration,
   rewrapBusinessSecretsToCurrentK1,
-} from "./vault-crypto.js?v=0bb9480a";
+} from "./vault-crypto.js?v=0972c87e";
 
 /**
  * 登録時: Base32 の秘密キーを TotpKey にして、現行の vault 鍵で包む。

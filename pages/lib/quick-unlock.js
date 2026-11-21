@@ -21,7 +21,7 @@
 //   そのときも同じく web/ のコミットを足す。
 // ============================================================================
 
-import { signedFetch } from "./client-auth.js?v=1d6bcdd2";
+import { signedFetch } from "./client-auth.js?v=74b1659d";
 import { getActiveProfileId } from "./profiles.js?v=7762257b";
 
 const QU_STORAGE_PREFIX = "arpass_qu_v1__";
