@@ -531,6 +531,26 @@ if (!entry) return 404;  // not registered
 検査: scripts/test-replace-all.mjs (K)、scripts/test-master-copy.mjs (H)
 ```
 
+2026-11-21 (八巻さん「作って欲しい」): 端末に複数のドライブの記録 (profile) があるとき
+
+```
+- パスキー + Recovery (unlockWithPasskeyAndRecovery): 記録のパスキー 1 つに絞って求めるのは、記録の credIdHash が
+  取ってきた版の w.c にあるときだけ。無ければ最初から選ぶ画面 (allowCredentials 0)。記録のパスキーで断られたら
+  (NotAllowedError など。返事が無い passkey_no_response は前の求めが残るので除く) 1 回だけ選ぶ画面で求め直す。
+  選んだパスキーが w.c に無ければ、復号を試さずに bc_passkey_not_in_drive。画面はもう一度選ばせ (最大 6 回)、
+  やめたらマスター + Recovery の道を案内する (解錠の画面と復元の画面の Deep Recovery の両方)。
+- 開いたドライブが選ばれている記録と違うとき (_routeUnlockToDriveProfile、BC・AC・YubiKey): 同じ印を持つ記録が
+  ほかにあればそちらへ、無ければ新しい記録を作って切り替えてから meta を書く。選ばれている記録の meta は触らない。
+  「別の Passkey で開錠する」(AB の選ぶ画面) は、選んだパスキーの user.id の目印を持つ記録がほかにあるときだけ、
+  その記録で開いて切り替える (どの記録にも無ければ今までどおり開けずに止まる)。
+- 印 (profiles.js metaMatchesDrive、どれか 1 つが同じなら同じドライブ): appNameTag.value (Recovery 由来、tier なし)・
+  publicKeyHash (MEK 由来)・driveCreatedAt (本体の vault.createdAt。openSession が meta に残す。鍵を入れ替えても変わらない)。
+  印の無い meta (空・前の版の印の足りないもの) は見分けられないので、今までどおりそこへ書く。
+- 素早い解錠 (arpass_qu_v1__<profileId>)・封筒の写し・端末の一覧は、切り替えたあとの記録のものを使う
+  (書くのは切り替えたあと)。全部入れ替える・Case A / B・マスターの変更は開いているセッションの中の操作なので切り替えない。
+検査: scripts/test-replace-all.mjs (P)
+```
+
 ### 8.3 Recovery 再発行 — ケース A (MEK 据え置き)
 
 「紙を紛失したが盗まれた可能性は低い」場合。
